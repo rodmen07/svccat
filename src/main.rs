@@ -3,9 +3,9 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, ReportFormat};
+use svccat::cli::{Cli, Commands, AuditFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, ReportFormat};
 use svccat::{
-    config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output, ping,
+    audit, config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output, ping,
     report, serve, since, stats, watch,
 };
 
@@ -198,6 +198,7 @@ fn run() -> Result<i32> {
                     }
                     OutputFormat::Csv => output::csv::render_check(&report),
                     OutputFormat::Slack => output::slack::render_check(&report)?,
+                    OutputFormat::Teams => output::teams::render_check(&report)?,
                 }
             }
 
@@ -221,6 +222,7 @@ fn run() -> Result<i32> {
                 GraphFormat::Mermaid => output::mermaid::render_graph_filtered(&m, team.as_deref()),
                 GraphFormat::Markdown => output::mermaid::render_markdown_table(&m),
                 GraphFormat::Dot => output::mermaid::render_dot(&m, team.as_deref()),
+                GraphFormat::Plantuml => output::mermaid::render_plantuml(&m, team.as_deref()),
             }
             Ok(0)
         }
@@ -230,9 +232,10 @@ fn run() -> Result<i32> {
             format,
             ignore: cli_ignore,
             depth,
+            since: since_ref,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
-            let m = manifest::Manifest::load(&path)?;
+            let mut m = manifest::Manifest::load(&path)?;
 
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
@@ -240,6 +243,25 @@ fn run() -> Result<i32> {
             let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
+
+            // Filter to services that changed since the given git ref
+            if let Some(ref git_ref) = since_ref {
+                if let Ok(old_m) = since::load_at_ref(&root, &path, git_ref) {
+                    let old_map: std::collections::HashMap<String, &manifest::ServiceEntry> =
+                        old_m.services.iter().map(|s| (s.name.clone(), s)).collect();
+                    m.services.retain(|svc| {
+                        if let Some(old_svc) = old_map.get(&svc.name) {
+                            svc != *old_svc
+                        } else {
+                            true // new service
+                        }
+                    });
+                    // Rebuild report with the filtered manifest
+                    let discovered2 = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
+                    report = drift::analyze(&m, &discovered2, &root);
+                    report.manifest = path.display().to_string();
+                }
+            }
 
             match format {
                 ExportFormat::Json => output::json::render_export(&m, &report)?,
@@ -255,9 +277,12 @@ fn run() -> Result<i32> {
             Ok(0)
         }
 
-        Commands::Diff { before, after } => {
+        Commands::Diff { before, after, format } => {
             let report = diff::diff_snapshots(&before, &after)?;
-            diff::render_diff(&report);
+            match format {
+                DiffFormat::Terminal => diff::render_diff(&report),
+                DiffFormat::Markdown => diff::render_diff_markdown(&report),
+            }
             Ok(0)
         }
 
@@ -268,12 +293,13 @@ fn run() -> Result<i32> {
             ignore: cli_ignore,
             depth,
             since: watch_since,
+            notify,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref())?;
+            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref(), notify)?;
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
             if should_fail && initial_errors > 0 {
@@ -374,6 +400,29 @@ fn run() -> Result<i32> {
             };
             hooks::install(&root, hook_name, fail_on_drift)?;
             Ok(0)
+        }
+
+        Commands::Audit {
+            manifest: manifest_path,
+            format,
+            ping: do_ping,
+            ignore: cli_ignore,
+            depth,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+            let (result, lint_result, drift_report, ping_results) =
+                audit::run(&path, &root, &ignore, depth, do_ping)?;
+            match format {
+                AuditFormat::Terminal => audit::render_terminal(&result, &lint_result, &drift_report, &ping_results),
+                AuditFormat::Json => audit::render_json(&result)?,
+            }
+            if result.passed {
+                Ok(0)
+            } else {
+                Ok(1)
+            }
         }
 
         Commands::Stats {

@@ -111,7 +111,7 @@ pub fn default_markers_pub() -> Vec<String> {
 // ── Service entry ─────────────────────────────────────────────────────────────
 
 /// One entry in the `services:` list.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ServiceEntry {
     pub name: String,
 

@@ -7,6 +7,36 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.15.0] - 2026-05-18
+
+### Added
+
+- **`svccat audit`** - Unified health check that runs lint + drift + optional URL ping in
+  one pass and emits a scored report (0-100). Scoring: -10 per drift error, -3 per drift
+  warning, -5 per lint error, -2 per lint warning, -5 per ping failure. Exits with code 1
+  when any errors are present. Use `--format json` for machine-readable output.
+
+- **`--format teams`** for `svccat check` - Emit a Microsoft Teams Adaptive Card JSON
+  payload suitable for posting to a channel via an incoming webhook. The card includes a
+  per-service drift summary table with colour-coded status indicators.
+
+- **`--format markdown`** for `svccat diff` - Render the snapshot diff as GitHub-flavoured
+  Markdown tables, suitable for pasting into PR comments or documentation.
+
+- **`--notify`** for `svccat watch` - Send a native OS desktop notification whenever the
+  drift count changes. Uses PowerShell on Windows, `osascript` on macOS, and `notify-send`
+  on Linux. No additional dependencies required.
+
+- **`--since <GIT_REF>`** for `svccat export` - Filter the export to only services that are
+  new or have changed fields since the given git ref. Loads the historical manifest from git
+  history and performs a field-level comparison, retaining only changed/added entries.
+
+- **`--format plantuml`** for `svccat graph` - Emit a PlantUML component diagram. Services
+  are grouped into `package` blocks by platform, with `..>` arrows for `depends_on`
+  relationships. Paste the output at plantuml.com or pipe to `plantuml -pipe`.
+
+---
+
 ## [0.14.0] - 2026-05-17
 
 ### Added

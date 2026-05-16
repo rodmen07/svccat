@@ -164,6 +164,82 @@ pub fn diff_snapshots(before_path: &Path, after_path: &Path) -> Result<DiffRepor
     })
 }
 
+/// Render a diff report as a Markdown document.
+pub fn render_diff_markdown(report: &DiffReport) {
+    use std::fmt::Write;
+    let mut out = String::new();
+
+    writeln!(out, "# svccat diff").unwrap();
+    writeln!(out).unwrap();
+    writeln!(out, "| | Path |").unwrap();
+    writeln!(out, "|-|------|").unwrap();
+    writeln!(out, "| Before | `{}` |", report.before_path).unwrap();
+    writeln!(out, "| After  | `{}` |", report.after_path).unwrap();
+
+    if report.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "> No changes detected.").unwrap();
+        print!("{out}");
+        return;
+    }
+
+    if !report.added.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "## Services Added ({})", report.added.len()).unwrap();
+        writeln!(out).unwrap();
+        for name in &report.added {
+            writeln!(out, "- `{name}`").unwrap();
+        }
+    }
+
+    if !report.removed.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "## Services Removed ({})", report.removed.len()).unwrap();
+        writeln!(out).unwrap();
+        for name in &report.removed {
+            writeln!(out, "- `{name}`").unwrap();
+        }
+    }
+
+    if !report.changed.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "## Services Changed ({})", report.changed.len()).unwrap();
+        writeln!(out).unwrap();
+        writeln!(out, "| Service | Field | Before | After |").unwrap();
+        writeln!(out, "|---------|-------|--------|-------|").unwrap();
+        for svc in &report.changed {
+            for fc in &svc.changes {
+                writeln!(
+                    out,
+                    "| `{}` | `{}` | {} | {} |",
+                    svc.name, fc.field, fc.before, fc.after
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    if !report.new_drift.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "## New Drift ({})", report.new_drift.len()).unwrap();
+        writeln!(out).unwrap();
+        for msg in &report.new_drift {
+            writeln!(out, "- {msg}").unwrap();
+        }
+    }
+
+    if !report.resolved_drift.is_empty() {
+        writeln!(out).unwrap();
+        writeln!(out, "## Resolved Drift ({})", report.resolved_drift.len()).unwrap();
+        writeln!(out).unwrap();
+        for msg in &report.resolved_drift {
+            writeln!(out, "- {msg}").unwrap();
+        }
+    }
+
+    print!("{out}");
+}
+
 /// Render a diff report to the terminal.
 pub fn render_diff(report: &DiffReport) {
     println!(

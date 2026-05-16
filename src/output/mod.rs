@@ -6,4 +6,5 @@ pub mod markdown;
 pub mod mermaid;
 pub mod sarif;
 pub mod slack;
+pub mod teams;
 pub mod terminal;

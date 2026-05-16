@@ -86,8 +86,16 @@ svccat stats                             # field-coverage summary with ASCII bar
 svccat serve                             # live HTML report at http://localhost:7777
 svccat serve --port 9000 --refresh 10    # custom port + auto-refresh every 10 s
 svccat graph --format dot                # Graphviz DOT output (pipe to dot -Tsvg)
+svccat graph --format plantuml           # PlantUML component diagram
 svccat import --from openapi             # seed services.yaml from OpenAPI / Swagger specs
 svccat check --format slack              # Slack Block Kit JSON for posting to a channel
+svccat check --format teams              # Microsoft Teams Adaptive Card JSON
+svccat diff before.json after.json --format markdown  # diff as Markdown tables for PR comments
+svccat watch --notify                    # desktop notification when drift count changes
+svccat export --format json --since HEAD~1  # only export services changed since last commit
+svccat audit                             # lint + drift + score in one pass
+svccat audit --ping                      # include URL reachability in the score
+svccat audit --format json               # machine-readable JSON result
 svccat completions bash                  # print bash completion script
 ```
 

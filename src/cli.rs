@@ -110,6 +110,12 @@ pub enum Commands {
         /// Maximum directory depth to scan for services (default: 1)
         #[arg(long, value_name = "N", default_value_t = 1)]
         depth: u32,
+
+        /// Only export services that changed since this git ref (new or modified fields)
+        ///
+        /// Example: --since HEAD~1   or   --since main
+        #[arg(long, value_name = "GIT_REF")]
+        since: Option<String>,
     },
 
     /// Scaffold a services.yaml by auto-discovering services in the repo
@@ -132,6 +138,10 @@ pub enum Commands {
 
         /// Path to the newer snapshot (JSON)
         after: std::path::PathBuf,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = DiffFormat::Terminal)]
+        format: DiffFormat,
     },
 
     /// Watch the manifest and service directories for changes and re-run drift checks
@@ -165,6 +175,10 @@ pub enum Commands {
         /// Example: --since HEAD~1   or   --since main
         #[arg(long, value_name = "GIT_REF")]
         since: Option<String>,
+
+        /// Send a native OS desktop notification when the drift count changes
+        #[arg(long)]
+        notify: bool,
     },
 
     /// Generate a full ownership and drift report
@@ -274,6 +288,33 @@ pub enum Commands {
         fail_on_drift: bool,
     },
 
+    /// Run a full audit: lint + drift + optional URL ping, with a health score
+    ///
+    /// Combines `svccat lint`, `svccat check`, and optionally `svccat check --ping`
+    /// into a single pass, emitting a scored summary.  Exits with code 1 when
+    /// drift errors or lint errors are present.
+    Audit {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Ping each service URL and include reachability in the score
+        #[arg(long)]
+        ping: bool,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = AuditFormat::Terminal)]
+        format: AuditFormat,
+    },
+
     /// Show field-coverage statistics for the service manifest
     ///
     /// Displays how many services have each metadata field set, with a
@@ -328,6 +369,8 @@ pub enum OutputFormat {
     Csv,
     /// Slack Block Kit JSON payload for posting to a channel or webhook
     Slack,
+    /// Microsoft Teams Adaptive Card JSON payload
+    Teams,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -336,6 +379,8 @@ pub enum GraphFormat {
     Markdown,
     /// Graphviz DOT digraph (pipe to `dot -Tsvg` to render)
     Dot,
+    /// PlantUML component diagram (paste at plantuml.com or pipe to plantuml)
+    Plantuml,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -368,4 +413,20 @@ pub enum HookKind {
     PreCommit,
     /// Run before git push (pre-push hook)
     PrePush,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum DiffFormat {
+    /// Coloured terminal output (default)
+    Terminal,
+    /// GitHub-flavoured Markdown table
+    Markdown,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum AuditFormat {
+    /// Coloured terminal output with bar chart (default)
+    Terminal,
+    /// Machine-readable JSON object
+    Json,
 }

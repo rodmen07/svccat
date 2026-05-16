@@ -15,6 +15,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// When `since` is `Some(git_ref)`, each check is compared against the
 /// manifest at that git ref so only new drift is displayed.
 ///
+/// When `notify` is true, fires a native OS desktop notification whenever
+/// the drift count changes.
+///
 /// Returns the initial drift error count so callers can honour `--fail-on-drift`
 /// on the *first* run.
 pub fn run(
@@ -24,6 +27,7 @@ pub fn run(
     team: Option<&str>,
     depth: u32,
     since: Option<&str>,
+    notify: bool,
 ) -> Result<usize> {
     let manifest_path = manifest_path.to_path_buf();
     let root = root.to_path_buf();
@@ -59,6 +63,7 @@ pub fn run(
 
     let debounce = Duration::from_millis(500);
     let mut last_trigger = Instant::now() - debounce * 2;
+    let mut prev_errors = initial_errors;
 
     for res in rx {
         match res {
@@ -82,7 +87,17 @@ pub fn run(
                     }
                 }
 
-                run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
+                let new_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
+
+                if notify && new_errors != prev_errors {
+                    let body = if new_errors == 0 {
+                        "Drift cleared - all services are in sync.".to_string()
+                    } else {
+                        format!("{new_errors} drift error{} detected.", plural(new_errors))
+                    };
+                    send_os_notification(&body);
+                }
+                prev_errors = new_errors;
             }
             Err(e) => eprintln!("{} watcher error: {e}", "!".red()),
         }
@@ -167,4 +182,44 @@ fn timestamp() -> String {
         .as_secs();
     let (h, m, s) = (secs % 86400 / 3600, secs % 3600 / 60, secs % 60);
     format!("{h:02}:{m:02}:{s:02} UTC")
+}
+
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+/// Fire a native desktop notification using platform-specific tooling.
+///
+/// Best-effort: any error launching the notification process is silently ignored.
+fn send_os_notification(body: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        // Use PowerShell to show a Windows balloon notification via NotifyIcon.
+        let script = format!(
+            "Add-Type -AssemblyName System.Windows.Forms; \
+             $n = New-Object System.Windows.Forms.NotifyIcon; \
+             $n.Icon = [System.Drawing.SystemIcons]::Information; \
+             $n.Visible = $true; \
+             $n.ShowBalloonTip(5000, 'svccat', '{}', \
+               [System.Windows.Forms.ToolTipIcon]::None); \
+             Start-Sleep 6; $n.Dispose()",
+            body.replace('\'', "''")
+        );
+        let _ = std::process::Command::new("powershell")
+            .args(["-WindowStyle", "Hidden", "-NonInteractive", "-Command", &script])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!("display notification {:?} with title \"svccat\"", body);
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("notify-send")
+            .args(["svccat", body])
+            .spawn();
+    }
 }
