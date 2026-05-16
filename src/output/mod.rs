@@ -1,3 +1,4 @@
+pub mod csv;
 pub mod github_annotation;
 pub mod json;
 pub mod junit;

@@ -185,6 +185,169 @@ pub fn run_backstage(root: &Path, output_path: PathBuf, force: bool) -> Result<(
     Ok(())
 }
 
+// ── Docker Compose types ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct DockerComposeFile {
+    services: std::collections::HashMap<String, DockerComposeService>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct DockerComposeService {
+    build: Option<DockerBuild>,
+    #[allow(dead_code)]
+    image: Option<String>,
+    #[serde(default)]
+    depends_on: serde_yaml::Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum DockerBuild {
+    Simple(String),
+    Extended { context: String },
+}
+
+impl DockerBuild {
+    fn context_path(&self) -> &str {
+        match self {
+            Self::Simple(s) => s.as_str(),
+            Self::Extended { context } => context.as_str(),
+        }
+    }
+}
+
+fn parse_compose_depends_on(val: &serde_yaml::Value) -> Vec<String> {
+    match val {
+        serde_yaml::Value::Sequence(seq) => seq
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect(),
+        serde_yaml::Value::Mapping(map) => map
+            .iter()
+            .filter_map(|(k, _)| k.as_str().map(str::to_owned))
+            .collect(),
+        _ => vec![],
+    }
+}
+
+// ── Docker Compose public API ─────────────────────────────────────────────────
+
+/// Parse all services from a `docker-compose.yml` / `compose.yaml` file found
+/// in `root` and return them as `ServiceEntry` values.
+pub fn import_docker_compose(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
+    let compose_path = find_compose_file(root)
+        .ok_or_else(|| anyhow::anyhow!(
+            "no docker-compose.yml / compose.yaml found in {}",
+            root.display()
+        ))?;
+
+    let text = std::fs::read_to_string(&compose_path)
+        .with_context(|| format!("cannot read {}", compose_path.display()))?;
+
+    let compose: DockerComposeFile = serde_yaml::from_str(&text)
+        .with_context(|| format!("cannot parse {}", compose_path.display()))?;
+
+    let source = compose_path.display().to_string();
+    let mut entries: Vec<(ServiceEntry, String)> = Vec::new();
+
+    let mut names: Vec<&String> = compose.services.keys().collect();
+    names.sort();
+
+    for name in names {
+        let svc = &compose.services[name];
+
+        let path = svc.build.as_ref().map(|b| {
+            // Normalise "./" prefix and backslashes.
+            b.context_path()
+                .trim_start_matches("./")
+                .replace('\\', "/")
+        });
+
+        let depends_on = parse_compose_depends_on(&svc.depends_on);
+
+        entries.push((
+            ServiceEntry {
+                name: name.clone(),
+                path,
+                language: None,
+                platform: None,
+                url: None,
+                role: None,
+                team: None,
+                oncall: None,
+                submodule: None,
+                docs: None,
+                ci: None,
+                depends_on,
+            },
+            source.clone(),
+        ));
+    }
+
+    Ok(entries)
+}
+
+/// Merge docker-compose services into an existing or new manifest.
+pub fn run_docker_compose(root: &Path, output_path: PathBuf, force: bool) -> Result<()> {
+    let imported = import_docker_compose(root)?;
+
+    if imported.is_empty() {
+        println!("No services found in the compose file.");
+        return Ok(());
+    }
+
+    let mut manifest = if output_path.exists() && !force {
+        Manifest::load(&output_path)?
+    } else {
+        Manifest {
+            version: "1".to_string(),
+            discovery: DiscoveryConfig {
+                paths: DEFAULT_DISCOVERY_PATHS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                markers: crate::manifest::default_markers_pub(),
+                ignore: vec![],
+            },
+            policy: Default::default(),
+            services: vec![],
+        }
+    };
+
+    let existing_names: std::collections::HashSet<String> =
+        manifest.services.iter().map(|s| s.name.clone()).collect();
+
+    let mut added = 0usize;
+    let mut skipped = 0usize;
+
+    for (svc, source) in &imported {
+        if existing_names.contains(&svc.name) {
+            eprintln!("  skip  '{}' already in manifest  (from {})", svc.name, source);
+            skipped += 1;
+        } else {
+            eprintln!("  add   '{}'  (from {})", svc.name, source);
+            manifest.services.push(svc.clone());
+            added += 1;
+        }
+    }
+
+    let yaml = serde_yaml::to_string(&manifest)
+        .context("failed to serialise manifest to YAML")?;
+    std::fs::write(&output_path, &yaml)
+        .with_context(|| format!("cannot write {}", output_path.display()))?;
+
+    println!();
+    println!(
+        "Wrote {} — added {}, skipped {} (already declared).",
+        output_path.display(),
+        added,
+        skipped
+    );
+    println!("Run `svccat check` to verify there is no drift.");
+    Ok(())
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn find_catalog_files(root: &Path) -> Vec<PathBuf> {
@@ -194,4 +357,19 @@ fn find_catalog_files(root: &Path) -> Vec<PathBuf> {
         .flatten()
         .flatten()
         .collect()
+}
+
+fn find_compose_file(root: &Path) -> Option<PathBuf> {
+    for name in &[
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+    ] {
+        let p = root.join(name);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
 }

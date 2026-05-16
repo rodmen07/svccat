@@ -172,12 +172,32 @@ pub fn run(manifest: &Manifest) -> LintResult {
                         severity: LintSeverity::Warning,
                         message: format!(
                             "'{}' (platform: {}) depends on '{}' (platform: {}) \
-                             — cross-platform dependency",
+                             - cross-platform dependency",
                             svc.name, svc_platform, dep, dep_platform
                         ),
                     });
                 }
             }
+        }
+    }
+
+    // 9. Services with no team owner.
+    for svc in &manifest.services {
+        if svc.team.as_deref().map(str::is_empty).unwrap_or(true) {
+            issues.push(LintIssue {
+                severity: LintSeverity::Warning,
+                message: format!("'{}' has no team owner (add a `team:` field)", svc.name),
+            });
+        }
+    }
+
+    // 10. Services with no docs reference.
+    for svc in &manifest.services {
+        if svc.docs.as_deref().map(str::is_empty).unwrap_or(true) {
+            issues.push(LintIssue {
+                severity: LintSeverity::Warning,
+                message: format!("'{}' has no docs path (add a `docs:` field)", svc.name),
+            });
         }
     }
 

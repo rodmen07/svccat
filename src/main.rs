@@ -3,10 +3,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, ImportSource, OutputFormat, ReportFormat};
+use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, ReportFormat};
 use svccat::{
-    config, diff, discovery, drift, import, init, lint, manifest, output, ping, report, since,
-    watch,
+    config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output, ping,
+    report, since, watch,
 };
 
 fn main() {
@@ -37,6 +37,7 @@ fn run() -> Result<i32> {
             since,
             fail_on_new_drift,
             depth,
+            baseline,
         } => {
             // When running inside GitHub Actions and no explicit format was chosen,
             // default to github-annotation so drift items appear as inline PR comments.
@@ -84,6 +85,34 @@ fn run() -> Result<i32> {
 
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
+
+            // --baseline: filter drift to only items absent from the saved baseline snapshot.
+            if let Some(ref baseline_path) = baseline {
+                use std::collections::HashSet;
+
+                #[derive(serde::Deserialize)]
+                struct BaselineFile {
+                    drift: Vec<drift::DriftItem>,
+                }
+
+                let text = std::fs::read_to_string(baseline_path)
+                    .map_err(|e| anyhow::anyhow!("cannot read baseline {}: {e}", baseline_path.display()))?;
+                let snap: BaselineFile = serde_json::from_str(&text)
+                    .map_err(|e| anyhow::anyhow!("cannot parse baseline JSON: {e}"))?;
+
+                let baseline_keys: HashSet<String> = snap.drift.iter()
+                    .map(|d| format!("{:?}|{}|{}", d.kind, d.service, d.detail.as_deref().unwrap_or("")))
+                    .collect();
+
+                report.drifts.retain(|d| {
+                    !baseline_keys.contains(&format!(
+                        "{:?}|{}|{}",
+                        d.kind,
+                        d.service,
+                        d.detail.as_deref().unwrap_or("")
+                    ))
+                });
+            }
 
             let ping_results = if do_ping {
                 ping::ping_services(&m)
@@ -167,6 +196,7 @@ fn run() -> Result<i32> {
                     OutputFormat::GithubAnnotation => {
                         output::github_annotation::render_check(&report);
                     }
+                    OutputFormat::Csv => output::csv::render_check(&report),
                 }
             }
 
@@ -212,6 +242,7 @@ fn run() -> Result<i32> {
             match format {
                 ExportFormat::Json => output::json::render_export(&m, &report)?,
                 ExportFormat::Markdown => output::mermaid::render_export_markdown(&m, &report),
+                ExportFormat::Csv => output::csv::render_export(&m),
             }
             Ok(0)
         }
@@ -313,7 +344,31 @@ fn run() -> Result<i32> {
             let out = output_path.unwrap_or_else(|| root.join("services.yaml"));
             match from {
                 ImportSource::Backstage => import::run_backstage(&root, out, force)?,
+                ImportSource::DockerCompose => import::run_docker_compose(&root, out, force)?,
             }
+            Ok(0)
+        }
+
+        Commands::Fix {
+            manifest: manifest_path,
+            prune,
+            dry_run,
+            ignore: cli_ignore,
+            depth,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+            fix::run(&path, &root, &ignore, depth, prune, dry_run)?;
+            Ok(0)
+        }
+
+        Commands::InstallHooks { hook, fail_on_drift } => {
+            let hook_name = match hook {
+                HookKind::PreCommit => "pre-commit",
+                HookKind::PrePush => "pre-push",
+            };
+            hooks::install(&root, hook_name, fail_on_drift)?;
             Ok(0)
         }
 

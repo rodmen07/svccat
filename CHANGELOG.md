@@ -7,6 +7,43 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.13.0] - 2026-05-16
+
+### Added
+
+- **`svccat fix`** - Auto-remediate simple drift. Adds `UndeclaredInRepo` services to the
+  manifest with inferred language; use `--prune` to also remove `DeclaredMissingFromRepo`
+  entries. Use `--dry-run` to preview changes without writing.
+
+- **`svccat import --from docker-compose`** - Parse `docker-compose.yml` / `compose.yaml` at
+  the repo root and generate service entries from each declared service. Handles both string
+  and extended (`context:`) build paths, and maps `depends_on` (list or map form) to the
+  manifest's `depends_on` field.
+
+- **`svccat check --baseline <file>`** - Filter drift to only items absent from a saved
+  baseline snapshot (JSON from `svccat export --format json`). Combine with `--fail-on-drift`
+  to gate CI on regressions only - pre-existing drift is silently ignored.
+
+- **`svccat install-hooks`** - Write a `.git/hooks/pre-commit` (or `--hook pre-push`) shell
+  script that runs `svccat check --fail-on-drift` on every commit or push. On Unix the hook
+  file is made executable automatically.
+
+- **`--format csv`** for `svccat check` - Outputs drift items as RFC 4180 CSV
+  (`service, severity, kind, message, detail`). Pipe into spreadsheets or ticket scripts.
+
+- **`--format csv`** for `svccat export` - Outputs the service catalog as CSV
+  (`name, language, platform, role, url, team, oncall`).
+
+- **Two new `svccat lint` validators:**
+  - Services with no `team` owner - warns when a service has no `team:` field.
+  - Services with no `docs` reference - warns when a service has no `docs:` field.
+
+- **Cleaner manifest serialization** - `svccat fix` (and any other command that rewrites the
+  manifest) now omits `null` optional fields from the YAML output, producing much cleaner
+  entries for newly added services.
+
+---
+
 ## [0.12.0] - 2026-05-16
 
 ### Added

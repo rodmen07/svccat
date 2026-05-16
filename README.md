@@ -50,6 +50,7 @@ svccat import --from backstage           # seed services.yaml from catalog-info.
 svccat check                             # inspect drift in the current repo
 svccat check --fail-on-drift             # gate CI on zero drift (exit 1 on drift)
 svccat check --format compact            # one-line-per-service summary (great for large repos)
+svccat check --format csv                # CSV output: service, severity, kind, message, detail
 svccat check --depth 2                   # also discover services nested one level deeper
 svccat check --team platform             # only check services owned by "platform"
 svccat check --ignore "examples/*"       # skip directories matching the pattern
@@ -60,6 +61,14 @@ svccat check --format junit              # JUnit XML for CI test reporting
 svccat check --format github-annotation  # GitHub Actions annotations for CI
 svccat check --since HEAD~1              # show only drift new since the previous commit
 svccat check --since HEAD~1 --fail-on-new-drift  # exit 1 only on new drift (ignores pre-existing)
+svccat check --baseline baseline.json    # ignore pre-existing drift in the saved baseline
+svccat fix                               # add undeclared services to the manifest
+svccat fix --prune                       # also remove declared services with missing directories
+svccat fix --dry-run                     # preview what would change without writing
+svccat import --from backstage           # seed services.yaml from catalog-info.yaml files
+svccat import --from docker-compose      # seed services.yaml from docker-compose.yml
+svccat install-hooks                     # install a pre-commit hook (runs svccat check)
+svccat install-hooks --hook pre-push     # install a pre-push hook instead
 svccat graph                             # Mermaid diagram grouped by platform
 svccat graph --team platform             # diagram scoped to one team
 svccat graph --format markdown           # Markdown table
@@ -69,6 +78,7 @@ svccat report --history 5                # drift evolution across last 5 commits
 svccat report --badge                    # Shields.io badge (for README)
 svccat lint                              # validate manifest for structural issues
 svccat export --format json > snap.json  # save a catalog snapshot
+svccat export --format csv               # CSV catalog: name, language, platform, role, url, team
 svccat diff before.json after.json       # compare two snapshots
 svccat watch                             # continuous drift detection (re-runs on changes)
 svccat completions bash                  # print bash completion script

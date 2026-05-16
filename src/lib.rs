@@ -3,6 +3,8 @@ pub mod config;
 pub mod diff;
 pub mod discovery;
 pub mod drift;
+pub mod fix;
+pub mod hooks;
 pub mod import;
 pub mod init;
 pub mod lint;

@@ -1263,11 +1263,15 @@ services:
     role: API
     language: Rust
     platform: Cloud Run
+    team: platform
+    docs: docs/api.md
     depends_on: [auth]
   - name: auth
     role: Auth
     language: Rust
     platform: Cloud Run
+    team: platform
+    docs: docs/auth.md
 "#,
     );
 

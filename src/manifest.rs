@@ -115,27 +115,37 @@ pub fn default_markers_pub() -> Vec<String> {
 pub struct ServiceEntry {
     pub name: String,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub platform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
 
     /// Owning team name (e.g. "platform", "growth").
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub team: Option<String>,
 
     /// On-call contact: a user handle, email, or PagerDuty service name.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub oncall: Option<String>,
 
     /// Portfolio-compatible: git submodule path that owns the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub submodule: Option<String>,
 
     /// Explicit filesystem path to the service root (overrides name-based matching).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 
     /// Path to the service's documentation file.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
 
     /// Path to the service's CI workflow file.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ci: Option<String>,
 
     /// Names of other services this service depends on (used for graph edges).

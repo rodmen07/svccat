@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 
 /// Language inferred from the marker files present in a service directory.
-fn infer_language(root: &Path, service_path: &str) -> Option<String> {
+pub(crate) fn infer_language(root: &Path, service_path: &str) -> Option<String> {
     let dir = root.join(service_path);
     let candidates: &[(&str, &str)] = &[
         ("Cargo.toml", "Rust"),

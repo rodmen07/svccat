@@ -68,6 +68,13 @@ pub enum Commands {
         /// services/team/auth-service.
         #[arg(long, value_name = "N", default_value_t = 1)]
         depth: u32,
+
+        /// Only report drift absent from this saved baseline snapshot (JSON from svccat export).
+        ///
+        /// Generate a baseline with: svccat export --format json > baseline.json
+        /// Then gate on regressions only: svccat check --baseline baseline.json --fail-on-drift
+        #[arg(long, value_name = "FILE")]
+        baseline: Option<PathBuf>,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -219,6 +226,46 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Auto-remediate simple drift in the manifest
+    ///
+    /// Adds undeclared services found in the repo and, with --prune, removes
+    /// declared services whose directories are no longer present.
+    Fix {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Also remove declared services whose directories are missing from the repo
+        #[arg(long)]
+        prune: bool,
+
+        /// Preview changes without writing anything
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+    },
+
+    /// Install a git hook that runs svccat check on commit or push
+    ///
+    /// Writes a shell script to .git/hooks/<hook> that runs `svccat check`.
+    /// The hook file must not already exist.
+    InstallHooks {
+        /// Which git hook to install
+        #[arg(long, value_enum, default_value_t = HookKind::PreCommit)]
+        hook: HookKind,
+
+        /// Pass --fail-on-drift to svccat check in the hook script
+        #[arg(long, default_value_t = true)]
+        fail_on_drift: bool,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
@@ -240,6 +287,8 @@ pub enum OutputFormat {
     Markdown,
     Junit,
     GithubAnnotation,
+    /// Comma-separated values: service, severity, kind, message, detail
+    Csv,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -258,10 +307,22 @@ pub enum GraphFormat {
 pub enum ExportFormat {
     Json,
     Markdown,
+    /// Comma-separated values: name, language, platform, role, url, team, oncall
+    Csv,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum ImportSource {
     /// Backstage catalog-info.yaml files (Kind: Component)
     Backstage,
+    /// Docker Compose services (docker-compose.yml or compose.yaml)
+    DockerCompose,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum HookKind {
+    /// Run on every git commit (pre-commit hook)
+    PreCommit,
+    /// Run before git push (pre-push hook)
+    PrePush,
 }
