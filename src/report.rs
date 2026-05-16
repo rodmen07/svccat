@@ -418,3 +418,73 @@ pub fn render_history_markdown(
 
     Ok(out)
 }
+
+// ── Badge renderer ────────────────────────────────────────────────────────────
+
+/// Return a Shields.io badge URL reflecting the current drift status.
+///
+/// - 0 errors, 0 warnings → `brightgreen`, label `drift: clean`
+/// - 0 errors, N warnings → `yellow`, label `N warning(s)`
+/// - N errors             → `red`, label `N error(s)`
+fn badge_url(report: &DriftReport) -> String {
+    let errors = report.error_count();
+    let warnings = report.warning_count();
+
+    let (label, color) = if errors > 0 {
+        (
+            format!("{} error{}", errors, if errors == 1 { "" } else { "s" }),
+            "red",
+        )
+    } else if warnings > 0 {
+        (
+            format!(
+                "{} warning{}",
+                warnings,
+                if warnings == 1 { "" } else { "s" }
+            ),
+            "yellow",
+        )
+    } else {
+        ("drift: clean".to_string(), "brightgreen")
+    };
+
+    // Shields.io static badge: /badge/<left>-<right>-<color>
+    // Spaces encoded as %20, colon as %3A
+    let encoded_label = label.replace(' ', "%20").replace(':', "%3A");
+    format!(
+        "https://img.shields.io/badge/svccat-{}-{}",
+        encoded_label, color
+    )
+}
+
+/// Render a Markdown badge snippet for embedding in a README.
+///
+/// Output example:
+/// ```text
+/// [![svccat drift: clean](https://img.shields.io/badge/...)](https://crates.io/crates/svccat)
+/// ```
+pub fn render_badge(report: &DriftReport) -> String {
+    let errors = report.error_count();
+    let warnings = report.warning_count();
+    let alt = if errors > 0 {
+        format!(
+            "svccat: {} error{}",
+            errors,
+            if errors == 1 { "" } else { "s" }
+        )
+    } else if warnings > 0 {
+        format!(
+            "svccat: {} warning{}",
+            warnings,
+            if warnings == 1 { "" } else { "s" }
+        )
+    } else {
+        "svccat: drift clean".to_string()
+    };
+
+    format!(
+        "[![{}]({})](https://crates.io/crates/svccat)",
+        alt,
+        badge_url(report)
+    )
+}

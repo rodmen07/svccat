@@ -167,6 +167,13 @@ pub enum Commands {
         /// and emits a Markdown table of errors/warnings over time.
         #[arg(long, value_name = "N")]
         history: Option<usize>,
+
+        /// Emit a Shields.io badge Markdown snippet reflecting current drift status.
+        ///
+        /// Prints a Markdown image link you can paste into your README:
+        ///   [![svccat drift: clean](…)](…)
+        #[arg(long)]
+        badge: bool,
     },
 
     /// Validate the manifest for structural issues
@@ -196,6 +203,7 @@ pub enum OutputFormat {
     Json,
     Sarif,
     Markdown,
+    GithubAnnotation,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

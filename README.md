@@ -790,9 +790,10 @@ svccat export --format json
 
 ## Project status
 
-`v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits).
+`v0.10` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations).
 
 Previous releases:
+- `v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits)
 - `v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs
 - `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks
 - `v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement

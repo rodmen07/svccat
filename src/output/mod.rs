@@ -1,3 +1,4 @@
+pub mod github_annotation;
 pub mod json;
 pub mod markdown;
 pub mod mermaid;

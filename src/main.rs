@@ -85,66 +85,53 @@ fn run() -> Result<i32> {
                 let old_m = since::load_at_ref(&root, &path, git_ref)?;
                 let mut old_report = drift::analyze(&old_m, &discovered, &root);
                 old_report.manifest = path.display().to_string();
-                let (new_count, _resolved_count) = if format == OutputFormat::Markdown {
-                    let md =
-                        output::markdown::render_since_diff_markdown(&old_report, &report, git_ref);
-                    // Compute counts manually for exit code before printing.
-                    use std::collections::HashSet;
-                    let old_keys: HashSet<String> = old_report
-                        .drifts
-                        .iter()
-                        .map(|d| {
-                            format!(
-                                "{:?}|{}|{}",
-                                d.kind,
-                                d.service,
-                                d.detail.as_deref().unwrap_or("")
-                            )
-                        })
-                        .collect();
-                    let added = report
-                        .drifts
-                        .iter()
-                        .filter(|d| {
-                            let k = format!(
-                                "{:?}|{}|{}",
-                                d.kind,
-                                d.service,
-                                d.detail.as_deref().unwrap_or("")
-                            );
-                            !old_keys.contains(&k)
-                        })
-                        .count();
-                    let new_keys: HashSet<String> = report
-                        .drifts
-                        .iter()
-                        .map(|d| {
-                            format!(
-                                "{:?}|{}|{}",
-                                d.kind,
-                                d.service,
-                                d.detail.as_deref().unwrap_or("")
-                            )
-                        })
-                        .collect();
-                    let resolved = old_report
-                        .drifts
-                        .iter()
-                        .filter(|d| {
-                            let k = format!(
-                                "{:?}|{}|{}",
-                                d.kind,
-                                d.service,
-                                d.detail.as_deref().unwrap_or("")
-                            );
-                            !new_keys.contains(&k)
-                        })
-                        .count();
-                    print!("{}", md);
-                    (added, resolved)
-                } else {
-                    output::terminal::render_since_diff(&old_report, &report, git_ref)
+
+                let new_count = match format {
+                    OutputFormat::Markdown => {
+                        let md = output::markdown::render_since_diff_markdown(
+                            &old_report,
+                            &report,
+                            git_ref,
+                        );
+                        print!("{}", md);
+                        // Count new items for exit code
+                        use std::collections::HashSet;
+                        let old_keys: HashSet<String> = old_report
+                            .drifts
+                            .iter()
+                            .map(|d| {
+                                format!(
+                                    "{:?}|{}|{}",
+                                    d.kind,
+                                    d.service,
+                                    d.detail.as_deref().unwrap_or("")
+                                )
+                            })
+                            .collect();
+                        report
+                            .drifts
+                            .iter()
+                            .filter(|d| {
+                                let k = format!(
+                                    "{:?}|{}|{}",
+                                    d.kind,
+                                    d.service,
+                                    d.detail.as_deref().unwrap_or("")
+                                );
+                                !old_keys.contains(&k)
+                            })
+                            .count()
+                    }
+                    OutputFormat::GithubAnnotation => {
+                        output::github_annotation::render_since_annotations(&old_report, &report)
+                    }
+                    _ => {
+                        let (new_count, _) =
+                            output::terminal::render_since_diff(&old_report, &report, git_ref);
+                        new_count
+                    }
                 };
+
                 if fail_on_new_drift && new_count > 0 {
                     return Ok(1);
                 }
@@ -158,6 +145,9 @@ fn run() -> Result<i32> {
                     OutputFormat::Markdown => {
                         let md = output::markdown::render_check_markdown(&report, &ping_results);
                         print!("{}", md);
+                    }
+                    OutputFormat::GithubAnnotation => {
+                        output::github_annotation::render_check(&report);
                     }
                 }
             }
@@ -245,6 +235,7 @@ fn run() -> Result<i32> {
             output: output_path,
             ignore: cli_ignore,
             history,
+            badge,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
@@ -255,6 +246,12 @@ fn run() -> Result<i32> {
             let discovered = discovery::discover_services_with_ignore(&root, &m, &ignore);
             let mut drift_report = drift::analyze(&m, &discovered, &root);
             drift_report.manifest = path.display().to_string();
+
+            // --badge takes priority: emit a Markdown badge snippet and exit.
+            if badge {
+                println!("{}", report::render_badge(&drift_report));
+                return Ok(0);
+            }
 
             let content = if let Some(n) = history {
                 report::render_history_markdown(&root, &path, &discovered, n)?
