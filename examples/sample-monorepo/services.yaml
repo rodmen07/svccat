@@ -1,0 +1,38 @@
+# svccat service manifest — sample monorepo
+#
+# Run: svccat check --manifest services.yaml --root .
+#      svccat graph
+#      svccat export --format json
+
+version: "1"
+
+# Tell svccat where to look for service directories.
+discovery:
+  paths:
+    - "services/*"
+  markers:
+    - Cargo.toml
+    - Dockerfile
+    - go.mod
+    - package.json
+
+services:
+  - name: api-gateway
+    language: Go
+    platform: Cloud Run
+    url: https://gateway.example.com
+    role: Rate-limiting reverse proxy
+    ci: .github/workflows/api-gateway.yml
+
+  - name: auth-service
+    language: Python / FastAPI
+    platform: Cloud Run
+    url: https://auth.example.com
+    role: JWT issuance and OAuth
+    docs: docs/auth-service.md
+
+  - name: frontend
+    language: TypeScript / React
+    platform: GitHub Pages
+    url: https://example.github.io/app/
+    role: Single-page application

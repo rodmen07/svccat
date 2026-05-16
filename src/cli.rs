@@ -1,0 +1,83 @@
+use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "svccat",
+    version,
+    about = "Service catalog drift detection for multi-service repositories",
+    long_about = "\
+svccat reads your declared service manifest and compares it against what \
+actually exists in the repo, flagging drift before it becomes toil.\n\n\
+Typical workflow:\n  \
+  svccat check                   # inspect drift in the current repo\n  \
+  svccat check --fail-on-drift   # gate CI on zero drift\n  \
+  svccat graph                   # emit a Mermaid diagram for docs\n  \
+  svccat export --format json    # machine-readable catalog snapshot"
+)]
+pub struct Cli {
+    /// Repository root (defaults to current directory)
+    #[arg(short, long, global = true)]
+    pub root: Option<PathBuf>,
+
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Check declared services against the repo and report drift
+    Check {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+        format: OutputFormat,
+
+        /// Exit with code 1 when drift is detected (useful in CI)
+        #[arg(long)]
+        fail_on_drift: bool,
+    },
+
+    /// Generate a Mermaid or Markdown view of the service catalog
+    Graph {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = GraphFormat::Mermaid)]
+        format: GraphFormat,
+    },
+
+    /// Export the full service catalog with drift summary
+    Export {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Export format
+        #[arg(short, long, value_enum, default_value_t = ExportFormat::Json)]
+        format: ExportFormat,
+    },
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum OutputFormat {
+    Terminal,
+    Json,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum GraphFormat {
+    Mermaid,
+    Markdown,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum ExportFormat {
+    Json,
+    Markdown,
+}
