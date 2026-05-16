@@ -102,6 +102,7 @@ fn print_drift_item(item: &DriftItem) {
         DriftKind::UndeclaredInRepo => "[UNDECLARED]".yellow(),
         DriftKind::MissingField => "[FIELD]     ".cyan(),
         DriftKind::MissingReferencedFile => "[REF]       ".yellow(),
+        DriftKind::PolicyViolation => "[POLICY]    ".red(),
     };
 
     println!("  {}  {}  {}", icon, kind_label, item.message);

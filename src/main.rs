@@ -4,7 +4,7 @@ use clap_complete::generate;
 use std::io;
 use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat};
-use svccat::{config, discovery, drift, init, manifest, output, ping};
+use svccat::{config, diff, discovery, drift, init, manifest, output, ping};
 
 fn main() {
     match run() {
@@ -100,6 +100,12 @@ fn run() -> Result<i32> {
         Commands::Init { output, force } => {
             let output_path = output.unwrap_or_else(|| root.join("services.yaml"));
             init::run(&root, output_path, force)?;
+            Ok(0)
+        }
+
+        Commands::Diff { before, after } => {
+            let report = diff::diff_snapshots(&before, &after)?;
+            diff::render_diff(&report);
             Ok(0)
         }
 

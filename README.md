@@ -52,8 +52,8 @@ svccat check --ignore "examples/*"  # skip directories matching the pattern
 svccat check --format json          # machine-readable output
 svccat graph                        # Mermaid diagram grouped by platform
 svccat graph --format markdown      # Markdown table
-svccat export --format json         # full catalog snapshot with drift
-svccat export --format markdown     # Markdown catalog + drift table
+svccat export --format json > snap.json   # save a catalog snapshot
+svccat diff before.json after.json        # compare two snapshots
 svccat completions bash             # print bash completion script
 ```
 
@@ -133,6 +133,12 @@ discovery:
     - "services/examples"
     - "services/vendor/*"
 
+policy:
+  require_fields:         # every service must declare these fields (error if missing)
+    - url
+    - language
+    - platform
+
 services:
   - name: api-gateway               # required
     language: Go                    # recommended
@@ -169,6 +175,68 @@ When `discovery.paths` is empty svccat tries `services/*`, `microservices/*`,
 | `undeclared_in_repo` | warning | A service directory was discovered but is not listed in the manifest. |
 | `missing_field` | error / warning | A recommended metadata field is absent (`role` = error; `language`, `platform` = warning). |
 | `missing_referenced_file` | warning | A `docs:` or `ci:` path is declared but the file does not exist. |
+
+---
+
+## `svccat diff` — compare snapshots
+
+Track how your catalog evolves over time by diffing two JSON snapshots:
+
+```bash
+# Save a snapshot before making changes
+svccat export --format json > before.json
+
+# ... update services.yaml or add/remove services ...
+
+# Save a snapshot after
+svccat export --format json > after.json
+
+# Show what changed
+svccat diff before.json after.json
+```
+
+Example output:
+
+```
+svccat diff: before.json → after.json
+
+  Services added (1):
+    +  new-worker
+
+  Services removed (1):
+    -  legacy-api
+
+  Services changed (1):
+    ~  auth-service
+       language: Python → Rust
+
+  Resolved drift (1):
+    ✓  [ERROR] legacy-api — 'legacy-api' is declared in the manifest but not found in the repo
+```
+
+---
+
+## Policy rules
+
+Enforce field requirements across all services via the `policy:` section in
+your manifest:
+
+```yaml
+policy:
+  require_fields:
+    - url        # every service must have a health-check URL
+    - language   # documentation requirement
+    - platform   # deployment target must be explicit
+```
+
+Any service missing a required field is flagged as an error-level drift item:
+
+```
+x  [POLICY]  'worker-service' violates policy: required field 'url' is missing
+```
+
+Policy violations count toward `--fail-on-drift` and `fail_on_drift` in
+`svccat.toml`.
 
 ---
 
@@ -382,16 +450,17 @@ svccat export --format json
 
 ## Project status
 
-`v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions.
+`v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement.
 
 Previous releases:
+- `v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions
 - `v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks
 - `v0.2` — `svccat init` command (scaffold `services.yaml` from your repo)
 - `v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration
 
 Planned for later releases:
-- `svccat diff` — compare two catalog snapshots over time
-- Policy rules (e.g. "every service must have a `url`")
+- `svccat watch` — continuous drift detection in the background
+- Ownership metadata (`team:`, `oncall:`) + team-scoped checks
 
 ---
 

@@ -16,6 +16,8 @@ pub enum DriftKind {
     MissingField,
     /// A file referenced by the service entry (docs, ci) does not exist.
     MissingReferencedFile,
+    /// A field required by the policy section is absent from the service entry.
+    PolicyViolation,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -165,6 +167,35 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                 ),
                 detail: Some(disc.path.clone()),
             });
+        }
+    }
+
+    // 3. Apply policy rules (require_fields).
+    if !manifest.policy.require_fields.is_empty() {
+        for svc in &manifest.services {
+            for field in &manifest.policy.require_fields {
+                let missing = match field.as_str() {
+                    "url" => svc.url.is_none(),
+                    "language" => svc.language.is_none(),
+                    "platform" => svc.platform.is_none(),
+                    "role" => svc.role.is_none(),
+                    "docs" => svc.docs.is_none(),
+                    "ci" => svc.ci.is_none(),
+                    _ => false,
+                };
+                if missing {
+                    report.drifts.push(DriftItem {
+                        kind: DriftKind::PolicyViolation,
+                        severity: Severity::Error,
+                        service: svc.name.clone(),
+                        message: format!(
+                            "'{}' violates policy: required field '{}' is missing",
+                            svc.name, field
+                        ),
+                        detail: Some(field.clone()),
+                    });
+                }
+            }
         }
     }
 

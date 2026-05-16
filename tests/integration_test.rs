@@ -592,3 +592,182 @@ fn completions_produces_output_for_bash() {
         "completions should mention the binary name"
     );
 }
+
+// ── policy tests ──────────────────────────────────────────────────────────────
+
+#[test]
+fn policy_require_fields_flags_missing_url() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths:
+    - "services/*"
+policy:
+  require_fields: [url, language]
+services:
+  - name: api
+    language: Rust
+    role: api
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+
+    let policy_violations: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|i| i.kind == svccat::drift::DriftKind::PolicyViolation)
+        .collect();
+
+    assert_eq!(
+        policy_violations.len(),
+        1,
+        "url should be flagged by policy"
+    );
+    assert!(policy_violations[0].message.contains("url"));
+}
+
+#[test]
+fn policy_no_violations_when_fields_present() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths:
+    - "services/*"
+policy:
+  require_fields: [url, language]
+services:
+  - name: api
+    language: Rust
+    role: api
+    platform: Cloud Run
+    url: https://api.example.com
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+
+    let violations: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|i| i.kind == svccat::drift::DriftKind::PolicyViolation)
+        .collect();
+    assert!(violations.is_empty(), "no policy violations expected");
+}
+
+// ── diff tests ────────────────────────────────────────────────────────────────
+
+#[test]
+fn diff_detects_added_and_removed_services() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    let before_json = r#"{
+      "version": "1",
+      "manifest": "services.yaml",
+      "summary": {"declared": 2, "discovered": 2, "drift_count": 0, "errors": 0, "warnings": 0},
+      "services": [
+        {"name": "api", "language": "Rust", "platform": "Cloud Run", "role": "api", "depends_on": []},
+        {"name": "legacy", "language": "Go", "platform": "Fly.io", "role": "worker", "depends_on": []}
+      ],
+      "drift": []
+    }"#;
+
+    let after_json = r#"{
+      "version": "1",
+      "manifest": "services.yaml",
+      "summary": {"declared": 2, "discovered": 2, "drift_count": 0, "errors": 0, "warnings": 0},
+      "services": [
+        {"name": "api", "language": "Rust", "platform": "Cloud Run", "role": "api", "depends_on": []},
+        {"name": "new-worker", "language": "Python", "platform": "Cloud Run", "role": "worker", "depends_on": []}
+      ],
+      "drift": []
+    }"#;
+
+    let before_path = root.join("before.json");
+    let after_path = root.join("after.json");
+    fs::write(&before_path, before_json).unwrap();
+    fs::write(&after_path, after_json).unwrap();
+
+    let report = svccat::diff::diff_snapshots(&before_path, &after_path).unwrap();
+
+    assert!(report.added.contains(&"new-worker".to_string()));
+    assert!(report.removed.contains(&"legacy".to_string()));
+    assert!(!report.added.contains(&"api".to_string()));
+}
+
+#[test]
+fn diff_detects_field_changes() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    let before_json = r#"{
+      "services": [
+        {"name": "api", "language": "Python", "platform": "Cloud Run", "role": "api", "depends_on": []}
+      ],
+      "drift": []
+    }"#;
+
+    let after_json = r#"{
+      "services": [
+        {"name": "api", "language": "Rust", "platform": "Cloud Run", "role": "api", "depends_on": []}
+      ],
+      "drift": []
+    }"#;
+
+    let before_path = root.join("before.json");
+    let after_path = root.join("after.json");
+    fs::write(&before_path, before_json).unwrap();
+    fs::write(&after_path, after_json).unwrap();
+
+    let report = svccat::diff::diff_snapshots(&before_path, &after_path).unwrap();
+
+    assert_eq!(report.changed.len(), 1);
+    assert_eq!(report.changed[0].name, "api");
+    let lang_change = report.changed[0]
+        .changes
+        .iter()
+        .find(|c| c.field == "language")
+        .expect("language change expected");
+    assert_eq!(lang_change.before, "Python");
+    assert_eq!(lang_change.after, "Rust");
+}
+
+#[test]
+fn diff_no_changes_when_snapshots_identical() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    let snapshot = r#"{
+      "services": [
+        {"name": "api", "language": "Rust", "platform": "Cloud Run", "role": "api", "depends_on": []}
+      ],
+      "drift": []
+    }"#;
+
+    let before_path = root.join("before.json");
+    let after_path = root.join("after.json");
+    fs::write(&before_path, snapshot).unwrap();
+    fs::write(&after_path, snapshot).unwrap();
+
+    let report = svccat::diff::diff_snapshots(&before_path, &after_path).unwrap();
+    assert!(
+        report.is_empty(),
+        "identical snapshots should produce no diff"
+    );
+}

@@ -12,6 +12,9 @@ pub struct Manifest {
     #[serde(default)]
     pub discovery: DiscoveryConfig,
 
+    #[serde(default)]
+    pub policy: PolicyConfig,
+
     pub services: Vec<ServiceEntry>,
 }
 
@@ -35,6 +38,18 @@ impl Manifest {
             self.discovery.paths.clone()
         }
     }
+}
+
+// ── Policy config ─────────────────────────────────────────────────────────────
+
+/// Declarative policy rules enforced during `svccat check`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PolicyConfig {
+    /// Fields that every service entry must declare.
+    /// Missing fields become error-level drift items.
+    /// Example: ["url", "language", "platform"]
+    #[serde(default)]
+    pub require_fields: Vec<String>,
 }
 
 // ── Discovery config ─────────────────────────────────────────────────────────

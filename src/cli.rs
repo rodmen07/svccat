@@ -87,6 +87,17 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Compare two svccat export JSON snapshots and show what changed
+    ///
+    /// Generate snapshots with: svccat export --format json > snapshot.json
+    Diff {
+        /// Path to the older snapshot (JSON)
+        before: std::path::PathBuf,
+
+        /// Path to the newer snapshot (JSON)
+        after: std::path::PathBuf,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:

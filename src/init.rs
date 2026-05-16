@@ -74,6 +74,7 @@ pub fn run(root: &Path, output_path: PathBuf, force: bool) -> Result<()> {
             markers: crate::manifest::default_markers_pub(),
             ignore: vec![],
         },
+        policy: Default::default(),
         services: vec![],
     };
 
