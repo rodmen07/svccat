@@ -48,11 +48,13 @@ cargo build --release
 svccat init                         # scaffold services.yaml from your repo
 svccat check                        # inspect drift in the current repo
 svccat check --fail-on-drift        # gate CI on zero drift (exit 1 on drift)
+svccat check --ignore "examples/*"  # skip directories matching the pattern
 svccat check --format json          # machine-readable output
 svccat graph                        # Mermaid diagram grouped by platform
 svccat graph --format markdown      # Markdown table
 svccat export --format json         # full catalog snapshot with drift
 svccat export --format markdown     # Markdown catalog + drift table
+svccat completions bash             # print bash completion script
 ```
 
 Manifest is auto-detected: svccat tries `svccat.yaml`, `svccat.yml`,
@@ -127,6 +129,9 @@ discovery:
     - package.json
     - pyproject.toml
     - requirements.txt
+  ignore:                 # paths to exclude from discovery
+    - "services/examples"
+    - "services/vendor/*"
 
 services:
   - name: api-gateway               # required
@@ -164,6 +169,52 @@ When `discovery.paths` is empty svccat tries `services/*`, `microservices/*`,
 | `undeclared_in_repo` | warning | A service directory was discovered but is not listed in the manifest. |
 | `missing_field` | error / warning | A recommended metadata field is absent (`role` = error; `language`, `platform` = warning). |
 | `missing_referenced_file` | warning | A `docs:` or `ci:` path is declared but the file does not exist. |
+
+---
+
+## `svccat.toml` — workspace defaults
+
+Place a `svccat.toml` in your repo root to set persistent defaults so you
+don't need to pass flags on every invocation. CLI flags always take precedence.
+
+```toml
+# svccat.toml
+format = "terminal"         # default output format: "terminal" or "json"
+fail_on_drift = true        # always exit 1 on drift (no need for --fail-on-drift)
+ignore = [
+  "services/examples",
+  "services/vendor/*",
+  "test-fixtures/*",
+]
+```
+
+### `--ignore` patterns
+
+Exclude directories from drift detection on the fly:
+
+```bash
+svccat check --ignore "services/examples" --ignore "vendor/*"
+```
+
+Ignore patterns in `svccat.toml` and in `discovery.ignore` (manifest) are
+merged with patterns from the CLI flag.
+
+---
+
+## Shell completions
+
+Generate tab-completion scripts for your shell:
+
+```bash
+# Bash (add to ~/.bashrc)
+source <(svccat completions bash)
+
+# Zsh (add to your $fpath)
+svccat completions zsh > ~/.zfunc/_svccat
+
+# Fish
+svccat completions fish > ~/.config/fish/completions/svccat.fish
+```
 
 ---
 
@@ -331,15 +382,16 @@ svccat export --format json
 
 ## Project status
 
-`v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks.
+`v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions.
 
 Previous releases:
+- `v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks
 - `v0.2` — `svccat init` command (scaffold `services.yaml` from your repo)
 - `v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration
 
 Planned for later releases:
-- Config file (`svccat.toml`) for workspace-level defaults
-- `--ignore` patterns in manifest discovery
+- `svccat diff` — compare two catalog snapshots over time
+- Policy rules (e.g. "every service must have a `url`")
 
 ---
 

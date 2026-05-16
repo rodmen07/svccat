@@ -17,8 +17,17 @@ pub struct DiscoveredService {
 // ── Discovery ─────────────────────────────────────────────────────────────────
 
 /// Walk the repo using the effective discovery patterns and return every
-/// directory that contains at least one marker file.
+/// directory that contains at least one marker file, excluding ignored paths.
 pub fn discover_services(root: &Path, manifest: &Manifest) -> Vec<DiscoveredService> {
+    discover_services_with_ignore(root, manifest, &[])
+}
+
+/// Like `discover_services` but merges extra ignore patterns from the CLI.
+pub fn discover_services_with_ignore(
+    root: &Path,
+    manifest: &Manifest,
+    extra_ignore: &[String],
+) -> Vec<DiscoveredService> {
     let patterns = manifest.effective_discovery_paths();
     let markers = &manifest.discovery.markers;
 
@@ -27,6 +36,15 @@ pub fn discover_services(root: &Path, manifest: &Manifest) -> Vec<DiscoveredServ
     } else {
         markers.clone()
     };
+
+    // Compile ignore patterns (from manifest + CLI) into glob::Pattern.
+    let ignore_patterns: Vec<glob::Pattern> = manifest
+        .discovery
+        .ignore
+        .iter()
+        .chain(extra_ignore.iter())
+        .filter_map(|p| glob::Pattern::new(p).ok())
+        .collect();
 
     let mut discovered: Vec<DiscoveredService> = Vec::new();
 
@@ -44,6 +62,16 @@ pub fn discover_services(root: &Path, manifest: &Manifest) -> Vec<DiscoveredServ
                 continue;
             }
 
+            let rel_path = entry
+                .strip_prefix(root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| entry.to_string_lossy().to_string());
+
+            // Skip directories matching any ignore pattern.
+            if ignore_patterns.iter().any(|p| p.matches(&rel_path)) {
+                continue;
+            }
+
             let found_markers = markers_in_dir(&entry, &effective_markers);
             if found_markers.is_empty() {
                 continue;
@@ -53,11 +81,6 @@ pub fn discover_services(root: &Path, manifest: &Manifest) -> Vec<DiscoveredServ
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-
-            let rel_path = entry
-                .strip_prefix(root)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| entry.to_string_lossy().to_string());
 
             // Deduplicate paths (e.g. overlapping glob patterns).
             if discovered.iter().any(|d| d.path == rel_path) {

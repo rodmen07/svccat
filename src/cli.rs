@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use clap_complete::Shell;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -43,6 +44,10 @@ pub enum Commands {
         /// Ping each service URL and report reachability
         #[arg(long)]
         ping: bool,
+
+        /// Glob patterns to exclude from discovery (repeatable, e.g. --ignore "examples/*")
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -65,6 +70,10 @@ pub enum Commands {
         /// Export format
         #[arg(short, long, value_enum, default_value_t = ExportFormat::Json)]
         format: ExportFormat,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
     },
 
     /// Scaffold a services.yaml by auto-discovering services in the repo
@@ -76,6 +85,16 @@ pub enum Commands {
         /// Overwrite an existing manifest file
         #[arg(long)]
         force: bool,
+    },
+
+    /// Print shell completion script to stdout
+    ///
+    /// Source the output to enable tab completion, e.g.:
+    ///   source <(svccat completions bash)
+    ///   svccat completions zsh > ~/.zfunc/_svccat
+    Completions {
+        /// Shell to generate completions for
+        shell: Shell,
     },
 }
 

@@ -72,6 +72,7 @@ pub fn run(root: &Path, output_path: PathBuf, force: bool) -> Result<()> {
         discovery: DiscoveryConfig {
             paths: vec![],
             markers: crate::manifest::default_markers_pub(),
+            ignore: vec![],
         },
         services: vec![],
     };

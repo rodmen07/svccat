@@ -1,8 +1,10 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
+use std::io;
 use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat};
-use svccat::{discovery, drift, init, manifest, output, ping};
+use svccat::{config, discovery, drift, init, manifest, output, ping};
 
 fn main() {
     match run() {
@@ -18,16 +20,25 @@ fn run() -> Result<i32> {
     let cli = Cli::parse();
     let root = cli.root.unwrap_or_else(|| std::path::PathBuf::from("."));
 
+    // Load workspace config (svccat.toml), falling back to defaults.
+    let cfg = config::SvccatConfig::load(&root)?;
+
     match cli.command {
         Commands::Check {
             manifest: manifest_path,
             format,
             fail_on_drift,
             ping: do_ping,
+            ignore: cli_ignore,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
-            let discovered = discovery::discover_services(&root, &m);
+
+            // Merge config ignore + CLI ignore patterns.
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+
+            let discovered = discovery::discover_services_with_ignore(&root, &m, &ignore);
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
 
@@ -42,7 +53,8 @@ fn run() -> Result<i32> {
                 OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
             }
 
-            if fail_on_drift && !report.drifts.is_empty() {
+            let should_fail = fail_on_drift || cfg.fail_on_drift;
+            if should_fail && !report.drifts.is_empty() {
                 Ok(1)
             } else {
                 Ok(0)
@@ -66,10 +78,15 @@ fn run() -> Result<i32> {
         Commands::Export {
             manifest: manifest_path,
             format,
+            ignore: cli_ignore,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
-            let discovered = discovery::discover_services(&root, &m);
+
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+
+            let discovered = discovery::discover_services_with_ignore(&root, &m, &ignore);
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
 
@@ -83,6 +100,12 @@ fn run() -> Result<i32> {
         Commands::Init { output, force } => {
             let output_path = output.unwrap_or_else(|| root.join("services.yaml"));
             init::run(&root, output_path, force)?;
+            Ok(0)
+        }
+
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "svccat", &mut io::stdout());
             Ok(0)
         }
     }

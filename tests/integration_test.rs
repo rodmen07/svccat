@@ -467,3 +467,128 @@ fn init_empty_repo_writes_skeleton() {
         "skeleton should contain services key"
     );
 }
+
+// ── ignore pattern tests ──────────────────────────────────────────────────────
+
+#[test]
+fn ignore_patterns_exclude_matching_directories() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/examples/Cargo.toml"); // should be ignored
+    touch(root, "services/vendor/go.mod"); // should be ignored
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths:
+    - "services/*"
+  ignore:
+    - "services/examples"
+    - "services/vendor"
+services:
+  - name: api
+    language: Rust
+    role: api
+    platform: Cloud Run
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let discovered = svccat::discovery::discover_services(root, &m);
+
+    let names: Vec<&str> = discovered.iter().map(|d| d.name.as_str()).collect();
+    assert!(names.contains(&"api"), "api should be discovered");
+    assert!(!names.contains(&"examples"), "examples should be ignored");
+    assert!(!names.contains(&"vendor"), "vendor should be ignored");
+}
+
+#[test]
+fn extra_ignore_from_cli_merges_with_manifest() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/scratch/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths:
+    - "services/*"
+services:
+  - name: api
+    language: Rust
+    role: api
+    platform: Cloud Run
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    // Pass "services/scratch" as an extra CLI ignore
+    let discovered = svccat::discovery::discover_services_with_ignore(
+        root,
+        &m,
+        &["services/scratch".to_string()],
+    );
+
+    let names: Vec<&str> = discovered.iter().map(|d| d.name.as_str()).collect();
+    assert!(names.contains(&"api"));
+    assert!(
+        !names.contains(&"scratch"),
+        "scratch should be excluded by CLI ignore"
+    );
+}
+
+// ── svccat.toml config tests ──────────────────────────────────────────────────
+
+#[test]
+fn config_loads_from_svccat_toml() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    fs::write(
+        root.join("svccat.toml"),
+        r#"
+fail_on_drift = true
+ignore = ["examples/*", "vendor/*"]
+"#,
+    )
+    .unwrap();
+
+    let cfg = svccat::config::SvccatConfig::load(root).unwrap();
+    assert!(cfg.fail_on_drift);
+    assert_eq!(cfg.ignore, vec!["examples/*", "vendor/*"]);
+}
+
+#[test]
+fn config_returns_defaults_when_no_file() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    let cfg = svccat::config::SvccatConfig::load(root).unwrap();
+    assert!(!cfg.fail_on_drift);
+    assert!(cfg.ignore.is_empty());
+}
+
+// ── completions test ──────────────────────────────────────────────────────────
+
+#[test]
+fn completions_produces_output_for_bash() {
+    use clap::CommandFactory;
+    use clap_complete::{generate, Shell};
+    use svccat::cli::Cli;
+
+    let mut cmd = Cli::command();
+    let mut buf = Vec::new();
+    generate(Shell::Bash, &mut cmd, "svccat", &mut buf);
+    assert!(!buf.is_empty(), "bash completions should produce output");
+    let script = String::from_utf8(buf).unwrap();
+    assert!(
+        script.contains("svccat"),
+        "completions should mention the binary name"
+    );
+}

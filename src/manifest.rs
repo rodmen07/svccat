@@ -49,6 +49,11 @@ pub struct DiscoveryConfig {
     /// Filenames whose presence inside a directory marks it as a service.
     #[serde(default = "default_markers")]
     pub markers: Vec<String>,
+
+    /// Glob patterns (relative to repo root) for directories to exclude from
+    /// discovery.  E.g. `["examples/*", "vendor/*"]`.
+    #[serde(default)]
+    pub ignore: Vec<String>,
 }
 
 /// Glob patterns tried when `discovery.paths` is empty.
