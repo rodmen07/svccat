@@ -52,12 +52,8 @@ pub struct DiscoveryConfig {
 }
 
 /// Glob patterns tried when `discovery.paths` is empty.
-pub const DEFAULT_DISCOVERY_PATHS: &[&str] = &[
-    "services/*",
-    "microservices/*",
-    "apps/*",
-    "packages/*",
-];
+pub const DEFAULT_DISCOVERY_PATHS: &[&str] =
+    &["services/*", "microservices/*", "apps/*", "packages/*"];
 
 fn default_markers() -> Vec<String> {
     [
@@ -102,9 +98,7 @@ impl ServiceEntry {
     /// Returns the canonical relative path for existence checks.
     /// Prefers `path`, then `submodule`, then `None` (name-based matching).
     pub fn declared_path(&self) -> Option<&str> {
-        self.path
-            .as_deref()
-            .or(self.submodule.as_deref())
+        self.path.as_deref().or(self.submodule.as_deref())
     }
 }
 

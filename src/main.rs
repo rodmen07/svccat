@@ -16,9 +16,7 @@ fn main() {
 
 fn run() -> Result<i32> {
     let cli = Cli::parse();
-    let root = cli
-        .root
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let root = cli.root.unwrap_or_else(|| std::path::PathBuf::from("."));
 
     match cli.command {
         Commands::Check {

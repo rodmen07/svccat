@@ -71,7 +71,13 @@ pub fn render_export_markdown(manifest: &Manifest, report: &DriftReport) {
 
 fn safe_id(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

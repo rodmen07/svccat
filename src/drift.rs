@@ -63,18 +63,11 @@ impl DriftReport {
 
 /// Metadata fields that every service should declare.
 /// Tuple: (field_name, is_error_if_missing)
-const RECOMMENDED_FIELDS: &[(&str, bool)] = &[
-    ("role", true),
-    ("language", false),
-    ("platform", false),
-];
+const RECOMMENDED_FIELDS: &[(&str, bool)] =
+    &[("role", true), ("language", false), ("platform", false)];
 
 /// Run all drift checks and return a populated `DriftReport`.
-pub fn analyze(
-    manifest: &Manifest,
-    discovered: &[DiscoveredService],
-    root: &Path,
-) -> DriftReport {
+pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Path) -> DriftReport {
     let mut report = DriftReport {
         manifest: String::new(), // caller fills in the manifest path
         declared: manifest.services.len(),
@@ -123,10 +116,7 @@ pub fn analyze(
                         Severity::Warning
                     },
                     service: svc.name.clone(),
-                    message: format!(
-                        "'{}' is missing recommended field: {}",
-                        svc.name, field
-                    ),
+                    message: format!("'{}' is missing recommended field: {}", svc.name, field),
                     detail: Some(field.to_string()),
                 });
             }
@@ -158,11 +148,7 @@ pub fn analyze(
         .filter_map(|s| s.declared_path())
         .collect();
 
-    let declared_names: Vec<&str> = manifest
-        .services
-        .iter()
-        .map(|s| s.name.as_str())
-        .collect();
+    let declared_names: Vec<&str> = manifest.services.iter().map(|s| s.name.as_str()).collect();
 
     for disc in discovered {
         let matched_by_path = declared_paths.iter().any(|p| *p == disc.path);

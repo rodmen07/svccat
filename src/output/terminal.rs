@@ -9,9 +9,7 @@ pub fn render_check(report: &DriftReport) {
         "{}",
         format!(
             "svccat: {} declared, {} discovered  [{}]",
-            report.declared,
-            report.discovered,
-            report.manifest
+            report.declared, report.discovered, report.manifest
         )
         .bold()
     );
@@ -43,16 +41,10 @@ pub fn render_check(report: &DriftReport) {
     println!();
 
     if errors > 0 {
-        println!(
-            "{}",
-            format!("  x  {} error(s)", errors).red().bold()
-        );
+        println!("{}", format!("  x  {} error(s)", errors).red().bold());
     }
     if warnings > 0 {
-        println!(
-            "{}",
-            format!("  !  {} warning(s)", warnings).yellow()
-        );
+        println!("{}", format!("  !  {} warning(s)", warnings).yellow());
     }
 }
 
