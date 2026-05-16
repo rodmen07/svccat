@@ -53,6 +53,7 @@ svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
 svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
 svccat check --format markdown           # Markdown table for PR comments
+svccat check --format github-annotation  # GitHub Actions annotations for CI
 svccat check --since HEAD~1              # show only drift new since the previous commit
 svccat check --since HEAD~1 --fail-on-new-drift  # exit 1 only on new drift (ignores pre-existing)
 svccat graph                             # Mermaid diagram grouped by platform
@@ -60,7 +61,8 @@ svccat graph --team platform             # diagram scoped to one team
 svccat graph --format markdown           # Markdown table
 svccat report                            # full ownership + drift report (Markdown)
 svccat report --format html --output report.html  # self-contained HTML report
-svccat report --history 5               # drift evolution across last 5 commits
+svccat report --history 5                # drift evolution across last 5 commits
+svccat report --badge                    # Shields.io badge (for README)
 svccat lint                              # validate manifest for structural issues
 svccat export --format json > snap.json  # save a catalog snapshot
 svccat diff before.json after.json       # compare two snapshots
@@ -578,6 +580,39 @@ Example output:
 | ⚠️ Warning | FIELD | `api-gateway` | missing recommended field: oncall |
 ```
 
+### `--format github-annotation` — GitHub Actions annotations (v0.10.0)
+
+Emit drift as [GitHub Actions annotations](https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-error-message) for inline PR feedback:
+
+```bash
+svccat check --format github-annotation
+svccat check --since HEAD~1 --format github-annotation
+```
+
+This outputs:
+```
+::error file=services.yaml,title=svccat [MISSING]::legacy-worker: declared in manifest but directory not found
+::warning file=services.yaml,title=svccat [FIELD]::api-gateway: missing recommended field: oncall
+```
+
+Annotations appear in PR checks and in the Annotations tab of the workflow run. See the included [`.github/workflows/svccat-pr.yml`](.github/workflows/svccat-pr.yml) for a production-ready workflow template.
+
+### `svccat report --badge` — Shields.io badge (v0.10.0)
+
+Emit a Markdown badge snippet for embedding in your README:
+
+```bash
+svccat report --badge
+```
+
+Output (example — green for clean, red/yellow for drift):
+
+```markdown
+[![svccat drift: clean](https://img.shields.io/badge/svccat-drift%20clean-brightgreen)](https://crates.io/crates/svccat)
+```
+
+Embed in your README to show catalog health at a glance.
+
 ---
 
 ## `svccat.toml` — workspace defaults
@@ -710,6 +745,16 @@ jobs:
 
 The action caches the installed binary so subsequent runs skip the `cargo install` step.
 
+### Drift annotations + PR comments (v0.10.0)
+
+For advanced workflows that emit GitHub Actions annotations and post drift summaries as PR comments, use the included workflow template:
+
+```bash
+cp .github/workflows/svccat-pr.yml .github/workflows/svccat.yml
+```
+
+The template runs `svccat check` with `--format github-annotation`, creates an annotated drift report, posts it as a PR comment (with automatic update on subsequent pushes), and gates the PR check on new drift.
+
 ### Manual CI integration
 
 Add a step to your pipeline to gate merges on zero drift:
@@ -790,7 +835,7 @@ svccat export --format json
 
 ## Project status
 
-`v0.10` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations).
+`v0.10.0` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations), included workflow template (`.github/workflows/svccat-pr.yml`).
 
 Previous releases:
 - `v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits)
