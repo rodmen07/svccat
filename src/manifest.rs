@@ -56,6 +56,11 @@ pub const DEFAULT_DISCOVERY_PATHS: &[&str] =
     &["services/*", "microservices/*", "apps/*", "packages/*"];
 
 fn default_markers() -> Vec<String> {
+    default_markers_pub()
+}
+
+/// Public version of the default markers list, usable outside this module.
+pub fn default_markers_pub() -> Vec<String> {
     [
         "Cargo.toml",
         "Dockerfile",

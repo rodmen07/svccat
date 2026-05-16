@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat};
-use svccat::{discovery, drift, manifest, output};
+use svccat::{discovery, drift, init, manifest, output};
 
 fn main() {
     match run() {
@@ -70,6 +70,12 @@ fn run() -> Result<i32> {
                 ExportFormat::Json => output::json::render_export(&m, &report)?,
                 ExportFormat::Markdown => output::mermaid::render_export_markdown(&m, &report),
             }
+            Ok(0)
+        }
+
+        Commands::Init { output, force } => {
+            let output_path = output.unwrap_or_else(|| root.join("services.yaml"));
+            init::run(&root, output_path, force)?;
             Ok(0)
         }
     }

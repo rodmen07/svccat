@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod discovery;
 pub mod drift;
+pub mod init;
 pub mod manifest;
 pub mod output;

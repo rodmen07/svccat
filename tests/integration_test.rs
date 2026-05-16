@@ -281,3 +281,84 @@ services:
     let json_str = serde_json::to_string_pretty(&report).unwrap();
     let _: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 }
+
+// ── svccat init tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn init_creates_services_yaml_from_discovered_services() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api-gateway/Cargo.toml");
+    touch(root, "services/worker/go.mod");
+
+    let output = root.join("services.yaml");
+    svccat::init::run(root, output.clone(), false).unwrap();
+
+    assert!(output.exists(), "services.yaml should be created");
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(
+        contents.contains("api-gateway"),
+        "should include api-gateway"
+    );
+    assert!(contents.contains("worker"), "should include worker");
+    assert!(
+        contents.contains("Rust"),
+        "should infer Rust from Cargo.toml"
+    );
+    assert!(contents.contains("Go"), "should infer Go from go.mod");
+}
+
+#[test]
+fn init_refuses_to_overwrite_without_force() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    let output = root.join("services.yaml");
+    fs::write(&output, "existing content").unwrap();
+
+    let result = svccat::init::run(root, output, false);
+    assert!(
+        result.is_err(),
+        "should error when file exists and --force not set"
+    );
+}
+
+#[test]
+fn init_overwrites_with_force() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    let output = root.join("services.yaml");
+    fs::write(&output, "old content").unwrap();
+
+    touch(root, "services/my-svc/Dockerfile");
+    svccat::init::run(root, output.clone(), true).unwrap();
+
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(
+        contents.contains("my-svc"),
+        "should contain discovered service"
+    );
+    assert!(
+        !contents.contains("old content"),
+        "should overwrite old content"
+    );
+}
+
+#[test]
+fn init_empty_repo_writes_skeleton() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+    let output = root.join("services.yaml");
+
+    svccat::init::run(root, output.clone(), false).unwrap();
+
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(
+        contents.contains("version"),
+        "skeleton should contain version key"
+    );
+    assert!(
+        contents.contains("services:"),
+        "skeleton should contain services key"
+    );
+}

@@ -62,6 +62,17 @@ pub enum Commands {
         #[arg(short, long, value_enum, default_value_t = ExportFormat::Json)]
         format: ExportFormat,
     },
+
+    /// Scaffold a services.yaml by auto-discovering services in the repo
+    Init {
+        /// Where to write the manifest (default: services.yaml in repo root)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Overwrite an existing manifest file
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
