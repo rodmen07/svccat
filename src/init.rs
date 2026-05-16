@@ -12,6 +12,14 @@ fn infer_language(root: &Path, service_path: &str) -> Option<String> {
         ("package.json", "TypeScript"),
         ("pyproject.toml", "Python"),
         ("requirements.txt", "Python"),
+        ("pom.xml", "Java"),
+        ("build.gradle", "Java"),
+        ("build.gradle.kts", "Kotlin"),
+        ("CMakeLists.txt", "C++"),
+        ("Directory.Build.props", "C#"),
+        ("Gemfile", "Ruby"),
+        ("mix.exs", "Elixir"),
+        ("pubspec.yaml", "Dart"),
     ];
     for (marker, lang) in candidates {
         if dir.join(marker).exists() {

@@ -125,6 +125,62 @@ pub fn run(manifest: &Manifest) -> LintResult {
         });
     }
 
+    // 7. Duplicate service URLs.
+    let mut url_map: HashMap<&str, Vec<&str>> = HashMap::new();
+    for svc in &manifest.services {
+        if let Some(ref url) = svc.url {
+            let u = url.as_str();
+            if !u.is_empty() {
+                url_map.entry(u).or_default().push(svc.name.as_str());
+            }
+        }
+    }
+    let mut dup_urls: Vec<(&str, Vec<&str>)> = url_map
+        .into_iter()
+        .filter(|(_, names)| names.len() > 1)
+        .collect();
+    dup_urls.sort_unstable_by_key(|(url, _)| *url);
+    for (url, names) in dup_urls {
+        issues.push(LintIssue {
+            severity: LintSeverity::Warning,
+            message: format!(
+                "url '{}' is shared by multiple services: {}",
+                url,
+                names.join(", ")
+            ),
+        });
+    }
+
+    // 8. Cross-platform depends_on edges.
+    // Warn when service A (platform X) declares a dependency on service B (platform Y != X).
+    // This often indicates a misconfigured entry or an undocumented cross-environment call.
+    let platform_map: HashMap<&str, &str> = manifest
+        .services
+        .iter()
+        .filter_map(|s| s.platform.as_deref().map(|p| (s.name.as_str(), p)))
+        .collect();
+
+    for svc in &manifest.services {
+        let svc_platform = match svc.platform.as_deref() {
+            Some(p) if !p.is_empty() => p,
+            _ => continue,
+        };
+        for dep in &svc.depends_on {
+            if let Some(&dep_platform) = platform_map.get(dep.as_str()) {
+                if dep_platform != svc_platform {
+                    issues.push(LintIssue {
+                        severity: LintSeverity::Warning,
+                        message: format!(
+                            "'{}' (platform: {}) depends on '{}' (platform: {}) \
+                             — cross-platform dependency",
+                            svc.name, svc_platform, dep, dep_platform
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
     LintResult { issues }
 }
 

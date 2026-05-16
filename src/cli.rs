@@ -62,6 +62,12 @@ pub enum Commands {
         /// Exit with code 1 when --since reveals new drift items (ignores pre-existing drift)
         #[arg(long, requires = "since")]
         fail_on_new_drift: bool,
+
+        /// Maximum directory depth to scan for services (default: 1 - direct children of each
+        /// discovery path). Use 2 to also detect services nested one level deeper, e.g.
+        /// services/team/auth-service.
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -93,6 +99,10 @@ pub enum Commands {
         /// Glob patterns to exclude from discovery (repeatable)
         #[arg(long, value_name = "PATTERN")]
         ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
     },
 
     /// Scaffold a services.yaml by auto-discovering services in the repo
@@ -138,6 +148,10 @@ pub enum Commands {
         /// Glob patterns to exclude from discovery (repeatable)
         #[arg(long, value_name = "PATTERN")]
         ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
     },
 
     /// Generate a full ownership and drift report
@@ -186,6 +200,25 @@ pub enum Commands {
         manifest: Option<PathBuf>,
     },
 
+    /// Import services from an external catalog format and merge into services.yaml
+    ///
+    /// Supported sources:
+    ///   backstage   Walk the repo for catalog-info.yaml files (Backstage format)
+    ///               and generate service entries from every Kind: Component found.
+    Import {
+        /// Source catalog format to import from
+        #[arg(value_enum)]
+        from: ImportSource,
+
+        /// Where to write the merged manifest (default: services.yaml in repo root)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Overwrite an existing manifest instead of merging
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
@@ -200,6 +233,8 @@ pub enum Commands {
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum OutputFormat {
     Terminal,
+    /// One line per service: status icon, name, and drift summary
+    Compact,
     Json,
     Sarif,
     Markdown,
@@ -223,4 +258,10 @@ pub enum GraphFormat {
 pub enum ExportFormat {
     Json,
     Markdown,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum ImportSource {
+    /// Backstage catalog-info.yaml files (Kind: Component)
+    Backstage,
 }

@@ -88,6 +88,20 @@ pub fn default_markers_pub() -> Vec<String> {
         "package.json",
         "pyproject.toml",
         "requirements.txt",
+        // JVM
+        "build.gradle",
+        "build.gradle.kts",
+        "pom.xml",
+        // C / C++
+        "CMakeLists.txt",
+        // .NET
+        "Directory.Build.props",
+        // Ruby
+        "Gemfile",
+        // Elixir
+        "mix.exs",
+        // Dart / Flutter
+        "pubspec.yaml",
     ]
     .iter()
     .map(|s| s.to_string())

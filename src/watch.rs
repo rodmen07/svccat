@@ -19,6 +19,7 @@ pub fn run(
     root: &Path,
     ignore: &[String],
     team: Option<&str>,
+    depth: u32,
 ) -> Result<usize> {
     let manifest_path = manifest_path.to_path_buf();
     let root = root.to_path_buf();
@@ -43,7 +44,7 @@ pub fn run(
     }
 
     // First run immediately.
-    let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref());
+    let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth);
 
     eprintln!(
         "\n{} Watching {} and service directories. Press Ctrl-C to stop.\n",
@@ -76,7 +77,7 @@ pub fn run(
                     }
                 }
 
-                run_once(&manifest_path, &root, &ignore, team.as_deref());
+                run_once(&manifest_path, &root, &ignore, team.as_deref(), depth);
             }
             Err(e) => eprintln!("{} watcher error: {e}", "!".red()),
         }
@@ -87,7 +88,7 @@ pub fn run(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&str>) -> usize {
+fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&str>, depth: u32) -> usize {
     let ts = timestamp();
     match manifest::Manifest::load(manifest_path) {
         Err(e) => {
@@ -105,7 +106,7 @@ fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&
                 });
             }
 
-            let discovered = discovery::discover_services_with_ignore(root, &m, ignore);
+            let discovered = discovery::discover_services_with_opts(root, &m, ignore, depth);
             let mut report = drift::analyze(&m, &discovered, root);
             report.manifest = manifest_path.display().to_string();
 

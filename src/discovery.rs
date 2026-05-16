@@ -28,7 +28,20 @@ pub fn discover_services_with_ignore(
     manifest: &Manifest,
     extra_ignore: &[String],
 ) -> Vec<DiscoveredService> {
-    let patterns = manifest.effective_discovery_paths();
+    discover_services_with_opts(root, manifest, extra_ignore, 1)
+}
+
+/// Full-featured discovery: like `discover_services_with_ignore` but also accepts
+/// a maximum scan depth (`depth >= 1`). Depth 1 matches only direct children of
+/// each discovery path (the current default). Depth 2 also matches grandchildren,
+/// and so on.
+pub fn discover_services_with_opts(
+    root: &Path,
+    manifest: &Manifest,
+    extra_ignore: &[String],
+    depth: u32,
+) -> Vec<DiscoveredService> {
+    let base_patterns = manifest.effective_discovery_paths();
     let markers = &manifest.discovery.markers;
 
     let effective_markers: Vec<String> = if markers.is_empty() {
@@ -45,6 +58,20 @@ pub fn discover_services_with_ignore(
         .chain(extra_ignore.iter())
         .filter_map(|p| glob::Pattern::new(p).ok())
         .collect();
+
+    // Expand each base pattern to cover depth levels.
+    // A base pattern of "services/*" at depth=2 becomes ["services/*", "services/*/*"].
+    let mut patterns: Vec<String> = Vec::new();
+    for base in &base_patterns {
+        // Start with the base pattern itself (depth 1).
+        let mut current = base.clone();
+        patterns.push(current.clone());
+        // For each additional depth level, append "/*".
+        for _ in 1..depth.max(1) {
+            current.push_str("/*");
+            patterns.push(current.clone());
+        }
+    }
 
     let mut discovered: Vec<DiscoveredService> = Vec::new();
 
@@ -82,7 +109,7 @@ pub fn discover_services_with_ignore(
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
 
-            // Deduplicate paths (e.g. overlapping glob patterns).
+            // Deduplicate paths (e.g. overlapping glob patterns or depth expansion).
             if discovered.iter().any(|d| d.path == rel_path) {
                 continue;
             }

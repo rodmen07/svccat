@@ -1,4 +1,5 @@
 use crate::drift::{DriftItem, DriftKind, DriftReport, Severity};
+use crate::manifest::Manifest;
 use crate::ping::{PingResult, PingStatus};
 use colored::Colorize;
 use std::collections::HashSet;
@@ -209,4 +210,104 @@ fn drift_key(item: &DriftItem) -> String {
         item.service,
         item.detail.as_deref().unwrap_or("")
     )
+}
+
+// ── Compact renderer ──────────────────────────────────────────────────────────
+
+/// One-line-per-service summary. Shows a status icon + name + first drift kind
+/// for every declared service, plus a footer count. Undeclared services get a
+/// single `[UNDECLARED]` line. Ideal for large repos where the full terminal
+/// view is too noisy.
+pub fn render_compact(manifest: &Manifest, report: &DriftReport) {
+    println!(
+        "{}",
+        format!(
+            "svccat: {} declared, {} discovered  [{}]",
+            report.declared, report.discovered, report.manifest
+        )
+        .bold()
+    );
+    println!();
+
+    // Index drift items by service name for O(1) lookup.
+    let mut drift_by_service: std::collections::HashMap<&str, Vec<&DriftItem>> =
+        std::collections::HashMap::new();
+    let mut undeclared: Vec<&DriftItem> = Vec::new();
+
+    for item in &report.drifts {
+        if item.kind == DriftKind::UndeclaredInRepo {
+            undeclared.push(item);
+        } else {
+            drift_by_service
+                .entry(item.service.as_str())
+                .or_default()
+                .push(item);
+        }
+    }
+
+    let mut ok = 0usize;
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
+
+    for svc in &manifest.services {
+        let drifts = drift_by_service.get(svc.name.as_str());
+        match drifts {
+            None => {
+                println!("  {}  {}", "✓".green().bold(), svc.name);
+                ok += 1;
+            }
+            Some(items) => {
+                let worst = items
+                    .iter()
+                    .find(|d| d.severity == Severity::Error)
+                    .or_else(|| items.first());
+                if let Some(d) = worst {
+                    let (icon, label) = match d.severity {
+                        Severity::Error => {
+                            errors += 1;
+                            ("✗".red().bold(), drift_kind_label(&d.kind))
+                        }
+                        Severity::Warning => {
+                            warnings += 1;
+                            ("!".yellow().bold(), drift_kind_label(&d.kind))
+                        }
+                    };
+                    let extra = if items.len() > 1 {
+                        format!(" (+{})", items.len() - 1)
+                    } else {
+                        String::new()
+                    };
+                    println!(
+                        "  {}  {}  {}{}",
+                        icon,
+                        label,
+                        svc.name,
+                        extra
+                    );
+                }
+            }
+        }
+    }
+
+    for item in &undeclared {
+        println!(
+            "  {}  {}  {}",
+            "!".yellow().bold(),
+            drift_kind_label(&item.kind),
+            item.service,
+        );
+        warnings += 1;
+    }
+
+    println!();
+    if errors == 0 && warnings == 0 {
+        println!("{}", format!("  {} ok, 0 errors, 0 warnings", ok).green().bold());
+    } else {
+        println!(
+            "  {} ok  {}  {}",
+            ok,
+            format!("{} error(s)", errors).red().bold(),
+            format!("{} warning(s)", warnings).yellow()
+        );
+    }
 }

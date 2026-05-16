@@ -46,8 +46,11 @@ cargo build --release
 
 ```
 svccat init                              # scaffold services.yaml from your repo
+svccat import --from backstage           # seed services.yaml from catalog-info.yaml files
 svccat check                             # inspect drift in the current repo
 svccat check --fail-on-drift             # gate CI on zero drift (exit 1 on drift)
+svccat check --format compact            # one-line-per-service summary (great for large repos)
+svccat check --depth 2                   # also discover services nested one level deeper
 svccat check --team platform             # only check services owned by "platform"
 svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
@@ -73,6 +76,11 @@ svccat completions bash                  # print bash completion script
 
 Manifest is auto-detected: svccat tries `svccat.yaml`, `svccat.yml`,
 `services.yaml`, `services.yml` in order.
+
+> **GitHub Actions tip:** When running inside a GitHub Actions workflow, `svccat check`
+> automatically switches to `github-annotation` output (no `--format` flag needed) so drift
+> items appear as inline annotations on pull requests. Set `upload-sarif: true` in the Action
+> step to also send results to GitHub Code Scanning.
 
 ---
 

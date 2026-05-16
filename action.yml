@@ -17,6 +17,12 @@ inputs:
     description: 'svccat version to install (e.g. "0.3.0"). Defaults to latest.'
     required: false
     default: 'latest'
+  upload-sarif:
+    description: >
+      Upload a SARIF report to GitHub Code Scanning in addition to the terminal output.
+      Requires the repo to have Code Scanning enabled (public repos or GitHub Advanced Security).
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -49,3 +55,16 @@ runs:
           ARGS="$ARGS --fail-on-drift"
         fi
         svccat check $ARGS
+
+    - name: Generate SARIF report
+      if: ${{ inputs.upload-sarif == 'true' }}
+      shell: bash
+      run: |
+        svccat check --root "${{ inputs.root }}" --format sarif > svccat.sarif || true
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: ${{ inputs.upload-sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: svccat.sarif
+        category: svccat

@@ -3,9 +3,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat, ReportFormat};
+use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, ImportSource, OutputFormat, ReportFormat};
 use svccat::{
-    config, diff, discovery, drift, init, lint, manifest, output, ping, report, since, watch,
+    config, diff, discovery, drift, import, init, lint, manifest, output, ping, report, since,
+    watch,
 };
 
 fn main() {
@@ -35,7 +36,17 @@ fn run() -> Result<i32> {
             team,
             since,
             fail_on_new_drift,
+            depth,
         } => {
+            // When running inside GitHub Actions and no explicit format was chosen,
+            // default to github-annotation so drift items appear as inline PR comments.
+            let format = if format == OutputFormat::Terminal
+                && std::env::var("GITHUB_ACTIONS").as_deref() == Ok("true")
+            {
+                OutputFormat::GithubAnnotation
+            } else {
+                format
+            };
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let full_m = manifest::Manifest::load(&path)?;
 
@@ -54,7 +65,7 @@ fn run() -> Result<i32> {
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let discovered_all = discovery::discover_services_with_ignore(&root, &full_m, &ignore);
+            let discovered_all = discovery::discover_services_with_opts(&root, &full_m, &ignore, depth);
 
             // When a team filter is active, exclude discovered services that are known to
             // belong to other teams so they don't show up as UndeclaredInRepo noise.
@@ -143,6 +154,9 @@ fn run() -> Result<i32> {
                     OutputFormat::Terminal => {
                         output::terminal::render_check(&report, &ping_results)
                     }
+                    OutputFormat::Compact => {
+                        output::terminal::render_compact(&m, &report);
+                    }
                     OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
                     OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
                     OutputFormat::Markdown => {
@@ -183,6 +197,7 @@ fn run() -> Result<i32> {
             manifest: manifest_path,
             format,
             ignore: cli_ignore,
+            depth,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
@@ -190,7 +205,7 @@ fn run() -> Result<i32> {
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let discovered = discovery::discover_services_with_ignore(&root, &m, &ignore);
+            let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
 
@@ -218,12 +233,13 @@ fn run() -> Result<i32> {
             fail_on_drift,
             team,
             ignore: cli_ignore,
+            depth,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref())?;
+            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth)?;
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
             if should_fail && initial_errors > 0 {
@@ -287,6 +303,18 @@ fn run() -> Result<i32> {
             } else {
                 Ok(0)
             }
+        }
+
+        Commands::Import {
+            from,
+            output: output_path,
+            force,
+        } => {
+            let out = output_path.unwrap_or_else(|| root.join("services.yaml"));
+            match from {
+                ImportSource::Backstage => import::run_backstage(&root, out, force)?,
+            }
+            Ok(0)
         }
 
         Commands::Completions { shell } => {
