@@ -53,6 +53,7 @@ svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
 svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
 svccat check --format markdown           # Markdown table for PR comments
+svccat check --format junit              # JUnit XML for CI test reporting
 svccat check --format github-annotation  # GitHub Actions annotations for CI
 svccat check --since HEAD~1              # show only drift new since the previous commit
 svccat check --since HEAD~1 --fail-on-new-drift  # exit 1 only on new drift (ignores pre-existing)
@@ -597,6 +598,17 @@ This outputs:
 
 Annotations appear in PR checks and in the Annotations tab of the workflow run. See the included [`.github/workflows/svccat-pr.yml`](.github/workflows/svccat-pr.yml) for a production-ready workflow template.
 
+### `--format junit` — JUnit XML output (v0.11.0)
+
+Emit drift as JUnit XML for CI systems that ingest test reports:
+
+```bash
+svccat check --format junit > svccat-junit.xml
+svccat check --since origin/main --format junit --fail-on-new-drift > svccat-junit.xml
+```
+
+This is useful for GitHub Actions, GitLab CI, Jenkins, CircleCI, and other systems that can display JUnit test results.
+
 ### `svccat report --badge` — Shields.io badge (v0.10.0)
 
 Emit a Markdown badge snippet for embedding in your README:
@@ -835,9 +847,10 @@ svccat export --format json
 
 ## Project status
 
-`v0.10.0` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations), included workflow template (`.github/workflows/svccat-pr.yml`).
+`v0.11.0` — `svccat check --format junit` (JUnit XML output for CI test report ingestion and `--since` support for new-drift-only test failures).
 
 Previous releases:
+- `v0.10.0` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations), included workflow template (`.github/workflows/svccat-pr.yml`)
 - `v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits)
 - `v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs
 - `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks

@@ -1803,3 +1803,107 @@ services:
     assert!(badge.contains("red"), "drifty repo badge should be red");
     assert!(badge.contains("error"), "badge label should mention error");
 }
+
+// ── v0.11.0: --format junit ───────────────────────────────────────────────────
+
+#[test]
+fn junit_output_contains_failures_for_drift_and_unreachable_ping() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    // Declared but missing -> error drift
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: ghost-service
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let ping_results = vec![svccat::ping::PingResult {
+        service: "ghost-service".to_string(),
+        url: "https://ghost.example".to_string(),
+        ping: svccat::ping::PingStatus::Unreachable {
+            reason: "timeout".to_string(),
+        },
+    }];
+
+    let xml = svccat::output::junit::build_check_document(&report, &ping_results);
+
+    assert!(xml.starts_with("<?xml"), "expected XML declaration");
+    assert!(
+        xml.contains("testsuite name=\"svccat.check\""),
+        "expected check testsuite"
+    );
+    assert!(
+        xml.contains("<failure"),
+        "expected failures in junit output"
+    );
+    assert!(
+        xml.contains("DeclaredMissingFromRepo"),
+        "expected drift testcase"
+    );
+    assert!(
+        xml.contains("ghost-service"),
+        "expected service in testcase"
+    );
+    assert!(
+        xml.contains("classname=\"svccat.ping\""),
+        "expected ping testcase"
+    );
+}
+
+#[test]
+fn junit_since_reports_only_new_drift() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let mut old_report = svccat::drift::analyze(&m, &d, root);
+    old_report.manifest = "services.yaml".to_string();
+
+    // Add a new undeclared service to introduce new drift.
+    touch(root, "services/new-feature/go.mod");
+    let d2 = svccat::discovery::discover_services(root, &m);
+    let mut new_report = svccat::drift::analyze(&m, &d2, root);
+    new_report.manifest = "services.yaml".to_string();
+
+    let (xml, new_count) =
+        svccat::output::junit::build_since_document(&old_report, &new_report, "HEAD~1");
+
+    assert_eq!(new_count, 1, "expected exactly one new drift item");
+    assert!(
+        xml.contains("testsuite name=\"svccat.check.since\""),
+        "expected since testsuite"
+    );
+    assert!(
+        xml.contains("property name=\"git_ref\" value=\"HEAD~1\""),
+        "expected git_ref property"
+    );
+    assert!(
+        xml.contains("UndeclaredInRepo:new-feature"),
+        "expected only new drift testcase"
+    );
+}

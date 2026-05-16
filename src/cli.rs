@@ -203,6 +203,7 @@ pub enum OutputFormat {
     Json,
     Sarif,
     Markdown,
+    Junit,
     GithubAnnotation,
 }
 

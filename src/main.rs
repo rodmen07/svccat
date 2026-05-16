@@ -125,6 +125,9 @@ fn run() -> Result<i32> {
                     OutputFormat::GithubAnnotation => {
                         output::github_annotation::render_since_annotations(&old_report, &report)
                     }
+                    OutputFormat::Junit => {
+                        output::junit::render_since(&old_report, &report, git_ref)
+                    }
                     _ => {
                         let (new_count, _) =
                             output::terminal::render_since_diff(&old_report, &report, git_ref);
@@ -146,6 +149,7 @@ fn run() -> Result<i32> {
                         let md = output::markdown::render_check_markdown(&report, &ping_results);
                         print!("{}", md);
                     }
+                    OutputFormat::Junit => output::junit::render_check(&report, &ping_results)?,
                     OutputFormat::GithubAnnotation => {
                         output::github_annotation::render_check(&report);
                     }
