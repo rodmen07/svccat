@@ -27,6 +27,13 @@ pub fn render_graph(manifest: &Manifest) {
         println!("  end");
     }
 
+    // Render dependency edges after all subgraphs.
+    for svc in &manifest.services {
+        for dep in &svc.depends_on {
+            println!("  {} --> {}", safe_id(&svc.name), safe_id(dep));
+        }
+    }
+
     println!("```");
 }
 

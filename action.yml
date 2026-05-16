@@ -1,0 +1,51 @@
+name: 'svccat'
+description: 'Detect drift between your declared service catalog and what actually lives in the repo'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  root:
+    description: 'Repository root (defaults to the repo root)'
+    required: false
+    default: '.'
+  fail-on-drift:
+    description: 'Exit with code 1 when drift is detected'
+    required: false
+    default: 'true'
+  version:
+    description: 'svccat version to install (e.g. "0.3.0"). Defaults to latest.'
+    required: false
+    default: 'latest'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache svccat binary
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/svccat
+        key: svccat-${{ inputs.version }}-${{ runner.os }}
+
+    - name: Install svccat
+      shell: bash
+      run: |
+        if ! command -v svccat &>/dev/null; then
+          if [ "${{ inputs.version }}" = "latest" ]; then
+            cargo install svccat
+          else
+            cargo install svccat --version "${{ inputs.version }}"
+          fi
+        fi
+
+    - name: Run svccat check
+      shell: bash
+      run: |
+        ARGS="--root ${{ inputs.root }}"
+        if [ "${{ inputs.fail-on-drift }}" = "true" ]; then
+          ARGS="$ARGS --fail-on-drift"
+        fi
+        svccat check $ARGS

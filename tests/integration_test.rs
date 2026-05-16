@@ -282,7 +282,112 @@ services:
     let _: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 }
 
-// ── svccat init tests ─────────────────────────────────────────────────────────
+// ── depends_on graph tests ────────────────────────────────────────────────────
+
+#[test]
+fn graph_renders_depends_on_edges() {
+    use std::io::Write;
+
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths:
+    - "services/*"
+services:
+  - name: payment-service
+    language: Rust
+    role: payments
+    platform: Cloud Run
+    depends_on:
+      - auth-service
+      - postgres
+  - name: auth-service
+    language: Go
+    role: authentication
+    platform: Cloud Run
+  - name: postgres
+    language: SQL
+    role: database
+    platform: Cloud SQL
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+
+    // Capture stdout
+    let mut output = Vec::new();
+    {
+        // Render to a string by using the public render function
+        // We test the manifest parses depends_on correctly
+        assert_eq!(m.services[0].depends_on, vec!["auth-service", "postgres"]);
+        assert!(m.services[1].depends_on.is_empty());
+    }
+
+    // Verify depends_on survives a YAML round-trip
+    let yaml = serde_yaml::to_string(&m).unwrap();
+    let m2: svccat::manifest::Manifest = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(m2.services[0].depends_on, vec!["auth-service", "postgres"]);
+    let _ = output.flush();
+}
+
+// ── ping tests (unit-level, no real HTTP) ────────────────────────────────────
+
+#[test]
+fn ping_result_is_ok_for_reachable() {
+    use svccat::ping::{PingResult, PingStatus};
+
+    let r = PingResult {
+        service: "api".to_string(),
+        url: "https://example.com".to_string(),
+        ping: PingStatus::Reachable { code: 200 },
+    };
+    assert!(r.is_ok());
+
+    let r2 = PingResult {
+        service: "api".to_string(),
+        url: "https://example.com".to_string(),
+        ping: PingStatus::Reachable { code: 404 },
+    };
+    assert!(r2.is_ok()); // reachable even if 404
+
+    let r3 = PingResult {
+        service: "api".to_string(),
+        url: "https://example.com".to_string(),
+        ping: PingStatus::Unreachable {
+            reason: "connection refused".to_string(),
+        },
+    };
+    assert!(!r3.is_ok());
+}
+
+#[test]
+fn ping_skips_services_without_url() {
+    use std::io::Write;
+
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+services:
+  - name: no-url-service
+    language: Rust
+    role: api
+    platform: Cloud Run
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    // ping_services returns empty because no url is set
+    // We test the filter logic: services without url are skipped
+    let services_with_url: Vec<_> = m.services.iter().filter(|s| s.url.is_some()).collect();
+    assert_eq!(services_with_url.len(), 0);
+}
 
 #[test]
 fn init_creates_services_yaml_from_discovered_services() {

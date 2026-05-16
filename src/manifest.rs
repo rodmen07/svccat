@@ -97,6 +97,10 @@ pub struct ServiceEntry {
 
     /// Path to the service's CI workflow file.
     pub ci: Option<String>,
+
+    /// Names of other services this service depends on (used for graph edges).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
 }
 
 impl ServiceEntry {

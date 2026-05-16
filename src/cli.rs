@@ -39,6 +39,10 @@ pub enum Commands {
         /// Exit with code 1 when drift is detected (useful in CI)
         #[arg(long)]
         fail_on_drift: bool,
+
+        /// Ping each service URL and report reachability
+        #[arg(long)]
+        ping: bool,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog

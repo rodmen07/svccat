@@ -133,11 +133,14 @@ services:
     language: Go                    # recommended
     platform: Cloud Run             # recommended
     role: Rate-limiting reverse proxy  # required (error if missing)
-    url: https://gateway.example.com   # optional
+    url: https://gateway.example.com   # optional: enables --ping health checks
     path: infra/gateway             # optional: explicit path (overrides name matching)
     submodule: go-gateway           # optional: git submodule path (Portfolio-compatible)
     docs: docs/api-gateway.md       # optional: warn if file missing
     ci: .github/workflows/api-gateway.yml  # optional: warn if file missing
+    depends_on:                     # optional: rendered as edges in svccat graph
+      - auth-service
+      - postgres
 ```
 
 ### Default discovery paths
@@ -165,6 +168,90 @@ When `discovery.paths` is empty svccat tries `services/*`, `microservices/*`,
 ---
 
 ## CI integration
+
+### `svccat check --ping`
+
+Add `url:` to any service entry and pass `--ping` to verify each endpoint is
+reachable at run time:
+
+```bash
+svccat check --ping              # terminal output with HTTP status per service
+svccat check --ping --format json  # machine-readable ping results
+```
+
+Example output:
+
+```
+svccat: 3 declared, 3 discovered  [services.yaml]
+
+  OK  No drift detected
+
+  Ping results:
+    ✔  api-gateway     https://gateway.example.com  200 OK
+    ✔  auth-service    https://auth.example.com     200 OK
+    ✗  legacy-worker   https://worker.example.com   unreachable (connection refused)
+```
+
+### `depends_on` graph edges
+
+Declare explicit service dependencies and they are rendered as directed edges
+in `svccat graph`:
+
+```yaml
+services:
+  - name: api-gateway
+    depends_on:
+      - auth-service
+      - postgres
+```
+
+```
+svccat graph
+```
+
+```mermaid
+graph TD
+  subgraph Cloud_Run["Cloud Run"]
+    api_gateway["api-gateway\nGo\nreverse proxy"]
+    auth_service["auth-service\nRust\nJWT issuance"]
+  end
+  subgraph Cloud_SQL["Cloud SQL"]
+    postgres["postgres\nSQL\ndatabase"]
+  end
+  api_gateway --> auth_service
+  api_gateway --> postgres
+```
+
+### GitHub Action
+
+Use svccat in GitHub Actions without installing Rust first:
+
+```yaml
+# .github/workflows/catalog.yml
+name: Catalog check
+on: [push, pull_request]
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rodmen07/svccat@v1
+        with:
+          fail-on-drift: 'true'   # default — exits 1 on drift
+```
+
+**Inputs:**
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `root` | `.` | Path to repo root (where `services.yaml` lives) |
+| `fail-on-drift` | `true` | Exit 1 when drift is detected |
+| `version` | `latest` | svccat crates.io version to install |
+
+The action caches the installed binary so subsequent runs skip the `cargo install` step.
+
+### Manual CI integration
 
 Add a step to your pipeline to gate merges on zero drift:
 
@@ -244,13 +331,15 @@ svccat export --format json
 
 ## Project status
 
-`v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration.
+`v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks.
+
+Previous releases:
+- `v0.2` — `svccat init` command (scaffold `services.yaml` from your repo)
+- `v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration
 
 Planned for later releases:
-- `depends_on` edges in `svccat graph` for explicit dependency graphs
-- Remote URL health checks (`svccat check --ping`)
 - Config file (`svccat.toml`) for workspace-level defaults
-- GitHub Actions action for zero-install CI usage
+- `--ignore` patterns in manifest discovery
 
 ---
 

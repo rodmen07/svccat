@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat};
-use svccat::{discovery, drift, init, manifest, output};
+use svccat::{discovery, drift, init, manifest, output, ping};
 
 fn main() {
     match run() {
@@ -23,6 +23,7 @@ fn run() -> Result<i32> {
             manifest: manifest_path,
             format,
             fail_on_drift,
+            ping: do_ping,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
@@ -30,9 +31,15 @@ fn run() -> Result<i32> {
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
 
+            let ping_results = if do_ping {
+                ping::ping_services(&m)
+            } else {
+                vec![]
+            };
+
             match format {
-                OutputFormat::Terminal => output::terminal::render_check(&report),
-                OutputFormat::Json => output::json::render_check(&report)?,
+                OutputFormat::Terminal => output::terminal::render_check(&report, &ping_results),
+                OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
             }
 
             if fail_on_drift && !report.drifts.is_empty() {
