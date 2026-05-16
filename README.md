@@ -52,9 +52,13 @@ svccat check --team platform             # only check services owned by "platfor
 svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
 svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
+svccat check --since HEAD~1              # show only drift new since the previous commit
 svccat graph                             # Mermaid diagram grouped by platform
 svccat graph --team platform             # diagram scoped to one team
 svccat graph --format markdown           # Markdown table
+svccat report                            # full ownership + drift report (Markdown)
+svccat report --format html --output report.html  # self-contained HTML report
+svccat lint                              # validate manifest for structural issues
 svccat export --format json > snap.json  # save a catalog snapshot
 svccat diff before.json after.json       # compare two snapshots
 svccat watch                             # continuous drift detection (re-runs on changes)
@@ -403,6 +407,114 @@ Press **Ctrl-C** to stop watching.
 
 ---
 
+## `svccat report` — ownership report
+
+Generate a full Markdown (or HTML) ownership report: per-team service tables,
+drift status per service, dependency summary, and full drift details.
+
+```bash
+svccat report                          # Markdown to stdout
+svccat report --format html            # self-contained HTML page to stdout
+svccat report --output report.md       # write to file
+svccat report --format html --output catalog.html
+```
+
+Example Markdown output:
+
+```markdown
+# Service Catalog Report
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Services | 5 |
+| Teams | 2 |
+| Drift errors | 0 |
+| Drift warnings | 1 |
+
+## Services by Team
+
+### platform (3 services)
+
+| Service | Language | Platform | Role | Oncall | Drift |
+|---------|----------|----------|------|--------|-------|
+| api-gateway | Go | Cloud Run | API gateway | platform@example.com | ✅ |
+| auth-service | Rust | Cloud Run | JWT issuance | platform@example.com | ✅ |
+| event-stream | Rust | Fly.io | Event bus | platform@example.com | ⚠️ 1 warning(s) |
+```
+
+The HTML format produces a self-contained styled page suitable for sharing with
+non-technical stakeholders.
+
+---
+
+## `svccat lint` — manifest validation
+
+Check the manifest for structural problems that drift analysis won't catch:
+
+```bash
+svccat lint                  # lint services.yaml in the current directory
+svccat lint -m svccat.yaml   # explicit manifest path
+```
+
+Checks performed:
+
+| Check | Severity |
+|-------|----------|
+| Duplicate service names | error |
+| Blank or whitespace-only service name | error |
+| Service depends_on itself | error |
+| Blank entry in depends_on list | error |
+| Duplicate entries in depends_on | warning |
+| Unrecognised manifest version | warning |
+
+Example output:
+
+```
+✗ [error] duplicate service name 'api' appears 2 times
+✗ [error] 'worker' lists itself in depends_on
+⚠ [warn]  'api' lists 'auth' more than once in depends_on
+
+found 2 error(s), 1 warning(s)
+```
+
+Exit codes: `0` if no errors (warnings are allowed), `1` if any errors are found.
+
+---
+
+## `svccat check --since` — PR-friendly drift diffs
+
+Compare current drift against the manifest as it was at a given git ref.
+Outputs only what changed — new drift items or issues that were resolved.
+
+```bash
+svccat check --since HEAD~1       # compare against the previous commit
+svccat check --since main         # compare against the main branch
+svccat check --since v0.7.0       # compare against a tag
+```
+
+Example output:
+
+```
+svccat --since HEAD~1  [services.yaml]
+
+  NEW drift since HEAD~1 (1):
+
+  x  [MISSING]    'legacy-worker' is declared in the manifest but not found in the repo
+
+  RESOLVED since HEAD~1 (1):
+
+  ✓  [UNDECLARED]  'services/old-api' exists in the repo but is not listed in the manifest
+
+  3 existing drift items unchanged
+```
+
+Ideal for a CI step on pull requests: only fails when the PR introduces _new_ drift,
+not when existing drift is already tracked.
+
+---
+
 ## `svccat.toml` — workspace defaults
 
 Place a `svccat.toml` in your repo root to set persistent defaults so you
@@ -613,7 +725,10 @@ svccat export --format json
 
 ## Project status
 
-`v0.7` — `depends_on` validation + cycle detection, SARIF output (`--format sarif`), `svccat graph --team` filtered diagrams.
+`v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs.
+
+Previous releases:
+- `v0.7` — `depends_on` validation + cycle detection, SARIF output (`--format sarif`), `svccat graph --team` filtered diagrams
 
 Previous releases:
 - `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks

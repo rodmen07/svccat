@@ -52,6 +52,12 @@ pub enum Commands {
         /// Only check services owned by this team (matches the `team:` field)
         #[arg(long, value_name = "TEAM")]
         team: Option<String>,
+
+        /// Compare against the manifest at this git ref; show only new / resolved drift
+        ///
+        /// Example: --since HEAD~1   or   --since main
+        #[arg(long, value_name = "GIT_REF")]
+        since: Option<String>,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -130,6 +136,38 @@ pub enum Commands {
         ignore: Vec<String>,
     },
 
+    /// Generate a full ownership and drift report
+    ///
+    /// Outputs a per-team breakdown of every service with language, platform, oncall,
+    /// and drift status, plus a dependency summary and full drift details.
+    Report {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = ReportFormat::Markdown)]
+        format: ReportFormat,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+    },
+
+    /// Validate the manifest for structural issues
+    ///
+    /// Checks for duplicate service names, blank names, self-referential
+    /// depends_on entries, duplicate depends_on entries, and unknown manifest versions.
+    Lint {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
@@ -146,6 +184,12 @@ pub enum OutputFormat {
     Terminal,
     Json,
     Sarif,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum ReportFormat {
+    Markdown,
+    Html,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

@@ -1246,3 +1246,252 @@ services:
     );
     assert_eq!(in_scope.len(), 2);
 }
+
+// ── v0.8.0: svccat lint ───────────────────────────────────────────────────────
+
+#[test]
+fn lint_clean_manifest_has_no_issues() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+version: "1"
+services:
+  - name: api
+    role: API
+    language: Rust
+    platform: Cloud Run
+    depends_on: [auth]
+  - name: auth
+    role: Auth
+    language: Rust
+    platform: Cloud Run
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let result = svccat::lint::run(&m);
+    assert!(
+        result.issues.is_empty(),
+        "clean manifest should have no lint issues: {:?}",
+        result.issues
+    );
+}
+
+#[test]
+fn lint_detects_duplicate_service_names() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+services:
+  - name: api
+    role: API
+  - name: api
+    role: Duplicate
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let result = svccat::lint::run(&m);
+    let dups: Vec<_> = result
+        .issues
+        .iter()
+        .filter(|i| i.message.contains("duplicate service name"))
+        .collect();
+    assert_eq!(
+        dups.len(),
+        1,
+        "expected 1 duplicate-name issue: {:?}",
+        result.issues
+    );
+    assert_eq!(result.error_count(), 1);
+}
+
+#[test]
+fn lint_detects_self_referential_depends_on() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+services:
+  - name: api
+    role: API
+    depends_on: [api]
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let result = svccat::lint::run(&m);
+    let self_refs: Vec<_> = result
+        .issues
+        .iter()
+        .filter(|i| i.message.contains("lists itself"))
+        .collect();
+    assert_eq!(
+        self_refs.len(),
+        1,
+        "expected 1 self-reference issue: {:?}",
+        result.issues
+    );
+    assert_eq!(self_refs[0].severity, svccat::lint::LintSeverity::Error);
+}
+
+#[test]
+fn lint_detects_duplicate_depends_on_entries() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        r#"
+services:
+  - name: api
+    role: API
+    depends_on: [auth, auth]
+  - name: auth
+    role: Auth
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let result = svccat::lint::run(&m);
+    let dup_deps: Vec<_> = result
+        .issues
+        .iter()
+        .filter(|i| i.message.contains("more than once"))
+        .collect();
+    assert_eq!(
+        dup_deps.len(),
+        1,
+        "expected 1 duplicate-depends_on warning: {:?}",
+        result.issues
+    );
+    assert_eq!(dup_deps[0].severity, svccat::lint::LintSeverity::Warning);
+}
+
+// ── v0.8.0: svccat report ─────────────────────────────────────────────────────
+
+#[test]
+fn report_markdown_contains_service_names_and_summary() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/worker/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+    oncall: oncall@example.com
+  - name: worker
+    language: Python
+    role: Worker
+    platform: Fly.io
+    team: data
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let md = svccat::report::render_markdown(&m, &report);
+
+    assert!(md.contains("# Service Catalog Report"));
+    assert!(md.contains("| Services | 2 |"));
+    assert!(md.contains("api"));
+    assert!(md.contains("worker"));
+    assert!(md.contains("platform"));
+    assert!(md.contains("data"));
+    assert!(md.contains("✅"), "expected clean status cells in markdown");
+}
+
+#[test]
+fn report_html_contains_html_structure() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let html = svccat::report::render_html(&m, &report);
+
+    assert!(html.contains("<!DOCTYPE html>"));
+    assert!(html.contains("<table>"));
+    assert!(html.contains("<th>Service</th>"));
+    assert!(html.contains("api"));
+    assert!(html.contains("Service Catalog Report"));
+}
+
+// ── v0.8.0: --since git-ref ───────────────────────────────────────────────────
+
+#[test]
+fn since_load_at_ref_returns_committed_manifest() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    let initial_manifest = r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#;
+    write_manifest(root, initial_manifest);
+
+    // Initialise a git repo and commit the manifest.
+    for args in &[
+        vec!["init"],
+        vec!["config", "user.email", "test@example.com"],
+        vec!["config", "user.name", "Test"],
+        vec!["add", "services.yaml"],
+        vec!["commit", "-m", "init"],
+    ] {
+        std::process::Command::new("git")
+            .args(
+                std::iter::once("-C")
+                    .chain(std::iter::once(root.to_str().unwrap()))
+                    .chain(args.iter().copied()),
+            )
+            .output()
+            .unwrap();
+    }
+
+    let manifest_path = root.join("services.yaml");
+    let m = svccat::since::load_at_ref(root, &manifest_path, "HEAD").unwrap();
+
+    assert_eq!(m.services.len(), 1);
+    assert_eq!(m.services[0].name, "api");
+}
