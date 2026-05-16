@@ -1,3 +1,4 @@
+use crate::discovery::DiscoveredService;
 use crate::drift::{DriftItem, DriftReport, Severity};
 use crate::manifest::{Manifest, ServiceEntry};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -321,4 +322,99 @@ fn esc(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+// ── History renderer ──────────────────────────────────────────────────────────
+
+/// Render a Markdown table showing drift evolution across the last `n` git commits.
+///
+/// Uses `git log` to enumerate commits, loads the manifest at each commit via
+/// `git show`, then runs drift analysis against the current discovered services.
+pub fn render_history_markdown(
+    root: &std::path::Path,
+    manifest_path: &std::path::Path,
+    discovered: &[DiscoveredService],
+    n: usize,
+) -> anyhow::Result<String> {
+    let log_output = std::process::Command::new("git")
+        .args([
+            "-C",
+            &root.to_string_lossy(),
+            "log",
+            "--format=%H %s",
+            &format!("-{}", n),
+        ])
+        .output()?;
+
+    if !log_output.status.success() {
+        anyhow::bail!(
+            "git log failed: {}",
+            String::from_utf8_lossy(&log_output.stderr).trim()
+        );
+    }
+
+    let log = String::from_utf8(log_output.stdout)?;
+    let commits: Vec<(String, String)> = log
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| {
+            let (hash, msg) = l.split_once(' ').unwrap_or((l, ""));
+            (hash.to_string(), msg.to_string())
+        })
+        .collect();
+
+    if commits.is_empty() {
+        anyhow::bail!("no git commits found");
+    }
+
+    let mut out = String::new();
+    writeln!(
+        out,
+        "## Drift History (last {} commit{})",
+        commits.len(),
+        plural(commits.len())
+    )
+    .unwrap();
+    writeln!(out).unwrap();
+    writeln!(out, "| Commit | Summary | Errors | Warnings | Total |").unwrap();
+    writeln!(out, "|--------|---------|--------|----------|-------|").unwrap();
+
+    for (hash, summary) in &commits {
+        let short = &hash[..hash.len().min(7)];
+        // Truncate summary at 60 chars (character-safe)
+        let display_summary: String = summary.chars().take(60).collect();
+        let display_summary = if summary.chars().count() > 60 {
+            format!("{}…", display_summary)
+        } else {
+            display_summary
+        };
+
+        match crate::since::load_at_ref(root, manifest_path, hash) {
+            Ok(m) => {
+                let r = crate::drift::analyze(&m, discovered, root);
+                let errors = r.error_count();
+                let warnings = r.warning_count();
+                let total = r.drifts.len();
+                let status = if errors > 0 {
+                    "❌"
+                } else if warnings > 0 {
+                    "⚠️"
+                } else {
+                    "✅"
+                };
+                writeln!(
+                    out,
+                    "| `{}` | {} | {} | {} | {} {} |",
+                    short, display_summary, errors, warnings, status, total
+                )
+                .unwrap();
+            }
+            Err(_) => {
+                // Manifest may not exist at older commits — mark as unavailable.
+                writeln!(out, "| `{}` | {} | — | — | — |", short, display_summary).unwrap();
+            }
+        }
+    }
+
+    Ok(out)
 }

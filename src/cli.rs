@@ -58,6 +58,10 @@ pub enum Commands {
         /// Example: --since HEAD~1   or   --since main
         #[arg(long, value_name = "GIT_REF")]
         since: Option<String>,
+
+        /// Exit with code 1 when --since reveals new drift items (ignores pre-existing drift)
+        #[arg(long, requires = "since")]
+        fail_on_new_drift: bool,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -156,6 +160,13 @@ pub enum Commands {
         /// Glob patterns to exclude from discovery (repeatable)
         #[arg(long, value_name = "PATTERN")]
         ignore: Vec<String>,
+
+        /// Show drift evolution across the last N git commits
+        ///
+        /// Requires a git repository. Loads the manifest at each of the last N commits
+        /// and emits a Markdown table of errors/warnings over time.
+        #[arg(long, value_name = "N")]
+        history: Option<usize>,
     },
 
     /// Validate the manifest for structural issues
@@ -184,6 +195,7 @@ pub enum OutputFormat {
     Terminal,
     Json,
     Sarif,
+    Markdown,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

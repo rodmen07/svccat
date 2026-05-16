@@ -1495,3 +1495,187 @@ services:
     assert_eq!(m.services.len(), 1);
     assert_eq!(m.services[0].name, "api");
 }
+
+// ── v0.9.0: --format markdown ─────────────────────────────────────────────────
+
+#[test]
+fn check_markdown_no_drift() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let md = svccat::output::markdown::render_check_markdown(&report, &[]);
+
+    assert!(md.contains("## 🔍 svccat drift check"));
+    assert!(md.contains("✅ **No drift detected**"));
+    assert!(!md.contains("❌ **DRIFT DETECTED**"));
+}
+
+#[test]
+fn check_markdown_with_drift_contains_table() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    // declared but not present on disk → MISSING drift
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: ghost-service
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let md = svccat::output::markdown::render_check_markdown(&report, &[]);
+
+    assert!(md.contains("❌ **DRIFT DETECTED**"));
+    assert!(md.contains("| Severity | Kind | Service | Message |"));
+    assert!(md.contains("MISSING"));
+    assert!(md.contains("ghost-service"));
+}
+
+// ── v0.9.0: --fail-on-new-drift ───────────────────────────────────────────────
+
+#[test]
+fn since_diff_markdown_no_change() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let old_report = svccat::drift::analyze(&m, &d, root);
+    let new_report = svccat::drift::analyze(&m, &d, root);
+
+    let md =
+        svccat::output::markdown::render_since_diff_markdown(&old_report, &new_report, "HEAD~1");
+    assert!(md.contains("✅ **No change in drift since"));
+}
+
+#[test]
+fn since_diff_markdown_new_drift() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    let clean_manifest = r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#;
+    let drifty_manifest = r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+  - name: ghost-service
+    language: Go
+    role: Worker
+    platform: Cloud Run
+"#;
+
+    write_manifest(root, clean_manifest);
+    let (m_clean, d) = load(root);
+    let old_report = svccat::drift::analyze(&m_clean, &d, root);
+
+    write_manifest(root, drifty_manifest);
+    let (m_drifty, _) = load(root);
+    let new_report = svccat::drift::analyze(&m_drifty, &d, root);
+
+    let md =
+        svccat::output::markdown::render_since_diff_markdown(&old_report, &new_report, "HEAD~1");
+    assert!(md.contains("### ❌ New drift since"));
+    assert!(md.contains("ghost-service"));
+}
+
+// ── v0.9.0: svccat report --history ──────────────────────────────────────────
+
+#[test]
+fn report_history_markdown_with_git_repo() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    let manifest_content = r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+"#;
+    write_manifest(root, manifest_content);
+
+    // Initialise a git repo with two commits.
+    for args in &[
+        vec!["init"],
+        vec!["config", "user.email", "test@example.com"],
+        vec!["config", "user.name", "Test"],
+        vec!["add", "services.yaml"],
+        vec!["commit", "-m", "first commit"],
+    ] {
+        std::process::Command::new("git")
+            .args(
+                std::iter::once("-C")
+                    .chain(std::iter::once(root.to_str().unwrap()))
+                    .chain(args.iter().copied()),
+            )
+            .output()
+            .unwrap();
+    }
+
+    let manifest_path = root.join("services.yaml");
+    let m = svccat::manifest::Manifest::load(&manifest_path).unwrap();
+    let d = svccat::discovery::discover_services(root, &m);
+
+    let md = svccat::report::render_history_markdown(root, &manifest_path, &d, 3).unwrap();
+
+    assert!(md.contains("## Drift History"));
+    assert!(md.contains("| Commit | Summary |"));
+    assert!(md.contains("first commit"));
+}

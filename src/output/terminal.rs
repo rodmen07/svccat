@@ -55,7 +55,12 @@ pub fn render_check(report: &DriftReport, ping_results: &[PingResult]) {
 }
 
 /// Renders only the drift that is new or resolved compared to `old_report`.
-pub fn render_since_diff(old_report: &DriftReport, new_report: &DriftReport, git_ref: &str) {
+/// Returns `(new_count, resolved_count)`.
+pub fn render_since_diff(
+    old_report: &DriftReport,
+    new_report: &DriftReport,
+    git_ref: &str,
+) -> (usize, usize) {
     let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_key).collect();
     let new_keys: HashSet<String> = new_report.drifts.iter().map(drift_key).collect();
 
@@ -89,7 +94,7 @@ pub fn render_since_diff(old_report: &DriftReport, new_report: &DriftReport, git
             .green()
             .bold()
         );
-        return;
+        return (0, 0);
     }
 
     if !added.is_empty() {
@@ -114,7 +119,7 @@ pub fn render_since_diff(old_report: &DriftReport, new_report: &DriftReport, git
                 .bold()
         );
         println!();
-        for item in resolved {
+        for item in &resolved {
             print_resolved_drift_item(item);
         }
         println!();
@@ -127,6 +132,8 @@ pub fn render_since_diff(old_report: &DriftReport, new_report: &DriftReport, git
             if unchanged == 1 { "" } else { "s" }
         );
     }
+
+    (added.len(), resolved.len())
 }
 
 pub fn render_ping_results(results: &[PingResult]) {

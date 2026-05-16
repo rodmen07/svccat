@@ -34,6 +34,7 @@ fn run() -> Result<i32> {
             ignore: cli_ignore,
             team,
             since,
+            fail_on_new_drift,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let full_m = manifest::Manifest::load(&path)?;
@@ -84,7 +85,69 @@ fn run() -> Result<i32> {
                 let old_m = since::load_at_ref(&root, &path, git_ref)?;
                 let mut old_report = drift::analyze(&old_m, &discovered, &root);
                 old_report.manifest = path.display().to_string();
-                output::terminal::render_since_diff(&old_report, &report, git_ref);
+                let (new_count, _resolved_count) = if format == OutputFormat::Markdown {
+                    let md =
+                        output::markdown::render_since_diff_markdown(&old_report, &report, git_ref);
+                    // Compute counts manually for exit code before printing.
+                    use std::collections::HashSet;
+                    let old_keys: HashSet<String> = old_report
+                        .drifts
+                        .iter()
+                        .map(|d| {
+                            format!(
+                                "{:?}|{}|{}",
+                                d.kind,
+                                d.service,
+                                d.detail.as_deref().unwrap_or("")
+                            )
+                        })
+                        .collect();
+                    let added = report
+                        .drifts
+                        .iter()
+                        .filter(|d| {
+                            let k = format!(
+                                "{:?}|{}|{}",
+                                d.kind,
+                                d.service,
+                                d.detail.as_deref().unwrap_or("")
+                            );
+                            !old_keys.contains(&k)
+                        })
+                        .count();
+                    let new_keys: HashSet<String> = report
+                        .drifts
+                        .iter()
+                        .map(|d| {
+                            format!(
+                                "{:?}|{}|{}",
+                                d.kind,
+                                d.service,
+                                d.detail.as_deref().unwrap_or("")
+                            )
+                        })
+                        .collect();
+                    let resolved = old_report
+                        .drifts
+                        .iter()
+                        .filter(|d| {
+                            let k = format!(
+                                "{:?}|{}|{}",
+                                d.kind,
+                                d.service,
+                                d.detail.as_deref().unwrap_or("")
+                            );
+                            !new_keys.contains(&k)
+                        })
+                        .count();
+                    print!("{}", md);
+                    (added, resolved)
+                } else {
+                    output::terminal::render_since_diff(&old_report, &report, git_ref)
+                };
+                if fail_on_new_drift && new_count > 0 {
+                    return Ok(1);
+                }
             } else {
                 match format {
                     OutputFormat::Terminal => {
@@ -92,6 +155,10 @@ fn run() -> Result<i32> {
                     }
                     OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
                     OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
+                    OutputFormat::Markdown => {
+                        let md = output::markdown::render_check_markdown(&report, &ping_results);
+                        print!("{}", md);
+                    }
                 }
             }
 
@@ -177,6 +244,7 @@ fn run() -> Result<i32> {
             format,
             output: output_path,
             ignore: cli_ignore,
+            history,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
@@ -188,9 +256,13 @@ fn run() -> Result<i32> {
             let mut drift_report = drift::analyze(&m, &discovered, &root);
             drift_report.manifest = path.display().to_string();
 
-            let content = match format {
-                ReportFormat::Markdown => report::render_markdown(&m, &drift_report),
-                ReportFormat::Html => report::render_html(&m, &drift_report),
+            let content = if let Some(n) = history {
+                report::render_history_markdown(&root, &path, &discovered, n)?
+            } else {
+                match format {
+                    ReportFormat::Markdown => report::render_markdown(&m, &drift_report),
+                    ReportFormat::Html => report::render_html(&m, &drift_report),
+                }
             };
 
             if let Some(out_path) = output_path {

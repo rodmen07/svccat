@@ -52,12 +52,15 @@ svccat check --team platform             # only check services owned by "platfor
 svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
 svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
+svccat check --format markdown           # Markdown table for PR comments
 svccat check --since HEAD~1              # show only drift new since the previous commit
+svccat check --since HEAD~1 --fail-on-new-drift  # exit 1 only on new drift (ignores pre-existing)
 svccat graph                             # Mermaid diagram grouped by platform
 svccat graph --team platform             # diagram scoped to one team
 svccat graph --format markdown           # Markdown table
 svccat report                            # full ownership + drift report (Markdown)
 svccat report --format html --output report.html  # self-contained HTML report
+svccat report --history 5               # drift evolution across last 5 commits
 svccat lint                              # validate manifest for structural issues
 svccat export --format json > snap.json  # save a catalog snapshot
 svccat diff before.json after.json       # compare two snapshots
@@ -447,6 +450,31 @@ Example Markdown output:
 The HTML format produces a self-contained styled page suitable for sharing with
 non-technical stakeholders.
 
+### `svccat report --history <N>` — drift evolution over time
+
+Run the report across the last N git commits and emit a Markdown table showing how
+drift has evolved. Uses the current discovered services against each historical manifest.
+
+```bash
+svccat report --history 5                        # last 5 commits
+svccat report --history 10 --output history.md   # write to file
+```
+
+Example output:
+
+```markdown
+## Drift History (last 5 commits)
+
+| Commit | Summary | Errors | Warnings | Total |
+|--------|---------|--------|----------|-------|
+| `a1b2c3` | feat: add auth-service | 0 | 1 | ⚠️ 1 |
+| `d4e5f6` | fix: update API gateway | 1 | 1 | ❌ 2 |
+| `e7f8a9` | chore: update deps | 1 | 2 | ❌ 3 |
+```
+
+Useful for sprint reviews, architecture health dashboards, and understanding how
+long-running drift was introduced.
+
 ---
 
 ## `svccat lint` — manifest validation
@@ -512,6 +540,43 @@ svccat --since HEAD~1  [services.yaml]
 
 Ideal for a CI step on pull requests: only fails when the PR introduces _new_ drift,
 not when existing drift is already tracked.
+
+### `--fail-on-new-drift` — gate CI on new drift only
+
+Add `--fail-on-new-drift` to exit 1 only when `--since` reveals _new_ drift items.
+Pre-existing drift that was already present at the base ref is ignored.
+
+```bash
+# In CI: fail the PR only if it introduces new drift
+svccat check --since origin/main --fail-on-new-drift --fail-on-drift
+
+# Can combine with --format markdown to post as a PR comment
+svccat check --since origin/main --format markdown --fail-on-new-drift
+```
+
+### `--format markdown` — Markdown output for PR comments
+
+Emit the drift report as a Markdown table suitable for posting as a GitHub PR comment.
+
+```bash
+svccat check --format markdown
+svccat check --since HEAD~1 --format markdown --fail-on-new-drift
+```
+
+Example output:
+
+```markdown
+## 🔍 svccat drift check
+
+**3 declared · 3 discovered** — `services.yaml`
+
+❌ **DRIFT DETECTED** (1 error, 1 warning)
+
+| Severity | Kind | Service | Message |
+|----------|------|---------|---------|
+| ❌ Error | MISSING | `legacy-worker` | declared in manifest but directory not found |
+| ⚠️ Warning | FIELD | `api-gateway` | missing recommended field: oncall |
+```
 
 ---
 
@@ -725,12 +790,10 @@ svccat export --format json
 
 ## Project status
 
-`v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs.
+`v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits).
 
 Previous releases:
-- `v0.7` — `depends_on` validation + cycle detection, SARIF output (`--format sarif`), `svccat graph --team` filtered diagrams
-
-Previous releases:
+- `v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs
 - `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks
 - `v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement
 - `v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions
