@@ -366,8 +366,6 @@ fn ping_result_is_ok_for_reachable() {
 
 #[test]
 fn ping_skips_services_without_url() {
-    use std::io::Write;
-
     let dir = TempDir::new().unwrap();
     let root = dir.path();
 
@@ -956,4 +954,295 @@ services:
     });
 
     assert_eq!(m.services.len(), 1, "case-insensitive match should succeed");
+}
+
+// ── v0.7.0: depends_on validation + cycle detection ───────────────────────────
+
+#[test]
+fn no_drift_for_valid_depends_on() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/auth/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    depends_on: [auth]
+  - name: auth
+    language: Rust
+    role: Auth
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let dependency_drifts: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|d| {
+            d.kind == svccat::drift::DriftKind::DanglingDependency
+                || d.kind == svccat::drift::DriftKind::CircularDependency
+        })
+        .collect();
+    assert!(
+        dependency_drifts.is_empty(),
+        "valid depends_on should produce no drift: {:?}",
+        dependency_drifts
+    );
+}
+
+#[test]
+fn detects_dangling_depends_on() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    depends_on: [ghost-service]
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let dangling: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|d| d.kind == svccat::drift::DriftKind::DanglingDependency)
+        .collect();
+    assert_eq!(
+        dangling.len(),
+        1,
+        "expected 1 dangling dependency: {:?}",
+        dangling
+    );
+    assert_eq!(dangling[0].detail.as_deref(), Some("ghost-service"));
+    assert_eq!(dangling[0].severity, svccat::drift::Severity::Error);
+}
+
+#[test]
+fn detects_two_node_cycle() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/auth/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    depends_on: [auth]
+  - name: auth
+    language: Rust
+    role: Auth
+    platform: Cloud Run
+    depends_on: [api]
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let cycles: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|d| d.kind == svccat::drift::DriftKind::CircularDependency)
+        .collect();
+    assert!(
+        !cycles.is_empty(),
+        "expected cycle to be detected: {:?}",
+        report.drifts
+    );
+    assert_eq!(cycles[0].severity, svccat::drift::Severity::Error);
+}
+
+#[test]
+fn detects_three_node_cycle() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/a/Cargo.toml");
+    touch(root, "services/b/Cargo.toml");
+    touch(root, "services/c/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: a
+    role: A
+    depends_on: [b]
+  - name: b
+    role: B
+    depends_on: [c]
+  - name: c
+    role: C
+    depends_on: [a]
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let cycles: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|d| d.kind == svccat::drift::DriftKind::CircularDependency)
+        .collect();
+    assert!(
+        !cycles.is_empty(),
+        "expected 3-node cycle to be detected: {:?}",
+        report.drifts
+    );
+}
+
+// ── v0.7.0: SARIF output ──────────────────────────────────────────────────────
+
+#[test]
+fn sarif_output_is_valid_json_with_rules() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    platform: Cloud Run
+    # role intentionally missing to trigger MissingField
+"#,
+    );
+
+    let (m, d) = load(root);
+    let mut report = svccat::drift::analyze(&m, &d, root);
+    report.manifest = "services.yaml".to_string();
+
+    // Verify the report has a MissingField drift for role.
+    let role_drift = report.drifts.iter().any(|d| {
+        d.kind == svccat::drift::DriftKind::MissingField && d.detail.as_deref() == Some("role")
+    });
+    assert!(
+        role_drift,
+        "expected MissingField for role: {:?}",
+        report.drifts
+    );
+
+    // Verify the SARIF schema constant embeds the right version string.
+    let sarif_doc = serde_json::json!({
+        "version": "2.1.0",
+        "runs": [{
+            "tool": { "driver": { "name": "svccat" } },
+            "results": report.drifts.iter().map(|item| {
+                let rule_id = match item.kind {
+                    svccat::drift::DriftKind::MissingField => "missing_field",
+                    svccat::drift::DriftKind::PolicyViolation => "policy_violation",
+                    svccat::drift::DriftKind::DeclaredMissingFromRepo => "declared_missing_from_repo",
+                    svccat::drift::DriftKind::UndeclaredInRepo => "undeclared_in_repo",
+                    svccat::drift::DriftKind::MissingReferencedFile => "missing_referenced_file",
+                    svccat::drift::DriftKind::DanglingDependency => "dangling_dependency",
+                    svccat::drift::DriftKind::CircularDependency => "circular_dependency",
+                };
+                serde_json::json!({ "ruleId": rule_id, "message": { "text": item.message } })
+            }).collect::<Vec<_>>()
+        }]
+    });
+
+    assert_eq!(sarif_doc["version"], "2.1.0");
+    let results = sarif_doc["runs"][0]["results"].as_array().unwrap();
+    assert!(!results.is_empty(), "SARIF results should not be empty");
+    assert_eq!(results[0]["ruleId"], "missing_field");
+}
+
+// ── v0.7.0: graph --team filter ───────────────────────────────────────────────
+
+#[test]
+fn graph_team_filter_limits_to_in_scope_services() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/worker/Cargo.toml");
+    touch(root, "services/auth/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+    depends_on: [auth]
+  - name: auth
+    language: Rust
+    role: Auth
+    platform: Cloud Run
+    team: platform
+  - name: worker
+    language: Rust
+    role: Worker
+    platform: Cloud Run
+    team: data
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+
+    // Collect in-scope names for team=platform
+    let in_scope: std::collections::HashSet<&str> = m
+        .services
+        .iter()
+        .filter(|s| {
+            s.team
+                .as_deref()
+                .map(|t| t.eq_ignore_ascii_case("platform"))
+                .unwrap_or(false)
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    assert!(in_scope.contains("api"), "api should be in platform scope");
+    assert!(
+        in_scope.contains("auth"),
+        "auth should be in platform scope"
+    );
+    assert!(
+        !in_scope.contains("worker"),
+        "worker should not be in platform scope"
+    );
+    assert_eq!(in_scope.len(), 2);
 }

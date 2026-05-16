@@ -63,6 +63,11 @@ pub enum Commands {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = GraphFormat::Mermaid)]
         format: GraphFormat,
+
+        /// Only include services owned by this team; cross-team depends_on targets
+        /// are shown as external nodes
+        #[arg(long, value_name = "TEAM")]
+        team: Option<String>,
     },
 
     /// Export the full service catalog with drift summary
@@ -140,6 +145,7 @@ pub enum Commands {
 pub enum OutputFormat {
     Terminal,
     Json,
+    Sarif,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

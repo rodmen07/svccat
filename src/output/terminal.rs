@@ -103,6 +103,8 @@ fn print_drift_item(item: &DriftItem) {
         DriftKind::MissingField => "[FIELD]     ".cyan(),
         DriftKind::MissingReferencedFile => "[REF]       ".yellow(),
         DriftKind::PolicyViolation => "[POLICY]    ".red(),
+        DriftKind::DanglingDependency => "[DEPENDS]   ".red(),
+        DriftKind::CircularDependency => "[CYCLE]     ".red(),
     };
 
     println!("  {}  {}  {}", icon, kind_label, item.message);

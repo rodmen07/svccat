@@ -79,6 +79,7 @@ fn run() -> Result<i32> {
             match format {
                 OutputFormat::Terminal => output::terminal::render_check(&report, &ping_results),
                 OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
+                OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
             }
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
@@ -92,12 +93,13 @@ fn run() -> Result<i32> {
         Commands::Graph {
             manifest: manifest_path,
             format,
+            team,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
 
             match format {
-                GraphFormat::Mermaid => output::mermaid::render_graph(&m),
+                GraphFormat::Mermaid => output::mermaid::render_graph_filtered(&m, team.as_deref()),
                 GraphFormat::Markdown => output::mermaid::render_markdown_table(&m),
             }
             Ok(0)

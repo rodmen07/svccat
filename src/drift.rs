@@ -18,6 +18,10 @@ pub enum DriftKind {
     MissingReferencedFile,
     /// A field required by the policy section is absent from the service entry.
     PolicyViolation,
+    /// A `depends_on` entry references a service that is not declared in the manifest.
+    DanglingDependency,
+    /// A circular dependency was detected in the `depends_on` graph.
+    CircularDependency,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -202,5 +206,114 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
         }
     }
 
+    // 4. Validate depends_on references and detect cycles.
+    check_dependencies(manifest, &mut report);
+
     report
+}
+
+// ── Dependency validation ─────────────────────────────────────────────────────
+
+fn check_dependencies(manifest: &Manifest, report: &mut DriftReport) {
+    let declared: std::collections::HashSet<&str> =
+        manifest.services.iter().map(|s| s.name.as_str()).collect();
+
+    // 4a. Dangling references.
+    for svc in &manifest.services {
+        for dep in &svc.depends_on {
+            if !declared.contains(dep.as_str()) {
+                report.drifts.push(DriftItem {
+                    kind: DriftKind::DanglingDependency,
+                    severity: Severity::Error,
+                    service: svc.name.clone(),
+                    message: format!(
+                        "'{}' depends_on '{}' which is not declared in the manifest",
+                        svc.name, dep
+                    ),
+                    detail: Some(dep.clone()),
+                });
+            }
+        }
+    }
+
+    // 4b. Cycle detection via iterative DFS.
+    // Build adjacency map (only over declared services to avoid double-reporting).
+    let adj: std::collections::HashMap<&str, Vec<&str>> = manifest
+        .services
+        .iter()
+        .map(|s| {
+            let deps: Vec<&str> = s
+                .depends_on
+                .iter()
+                .filter(|d| declared.contains(d.as_str()))
+                .map(String::as_str)
+                .collect();
+            (s.name.as_str(), deps)
+        })
+        .collect();
+
+    // Track global visit state: 0 = unvisited, 1 = in-stack, 2 = done.
+    let mut state: std::collections::HashMap<&str, u8> =
+        declared.iter().map(|&n| (n, 0u8)).collect();
+    let mut reported_cycles: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for start in declared.iter() {
+        if state[start] != 0 {
+            continue;
+        }
+        // Iterative DFS with explicit stack: (node, iterator-over-children).
+        let mut stack: Vec<(&str, usize)> = vec![(start, 0)];
+        // path_set tracks nodes currently on the DFS stack for cycle detection.
+        let mut path: Vec<&str> = vec![start];
+        let mut path_set: std::collections::HashSet<&str> =
+            std::collections::HashSet::from([*start]);
+        state.insert(start, 1);
+
+        while let Some((node, child_idx)) = stack.last_mut() {
+            let node = *node;
+            let children = adj.get(node).map(Vec::as_slice).unwrap_or(&[]);
+            if *child_idx < children.len() {
+                let child = children[*child_idx];
+                *child_idx += 1;
+                match state.get(child).copied().unwrap_or(0) {
+                    1 => {
+                        // Back edge → cycle. Find the cycle start in `path`.
+                        if let Some(pos) = path.iter().position(|&n| n == child) {
+                            let cycle: Vec<&str> = path[pos..].to_vec();
+                            // Use the lexicographically smallest node as the canonical key.
+                            let mut key = cycle.clone();
+                            key.sort_unstable();
+                            let key_str = key.join(",");
+                            if reported_cycles.insert(key_str) {
+                                let cycle_str = cycle.join(" → ");
+                                report.drifts.push(DriftItem {
+                                    kind: DriftKind::CircularDependency,
+                                    severity: Severity::Error,
+                                    service: child.to_string(),
+                                    message: format!(
+                                        "circular dependency detected: {} → {}",
+                                        cycle_str, child
+                                    ),
+                                    detail: Some(format!("{} → {}", cycle_str, child)),
+                                });
+                            }
+                        }
+                    }
+                    0 => {
+                        state.insert(child, 1);
+                        path.push(child);
+                        path_set.insert(child);
+                        stack.push((child, 0));
+                    }
+                    _ => {} // already fully visited
+                }
+            } else {
+                // All children visited; pop.
+                state.insert(node, 2);
+                stack.pop();
+                path.pop();
+                path_set.remove(node);
+            }
+        }
+    }
 }

@@ -51,7 +51,9 @@ svccat check --fail-on-drift             # gate CI on zero drift (exit 1 on drif
 svccat check --team platform             # only check services owned by "platform"
 svccat check --ignore "examples/*"       # skip directories matching the pattern
 svccat check --format json               # machine-readable output
+svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
 svccat graph                             # Mermaid diagram grouped by platform
+svccat graph --team platform             # diagram scoped to one team
 svccat graph --format markdown           # Markdown table
 svccat export --format json > snap.json  # save a catalog snapshot
 svccat diff before.json after.json       # compare two snapshots
@@ -179,6 +181,86 @@ When `discovery.paths` is empty svccat tries `services/*`, `microservices/*`,
 | `undeclared_in_repo` | warning | A service directory was discovered but is not listed in the manifest. |
 | `missing_field` | error / warning | A recommended metadata field is absent (`role` = error; `language`, `platform` = warning). |
 | `missing_referenced_file` | warning | A `docs:` or `ci:` path is declared but the file does not exist. |
+| `policy_violation` | **error** | A field required by `policy.require_fields` is absent. |
+| `dangling_dependency` | **error** | A `depends_on` entry references a service not declared in the manifest. |
+| `circular_dependency` | **error** | A cycle was detected in the `depends_on` graph. |
+
+---
+
+## `depends_on` validation and cycle detection
+
+svccat validates all `depends_on` references and checks for cycles in the
+dependency graph:
+
+```yaml
+services:
+  - name: api-gateway
+    depends_on: [auth-service, ghost-service]   # ghost-service → DanglingDependency error
+  - name: auth-service
+    depends_on: [api-gateway]                   # api-gateway → api-gateway = CircularDependency error
+```
+
+```
+x  [DEPENDS]    'api-gateway' depends_on 'ghost-service' which is not declared in the manifest
+x  [CYCLE]      circular dependency detected: api-gateway → auth-service → api-gateway
+```
+
+Both kinds are error-severity and count toward `--fail-on-drift`.
+
+---
+
+## SARIF output — GitHub Code Scanning integration
+
+Use `--format sarif` to emit [SARIF 2.1.0](https://sarifweb.azurewebsites.net/)
+output.  Upload it to GitHub Code Scanning so drift items appear as inline
+annotations on pull requests — no extra tooling required.
+
+```bash
+svccat check --format sarif > results.sarif
+```
+
+### GitHub Actions integration with Code Scanning
+
+```yaml
+# .github/workflows/catalog.yml
+- name: Run svccat
+  run: svccat check --format sarif > results.sarif
+
+- name: Upload SARIF to GitHub Code Scanning
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+Each drift item becomes a code-scanning alert with:
+- **Rule ID** matching the drift kind (e.g. `declared_missing_from_repo`)
+- **Severity** (`error` or `warning`)
+- **Location** pointing to the manifest file
+
+---
+
+## `svccat graph --team` — team-scoped diagrams
+
+Filter the Mermaid diagram to a single team's services. Cross-team
+`depends_on` targets are shown as external placeholder nodes so
+dependencies are still visible.
+
+```bash
+svccat graph --team platform
+```
+
+```mermaid
+graph TD
+  subgraph Cloud_Run["Cloud Run"]
+    api_gateway["api-gateway\nGo\nAPI gateway"]
+    auth_service["auth-service\nRust\nJWT issuance"]
+  end
+  subgraph External["External (other teams)"]
+    postgres["postgres\n[ext]"]
+  end
+  api_gateway --> auth_service
+  api_gateway --> postgres
+```
 
 ---
 
@@ -531,9 +613,10 @@ svccat export --format json
 
 ## Project status
 
-`v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks.
+`v0.7` — `depends_on` validation + cycle detection, SARIF output (`--format sarif`), `svccat graph --team` filtered diagrams.
 
 Previous releases:
+- `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks
 - `v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement
 - `v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions
 - `v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks
