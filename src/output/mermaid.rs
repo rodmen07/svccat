@@ -153,3 +153,70 @@ fn build_label(svc: &crate::manifest::ServiceEntry) -> String {
         (None, None) => svc.name.clone(),
     }
 }
+
+// ── Graphviz DOT renderer ─────────────────────────────────────────────────────
+
+/// Emit a Graphviz DOT digraph of the service dependency graph.
+///
+/// Services are grouped into DOT subgraph clusters by platform.  When `team`
+/// is `Some`, only services owned by that team are included as primary nodes.
+pub fn render_dot(manifest: &Manifest, team: Option<&str>) {
+    let in_scope: std::collections::HashSet<&str> = manifest
+        .services
+        .iter()
+        .filter(|s| match team {
+            None => true,
+            Some(t) => s
+                .team
+                .as_deref()
+                .map(|v| v.eq_ignore_ascii_case(t))
+                .unwrap_or(false),
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    // Group in-scope services by platform.
+    let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
+    for svc in &manifest.services {
+        if in_scope.contains(svc.name.as_str()) {
+            let platform = svc
+                .platform
+                .clone()
+                .unwrap_or_else(|| "undeployed".to_string());
+            groups.entry(platform).or_default().push(svc);
+        }
+    }
+
+    println!("digraph services {{");
+    println!("  rankdir=LR;");
+    println!("  node [shape=box fontname=Helvetica];");
+    println!();
+
+    for (idx, (platform, services)) in groups.iter().enumerate() {
+        println!("  subgraph cluster_{idx} {{");
+        println!("    label=\"{}\";", dot_escape(platform));
+        println!("    style=filled;");
+        println!("    color=lightgrey;");
+        for svc in services {
+            println!("    \"{}\" [label=\"{}\"];", dot_escape(&svc.name), dot_escape(&svc.name));
+        }
+        println!("  }}");
+        println!();
+    }
+
+    // Dependency edges.
+    for svc in &manifest.services {
+        if !in_scope.contains(svc.name.as_str()) {
+            continue;
+        }
+        for dep in &svc.depends_on {
+            println!("  \"{}\" -> \"{}\";", dot_escape(&svc.name), dot_escape(dep));
+        }
+    }
+
+    println!("}}");
+}
+
+fn dot_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}

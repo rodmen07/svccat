@@ -5,4 +5,5 @@ pub mod junit;
 pub mod markdown;
 pub mod mermaid;
 pub mod sarif;
+pub mod slack;
 pub mod terminal;

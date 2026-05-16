@@ -7,6 +7,34 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.14.0] - 2026-05-17
+
+### Added
+
+- **`svccat serve`** - Start a local HTTP server (`--port`, default 7777) that renders the
+  live HTML drift report on every request. Use `--refresh N` to inject a
+  `<meta http-equiv="refresh">` tag so the browser auto-reloads every N seconds.
+  No extra dependencies - uses `std::net::TcpListener` from the standard library.
+
+- **`svccat import --from openapi`** - Walk the repository for `openapi.yaml`, `openapi.yml`,
+  `swagger.yaml`, and `swagger.yml` spec files. Extracts the service name (from `info.title`,
+  slugified), URL (from `servers[0].url` for OpenAPI 3 or `host`+`basePath` for Swagger 2),
+  and optional `x-team`, `x-oncall`, and `x-language` extension fields.
+
+- **`svccat stats`** - Print a field-coverage summary table with ASCII bar charts showing
+  what percentage of services have each metadata field set (language, platform, team, docs,
+  url, role, oncall) plus an overall health score.
+
+- **`--format slack`** for `svccat check` - Emit a Slack Block Kit JSON payload suitable
+  for posting to a channel via the Slack API or an incoming webhook.
+
+- **`svccat graph --format dot`** - Emit a Graphviz DOT digraph. Services are grouped into
+  `subgraph cluster_N` blocks by platform. Pipe to `dot -Tsvg` or `dot -Tpng` to render.
+
+- **`svccat watch --since <git-ref>`** - Each watch iteration now optionally compares the
+  current drift against the manifest at the given git ref, displaying only newly introduced
+  drift items (same behaviour as `svccat check --since`).
+
 ## [0.13.0] - 2026-05-16
 
 ### Added

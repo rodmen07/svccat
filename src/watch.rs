@@ -12,6 +12,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// On each detected change (debounced to 500 ms) it reloads the manifest and
 /// reruns the full drift analysis, printing a timestamped report.
 ///
+/// When `since` is `Some(git_ref)`, each check is compared against the
+/// manifest at that git ref so only new drift is displayed.
+///
 /// Returns the initial drift error count so callers can honour `--fail-on-drift`
 /// on the *first* run.
 pub fn run(
@@ -20,11 +23,13 @@ pub fn run(
     ignore: &[String],
     team: Option<&str>,
     depth: u32,
+    since: Option<&str>,
 ) -> Result<usize> {
     let manifest_path = manifest_path.to_path_buf();
     let root = root.to_path_buf();
     let ignore = ignore.to_vec();
     let team = team.map(str::to_owned);
+    let since = since.map(str::to_owned);
 
     let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
 
@@ -38,13 +43,13 @@ pub fn run(
     let watch_paths = effective_watch_paths(&initial_m, &root);
     for p in &watch_paths {
         if p.exists() {
-            // Best-effort – directory may not exist yet.
+            // Best-effort - directory may not exist yet.
             let _ = watcher.watch(p, RecursiveMode::Recursive);
         }
     }
 
     // First run immediately.
-    let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth);
+    let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
 
     eprintln!(
         "\n{} Watching {} and service directories. Press Ctrl-C to stop.\n",
@@ -77,7 +82,7 @@ pub fn run(
                     }
                 }
 
-                run_once(&manifest_path, &root, &ignore, team.as_deref(), depth);
+                run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
             }
             Err(e) => eprintln!("{} watcher error: {e}", "!".red()),
         }
@@ -88,7 +93,7 @@ pub fn run(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&str>, depth: u32) -> usize {
+fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&str>, depth: u32, since: Option<&str>) -> usize {
     let ts = timestamp();
     match manifest::Manifest::load(manifest_path) {
         Err(e) => {
@@ -110,9 +115,19 @@ fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&
             let mut report = drift::analyze(&m, &discovered, root);
             report.manifest = manifest_path.display().to_string();
 
-            eprintln!("\n[{ts}] change detected — re-running drift check");
-            output::terminal::render_check(&report, &[]);
+            eprintln!("\n[{ts}] change detected - re-running drift check");
 
+            if let Some(git_ref) = since {
+                if let Ok(old_m) = crate::since::load_at_ref(root, manifest_path, git_ref) {
+                    let mut old_report = drift::analyze(&old_m, &discovered, root);
+                    old_report.manifest = manifest_path.display().to_string();
+                    let (new_count, _) =
+                        output::terminal::render_since_diff(&old_report, &report, git_ref);
+                    return new_count;
+                }
+            }
+
+            output::terminal::render_check(&report, &[]);
             report.error_count()
         }
     }

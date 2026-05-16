@@ -81,6 +81,13 @@ svccat export --format json > snap.json  # save a catalog snapshot
 svccat export --format csv               # CSV catalog: name, language, platform, role, url, team
 svccat diff before.json after.json       # compare two snapshots
 svccat watch                             # continuous drift detection (re-runs on changes)
+svccat watch --since main                # continuous drift detection, showing only new items vs main
+svccat stats                             # field-coverage summary with ASCII bar charts
+svccat serve                             # live HTML report at http://localhost:7777
+svccat serve --port 9000 --refresh 10    # custom port + auto-refresh every 10 s
+svccat graph --format dot                # Graphviz DOT output (pipe to dot -Tsvg)
+svccat import --from openapi             # seed services.yaml from OpenAPI / Swagger specs
+svccat check --format slack              # Slack Block Kit JSON for posting to a channel
 svccat completions bash                  # print bash completion script
 ```
 

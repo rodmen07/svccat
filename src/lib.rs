@@ -12,5 +12,7 @@ pub mod manifest;
 pub mod output;
 pub mod ping;
 pub mod report;
+pub mod serve;
 pub mod since;
+pub mod stats;
 pub mod watch;

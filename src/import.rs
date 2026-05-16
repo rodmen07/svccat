@@ -373,3 +373,196 @@ fn find_compose_file(root: &Path) -> Option<PathBuf> {
     }
     None
 }
+
+// ── OpenAPI / Swagger types ───────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct OpenApiFile {
+    info: OpenApiInfo,
+    /// OpenAPI 3.x server list.
+    servers: Option<Vec<OpenApiServer>>,
+    /// Swagger 2.x host field.
+    host: Option<String>,
+    /// Swagger 2.x basePath field.
+    #[serde(rename = "basePath")]
+    base_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenApiInfo {
+    title: String,
+    #[serde(rename = "x-team")]
+    x_team: Option<String>,
+    #[serde(rename = "x-oncall")]
+    x_oncall: Option<String>,
+    #[serde(rename = "x-language")]
+    x_language: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenApiServer {
+    url: String,
+}
+
+// ── OpenAPI public API ────────────────────────────────────────────────────────
+
+/// Walk `root` for OpenAPI / Swagger spec files and return `ServiceEntry` values.
+///
+/// Recognised file names: `openapi.yaml`, `openapi.yml`, `swagger.yaml`, `swagger.yml`.
+/// The service name is derived from `info.title` (slugified to lowercase kebab-case).
+pub fn import_openapi(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
+    let mut entries: Vec<(ServiceEntry, String)> = Vec::new();
+
+    let patterns = [
+        "**/openapi.yaml",
+        "**/openapi.yml",
+        "**/swagger.yaml",
+        "**/swagger.yml",
+    ];
+
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for pattern in &patterns {
+        let full_pattern = root.join(pattern);
+        let matches = glob::glob(&full_pattern.to_string_lossy())
+            .into_iter()
+            .flatten()
+            .flatten();
+        paths.extend(matches);
+    }
+    paths.sort();
+    paths.dedup();
+
+    for path in &paths {
+        let text = match std::fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        let spec: OpenApiFile = match serde_yaml::from_str(&text) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let name = slugify(&spec.info.title);
+        if name.is_empty() {
+            continue;
+        }
+
+        let url = spec
+            .servers
+            .as_ref()
+            .and_then(|s| s.first())
+            .map(|s| s.url.clone())
+            .or_else(|| {
+                // Swagger 2.x: build URL from host + basePath.
+                spec.host.as_ref().map(|h| {
+                    let base = spec.base_path.as_deref().unwrap_or("");
+                    format!("https://{h}{base}")
+                })
+            });
+
+        let rel_dir = path
+            .parent()
+            .and_then(|p| p.strip_prefix(root).ok())
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+
+        let svc = ServiceEntry {
+            name,
+            language: spec.info.x_language,
+            platform: None,
+            url,
+            role: Some("api".to_string()),
+            team: spec.info.x_team,
+            oncall: spec.info.x_oncall,
+            submodule: None,
+            path: if rel_dir.is_empty() { None } else { Some(rel_dir) },
+            docs: None,
+            ci: None,
+            depends_on: vec![],
+        };
+
+        entries.push((svc, path.display().to_string()));
+    }
+
+    Ok(entries)
+}
+
+/// Merge OpenAPI-imported services into an existing or new manifest.
+pub fn run_openapi(root: &Path, output_path: PathBuf, force: bool) -> Result<()> {
+    let imported = import_openapi(root)?;
+
+    if imported.is_empty() {
+        println!(
+            "No OpenAPI / Swagger specs found in {}.",
+            root.display()
+        );
+        println!("Searched for: openapi.yaml, openapi.yml, swagger.yaml, swagger.yml");
+        return Ok(());
+    }
+
+    let mut manifest = if output_path.exists() && !force {
+        Manifest::load(&output_path)?
+    } else {
+        Manifest {
+            version: "1".to_string(),
+            discovery: DiscoveryConfig {
+                paths: DEFAULT_DISCOVERY_PATHS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                markers: crate::manifest::default_markers_pub(),
+                ignore: vec![],
+            },
+            policy: Default::default(),
+            services: vec![],
+        }
+    };
+
+    let existing_names: std::collections::HashSet<String> =
+        manifest.services.iter().map(|s| s.name.clone()).collect();
+
+    let mut added = 0usize;
+    let mut skipped = 0usize;
+
+    for (svc, source) in &imported {
+        if existing_names.contains(&svc.name) {
+            eprintln!("  skip  '{}' already in manifest  (from {})", svc.name, source);
+            skipped += 1;
+        } else {
+            eprintln!("  add   '{}'  (from {})", svc.name, source);
+            manifest.services.push(svc.clone());
+            added += 1;
+        }
+    }
+
+    let yaml = serde_yaml::to_string(&manifest)
+        .context("failed to serialise manifest to YAML")?;
+    std::fs::write(&output_path, &yaml)
+        .with_context(|| format!("cannot write {}", output_path.display()))?;
+
+    println!();
+    println!(
+        "Wrote {} — added {}, skipped {} (already declared).",
+        output_path.display(),
+        added,
+        skipped
+    );
+    println!("Run `svccat check` to verify there is no drift.");
+    Ok(())
+}
+
+// ── OpenAPI helper ────────────────────────────────────────────────────────────
+
+/// Convert an API title to a lowercase kebab-case slug suitable for service names.
+///
+/// Example: "User Service API" -> "user-service-api"
+fn slugify(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|p| !p.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}

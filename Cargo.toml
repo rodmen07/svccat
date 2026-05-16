@@ -1,6 +1,6 @@
 [package]
 name = "svccat"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 description = "Detect drift between your declared service catalog and what actually lives in the repo."
 license = "MIT"

@@ -6,7 +6,7 @@ use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, ReportFormat};
 use svccat::{
     config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output, ping,
-    report, since, watch,
+    report, serve, since, stats, watch,
 };
 
 fn main() {
@@ -197,6 +197,7 @@ fn run() -> Result<i32> {
                         output::github_annotation::render_check(&report);
                     }
                     OutputFormat::Csv => output::csv::render_check(&report),
+                    OutputFormat::Slack => output::slack::render_check(&report)?,
                 }
             }
 
@@ -219,6 +220,7 @@ fn run() -> Result<i32> {
             match format {
                 GraphFormat::Mermaid => output::mermaid::render_graph_filtered(&m, team.as_deref()),
                 GraphFormat::Markdown => output::mermaid::render_markdown_table(&m),
+                GraphFormat::Dot => output::mermaid::render_dot(&m, team.as_deref()),
             }
             Ok(0)
         }
@@ -265,12 +267,13 @@ fn run() -> Result<i32> {
             team,
             ignore: cli_ignore,
             depth,
+            since: watch_since,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth)?;
+            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref())?;
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
             if should_fail && initial_errors > 0 {
@@ -345,6 +348,7 @@ fn run() -> Result<i32> {
             match from {
                 ImportSource::Backstage => import::run_backstage(&root, out, force)?,
                 ImportSource::DockerCompose => import::run_docker_compose(&root, out, force)?,
+                ImportSource::Openapi => import::run_openapi(&root, out, force)?,
             }
             Ok(0)
         }
@@ -369,6 +373,24 @@ fn run() -> Result<i32> {
                 HookKind::PrePush => "pre-push",
             };
             hooks::install(&root, hook_name, fail_on_drift)?;
+            Ok(0)
+        }
+
+        Commands::Stats {
+            manifest: manifest_path,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            stats::run(&m);
+            Ok(0)
+        }
+
+        Commands::Serve {
+            manifest: _manifest_path,
+            port,
+            refresh,
+        } => {
+            serve::serve(&root, port, refresh)?;
             Ok(0)
         }
 

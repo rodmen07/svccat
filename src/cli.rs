@@ -159,6 +159,12 @@ pub enum Commands {
         /// Maximum directory depth to scan for services (default: 1)
         #[arg(long, value_name = "N", default_value_t = 1)]
         depth: u32,
+
+        /// On each check, compare against the manifest at this git ref and show only new drift
+        ///
+        /// Example: --since HEAD~1   or   --since main
+        #[arg(long, value_name = "GIT_REF")]
+        since: Option<String>,
     },
 
     /// Generate a full ownership and drift report
@@ -212,6 +218,8 @@ pub enum Commands {
     /// Supported sources:
     ///   backstage   Walk the repo for catalog-info.yaml files (Backstage format)
     ///               and generate service entries from every Kind: Component found.
+    ///   docker-compose  Parse services from docker-compose.yml / compose.yaml
+    ///   openapi     Walk the repo for openapi.yaml / swagger.yaml spec files
     Import {
         /// Source catalog format to import from
         #[arg(value_enum)]
@@ -266,6 +274,35 @@ pub enum Commands {
         fail_on_drift: bool,
     },
 
+    /// Show field-coverage statistics for the service manifest
+    ///
+    /// Displays how many services have each metadata field set, with a
+    /// percentage and ASCII bar chart per field, plus an overall health score.
+    Stats {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+    },
+
+    /// Serve a live HTML drift report over HTTP
+    ///
+    /// Starts a local HTTP server that renders the drift report as HTML on
+    /// every request, so you always see up-to-date information.
+    /// Browse to http://localhost:<port> (default 7777).
+    Serve {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// TCP port to listen on (default: 7777)
+        #[arg(short, long, default_value_t = 7777)]
+        port: u16,
+
+        /// Auto-refresh the browser page every N seconds (0 = disabled)
+        #[arg(long, value_name = "N", default_value_t = 0)]
+        refresh: u32,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
@@ -289,18 +326,22 @@ pub enum OutputFormat {
     GithubAnnotation,
     /// Comma-separated values: service, severity, kind, message, detail
     Csv,
-}
-
-#[derive(Debug, Clone, ValueEnum, PartialEq)]
-pub enum ReportFormat {
-    Markdown,
-    Html,
+    /// Slack Block Kit JSON payload for posting to a channel or webhook
+    Slack,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum GraphFormat {
     Mermaid,
     Markdown,
+    /// Graphviz DOT digraph (pipe to `dot -Tsvg` to render)
+    Dot,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum ReportFormat {
+    Markdown,
+    Html,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -317,6 +358,8 @@ pub enum ImportSource {
     Backstage,
     /// Docker Compose services (docker-compose.yml or compose.yaml)
     DockerCompose,
+    /// OpenAPI / Swagger spec files (openapi.yaml, swagger.yaml)
+    Openapi,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
