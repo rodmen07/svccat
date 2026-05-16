@@ -16,7 +16,12 @@ fn write_manifest(root: &Path, content: &str) {
     fs::write(root.join("services.yaml"), content).unwrap();
 }
 
-fn load(root: &Path) -> (svccat::manifest::Manifest, Vec<svccat::discovery::DiscoveredService>) {
+fn load(
+    root: &Path,
+) -> (
+    svccat::manifest::Manifest,
+    Vec<svccat::discovery::DiscoveredService>,
+) {
     let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
     let d = svccat::discovery::discover_services(root, &m);
     (m, d)
@@ -52,7 +57,12 @@ services:
 
     let (m, d) = load(root);
     let report = svccat::drift::analyze(&m, &d, root);
-    assert_eq!(report.drifts.len(), 0, "unexpected drift: {:?}", report.drifts);
+    assert_eq!(
+        report.drifts.len(),
+        0,
+        "unexpected drift: {:?}",
+        report.drifts
+    );
 }
 
 #[test]
@@ -129,7 +139,11 @@ services:
         .iter()
         .filter(|item| item.kind == svccat::drift::DriftKind::UndeclaredInRepo)
         .collect();
-    assert_eq!(undeclared.len(), 1, "expected exactly one undeclared service");
+    assert_eq!(
+        undeclared.len(),
+        1,
+        "expected exactly one undeclared service"
+    );
     assert_eq!(undeclared[0].service, "new-feature");
     assert_eq!(undeclared[0].severity, svccat::drift::Severity::Warning);
 }
