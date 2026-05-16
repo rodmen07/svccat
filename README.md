@@ -1,5 +1,10 @@
 # svccat
 
+[![CI](https://github.com/rodmen07/svccat/actions/workflows/ci.yml/badge.svg)](https://github.com/rodmen07/svccat/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/svccat.svg)](https://crates.io/crates/svccat)
+[![Downloads](https://img.shields.io/crates/d/svccat.svg)](https://crates.io/crates/svccat)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Service catalog drift detection for multi-service repositories.**
 
 svccat reads your declared service manifest and compares it against what
