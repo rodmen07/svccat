@@ -106,6 +106,12 @@ pub struct ServiceEntry {
     pub url: Option<String>,
     pub role: Option<String>,
 
+    /// Owning team name (e.g. "platform", "growth").
+    pub team: Option<String>,
+
+    /// On-call contact: a user handle, email, or PagerDuty service name.
+    pub oncall: Option<String>,
+
     /// Portfolio-compatible: git submodule path that owns the source.
     pub submodule: Option<String>,
 

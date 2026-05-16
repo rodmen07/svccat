@@ -48,6 +48,10 @@ pub enum Commands {
         /// Glob patterns to exclude from discovery (repeatable, e.g. --ignore "examples/*")
         #[arg(long, value_name = "PATTERN")]
         ignore: Vec<String>,
+
+        /// Only check services owned by this team (matches the `team:` field)
+        #[arg(long, value_name = "TEAM")]
+        team: Option<String>,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -96,6 +100,29 @@ pub enum Commands {
 
         /// Path to the newer snapshot (JSON)
         after: std::path::PathBuf,
+    },
+
+    /// Watch the manifest and service directories for changes and re-run drift checks
+    ///
+    /// Continuously monitors the manifest file and service directories.
+    /// Re-runs drift analysis whenever a file change is detected and prints
+    /// a timestamped report. Press Ctrl-C to stop.
+    Watch {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Exit with code 1 when drift is detected on the first check
+        #[arg(long)]
+        fail_on_drift: bool,
+
+        /// Only watch services owned by this team
+        #[arg(long, value_name = "TEAM")]
+        team: Option<String>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
     },
 
     /// Print shell completion script to stdout

@@ -7,3 +7,4 @@ pub mod init;
 pub mod manifest;
 pub mod output;
 pub mod ping;
+pub mod watch;

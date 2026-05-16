@@ -1,6 +1,6 @@
 [package]
 name = "svccat"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Detect drift between your declared service catalog and what actually lives in the repo."
 license = "MIT"
@@ -23,6 +23,7 @@ clap        = { version = "4", features = ["derive"] }
 clap_complete = "4"
 colored     = "2"
 glob        = "0.3"
+notify      = "6"
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
 serde_yaml  = "0.9"

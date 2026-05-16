@@ -45,16 +45,18 @@ cargo build --release
 ## Quick start
 
 ```
-svccat init                         # scaffold services.yaml from your repo
-svccat check                        # inspect drift in the current repo
-svccat check --fail-on-drift        # gate CI on zero drift (exit 1 on drift)
-svccat check --ignore "examples/*"  # skip directories matching the pattern
-svccat check --format json          # machine-readable output
-svccat graph                        # Mermaid diagram grouped by platform
-svccat graph --format markdown      # Markdown table
-svccat export --format json > snap.json   # save a catalog snapshot
-svccat diff before.json after.json        # compare two snapshots
-svccat completions bash             # print bash completion script
+svccat init                              # scaffold services.yaml from your repo
+svccat check                             # inspect drift in the current repo
+svccat check --fail-on-drift             # gate CI on zero drift (exit 1 on drift)
+svccat check --team platform             # only check services owned by "platform"
+svccat check --ignore "examples/*"       # skip directories matching the pattern
+svccat check --format json               # machine-readable output
+svccat graph                             # Mermaid diagram grouped by platform
+svccat graph --format markdown           # Markdown table
+svccat export --format json > snap.json  # save a catalog snapshot
+svccat diff before.json after.json       # compare two snapshots
+svccat watch                             # continuous drift detection (re-runs on changes)
+svccat completions bash                  # print bash completion script
 ```
 
 Manifest is auto-detected: svccat tries `svccat.yaml`, `svccat.yml`,
@@ -145,6 +147,8 @@ services:
     platform: Cloud Run             # recommended
     role: Rate-limiting reverse proxy  # required (error if missing)
     url: https://gateway.example.com   # optional: enables --ping health checks
+    team: platform                  # optional: owning team name
+    oncall: platform@example.com    # optional: on-call contact (email, handle, PD service)
     path: infra/gateway             # optional: explicit path (overrides name matching)
     submodule: go-gateway           # optional: git submodule path (Portfolio-compatible)
     docs: docs/api-gateway.md       # optional: warn if file missing
@@ -237,6 +241,83 @@ x  [POLICY]  'worker-service' violates policy: required field 'url' is missing
 
 Policy violations count toward `--fail-on-drift` and `fail_on_drift` in
 `svccat.toml`.
+
+---
+
+## Ownership metadata — `team` and `oncall`
+
+Declare service ownership directly in your manifest so every entry has a clear
+owner:
+
+```yaml
+services:
+  - name: api-gateway
+    team: platform        # owning team name
+    oncall: platform@example.com   # on-call contact (email, handle, or PD service)
+  - name: billing-service
+    team: growth
+    oncall: growth-pagerduty
+```
+
+### Team-scoped checks
+
+Pass `--team <name>` to limit drift detection to a single team's services.
+Services belonging to other teams are excluded from analysis (no false
+`UndeclaredInRepo` noise).
+
+```bash
+# CI step for the platform team — only checks platform-owned services.
+svccat check --team platform --fail-on-drift
+```
+
+### Enforce ownership via policy
+
+Require `team` and `oncall` on every service using `policy.require_fields`:
+
+```yaml
+policy:
+  require_fields:
+    - team
+    - oncall
+```
+
+Any service missing either field becomes an error-level policy violation.
+
+---
+
+## `svccat watch` — continuous drift detection
+
+`svccat watch` monitors the manifest file and service directories for changes
+and re-runs drift analysis automatically. Useful while actively editing a
+manifest or onboarding services.
+
+```bash
+svccat watch                          # watch and re-check on every file change
+svccat watch --team platform          # only watch platform-owned services
+svccat watch --fail-on-drift          # exit 1 if initial check finds drift
+svccat watch --ignore "examples/*"    # exclude patterns (same as check)
+```
+
+Example output when a service directory is added or the manifest changes:
+
+```
+svccat: 3 declared, 3 discovered  [services.yaml]
+
+  OK  No drift detected
+
+● Watching services.yaml and service directories. Press Ctrl-C to stop.
+
+[14:32:07 UTC] change detected — re-running drift check
+svccat: 3 declared, 4 discovered  [services.yaml]
+
+  DRIFT DETECTED  (0 errors, 1 warning)
+
+  !  [UNDECLARED]  'services/new-worker' exists in the repo but is not listed in the manifest
+
+  !  1 warning(s)
+```
+
+Press **Ctrl-C** to stop watching.
 
 ---
 
@@ -450,17 +531,14 @@ svccat export --format json
 
 ## Project status
 
-`v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement.
+`v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks.
 
 Previous releases:
+- `v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement
 - `v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions
 - `v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks
 - `v0.2` — `svccat init` command (scaffold `services.yaml` from your repo)
 - `v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration
-
-Planned for later releases:
-- `svccat watch` — continuous drift detection in the background
-- Ownership metadata (`team:`, `oncall:`) + team-scoped checks
 
 ---
 

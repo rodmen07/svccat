@@ -4,7 +4,7 @@ use clap_complete::generate;
 use std::io;
 use std::process;
 use svccat::cli::{Cli, Commands, ExportFormat, GraphFormat, OutputFormat};
-use svccat::{config, diff, discovery, drift, init, manifest, output, ping};
+use svccat::{config, diff, discovery, drift, init, manifest, output, ping, watch};
 
 fn main() {
     match run() {
@@ -30,15 +30,43 @@ fn run() -> Result<i32> {
             fail_on_drift,
             ping: do_ping,
             ignore: cli_ignore,
+            team,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
-            let m = manifest::Manifest::load(&path)?;
+            let full_m = manifest::Manifest::load(&path)?;
+
+            // Build the working manifest, applying team filter when requested.
+            let mut m = full_m.clone();
+            if let Some(ref t) = team {
+                m.services.retain(|s| {
+                    s.team
+                        .as_deref()
+                        .map(|v| v.eq_ignore_ascii_case(t))
+                        .unwrap_or(false)
+                });
+            }
 
             // Merge config ignore + CLI ignore patterns.
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let discovered = discovery::discover_services_with_ignore(&root, &m, &ignore);
+            let discovered_all = discovery::discover_services_with_ignore(&root, &full_m, &ignore);
+
+            // When a team filter is active, exclude discovered services that are known to
+            // belong to other teams so they don't show up as UndeclaredInRepo noise.
+            let in_scope_names: std::collections::HashSet<&str> =
+                m.services.iter().map(|s| s.name.as_str()).collect();
+            let other_declared_names: std::collections::HashSet<&str> = full_m
+                .services
+                .iter()
+                .filter(|s| !in_scope_names.contains(s.name.as_str()))
+                .map(|s| s.name.as_str())
+                .collect();
+            let discovered: Vec<_> = discovered_all
+                .into_iter()
+                .filter(|d| !other_declared_names.contains(d.name.as_str()))
+                .collect();
+
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
 
@@ -107,6 +135,26 @@ fn run() -> Result<i32> {
             let report = diff::diff_snapshots(&before, &after)?;
             diff::render_diff(&report);
             Ok(0)
+        }
+
+        Commands::Watch {
+            manifest: manifest_path,
+            fail_on_drift,
+            team,
+            ignore: cli_ignore,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+
+            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref())?;
+
+            let should_fail = fail_on_drift || cfg.fail_on_drift;
+            if should_fail && initial_errors > 0 {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
         }
 
         Commands::Completions { shell } => {

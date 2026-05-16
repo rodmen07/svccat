@@ -107,6 +107,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                 "role" => svc.role.is_none(),
                 "language" => svc.language.is_none(),
                 "platform" => svc.platform.is_none(),
+                "team" => svc.team.is_none(),
                 _ => false,
             };
             if missing {
@@ -179,6 +180,8 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                     "language" => svc.language.is_none(),
                     "platform" => svc.platform.is_none(),
                     "role" => svc.role.is_none(),
+                    "team" => svc.team.is_none(),
+                    "oncall" => svc.oncall.is_none(),
                     "docs" => svc.docs.is_none(),
                     "ci" => svc.ci.is_none(),
                     _ => false,

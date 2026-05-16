@@ -771,3 +771,189 @@ fn diff_no_changes_when_snapshots_identical() {
         "identical snapshots should produce no diff"
     );
 }
+
+// ── v0.6.0: Ownership metadata + team filter ──────────────────────────────────
+
+#[test]
+fn team_and_oncall_fields_parse() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/worker/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+    oncall: platform-oncall@example.com
+  - name: worker
+    language: Rust
+    role: Worker
+    platform: Cloud Run
+    team: data
+    oncall: data-team@example.com
+"#,
+    );
+
+    let m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let api = m.services.iter().find(|s| s.name == "api").unwrap();
+    let worker = m.services.iter().find(|s| s.name == "worker").unwrap();
+
+    assert_eq!(api.team.as_deref(), Some("platform"));
+    assert_eq!(api.oncall.as_deref(), Some("platform-oncall@example.com"));
+    assert_eq!(worker.team.as_deref(), Some("data"));
+    assert_eq!(worker.oncall.as_deref(), Some("data-team@example.com"));
+}
+
+#[test]
+fn team_filter_limits_analysis_to_matching_services() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/worker/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+  - name: worker
+    language: Rust
+    role: Worker
+    platform: Cloud Run
+    team: data
+"#,
+    );
+
+    // Simulate --team platform: retain only services owned by "platform".
+    let full_m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    let mut m = full_m.clone();
+    m.services.retain(|s| {
+        s.team
+            .as_deref()
+            .map(|t| t.eq_ignore_ascii_case("platform"))
+            .unwrap_or(false)
+    });
+
+    // Discover against the full manifest, then filter out other-team services
+    // to avoid false UndeclaredInRepo noise (mirrors main.rs behaviour).
+    let in_scope: std::collections::HashSet<&str> =
+        m.services.iter().map(|s| s.name.as_str()).collect();
+    let other_declared: std::collections::HashSet<&str> = full_m
+        .services
+        .iter()
+        .filter(|s| !in_scope.contains(s.name.as_str()))
+        .map(|s| s.name.as_str())
+        .collect();
+    let discovered_all = svccat::discovery::discover_services(root, &full_m);
+    let d: Vec<_> = discovered_all
+        .into_iter()
+        .filter(|d| !other_declared.contains(d.name.as_str()))
+        .collect();
+
+    let report = svccat::drift::analyze(&m, &d, root);
+
+    // Only "api" (team: platform) should be in scope; "worker" should be invisible.
+    assert_eq!(m.services.len(), 1);
+    assert_eq!(m.services[0].name, "api");
+    assert_eq!(
+        report.drifts.len(),
+        0,
+        "no drift expected for team-filtered check: {:?}",
+        report.drifts
+    );
+}
+
+#[test]
+fn policy_requires_team_field() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+policy:
+  require_fields: ["team", "oncall"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    # team and oncall intentionally omitted to trigger policy violations
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+
+    let policy_violations: Vec<_> = report
+        .drifts
+        .iter()
+        .filter(|d| d.kind == svccat::drift::DriftKind::PolicyViolation)
+        .collect();
+
+    assert_eq!(
+        policy_violations.len(),
+        2,
+        "expected 2 policy violations (team + oncall), got: {:?}",
+        policy_violations
+    );
+    let fields: Vec<_> = policy_violations
+        .iter()
+        .filter_map(|v| v.detail.as_deref())
+        .collect();
+    assert!(fields.contains(&"team"), "expected team violation");
+    assert!(fields.contains(&"oncall"), "expected oncall violation");
+}
+
+#[test]
+fn team_filter_case_insensitive() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: Platform
+"#,
+    );
+
+    let mut m = svccat::manifest::Manifest::load(&root.join("services.yaml")).unwrap();
+    // Match "platform" (lowercase) against team value "Platform" (mixed case).
+    m.services.retain(|s| {
+        s.team
+            .as_deref()
+            .map(|t| t.eq_ignore_ascii_case("platform"))
+            .unwrap_or(false)
+    });
+
+    assert_eq!(m.services.len(), 1, "case-insensitive match should succeed");
+}
