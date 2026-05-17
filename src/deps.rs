@@ -1,4 +1,4 @@
-use crate::manifest::{Manifest, ServiceEntry};
+use crate::manifest::Manifest;
 use anyhow::Result;
 use colored::Colorize;
 use std::collections::{HashMap, HashSet, VecDeque};
