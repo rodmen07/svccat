@@ -92,7 +92,3 @@ pub fn render_check(report: &DriftReport) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&summary)?);
     Ok(())
 }
-
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
