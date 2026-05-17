@@ -3,10 +3,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, AuditFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, SnapshotAction};
+use svccat::cli::{Cli, Commands, AuditFormat, CiFormat, DepsFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, SnapshotAction, TagAction};
 use svccat::{
-    audit, config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output,
-    ping, policy, report, serve, since, snapshot, stats, watch,
+    audit, ci, config, deps, diff, discovery, drift, fix, hooks, import, init, lint, manifest,
+    output, ping, policy, report, search, serve, since, snapshot, stats, tag, watch,
 };
 
 fn main() {
@@ -38,6 +38,7 @@ fn run() -> Result<i32> {
             fail_on_new_drift,
             depth,
             baseline,
+            output: output_path,
         } => {
             // When running inside GitHub Actions and no explicit format was chosen,
             // default to github-annotation so drift items appear as inline PR comments.
@@ -179,27 +180,48 @@ fn run() -> Result<i32> {
                     return Ok(1);
                 }
             } else {
-                match format {
-                    OutputFormat::Terminal => {
-                        output::terminal::render_check(&report, &ping_results)
+                // For Json and Markdown formats, capture to string so we can write to --output.
+                let maybe_string: Option<String> = match &format {
+                    OutputFormat::Json => {
+                        Some(output::json::render_check_to_string(&report, &ping_results)?)
                     }
-                    OutputFormat::Compact => {
-                        output::terminal::render_compact(&m, &report);
-                    }
-                    OutputFormat::Json => output::json::render_check(&report, &ping_results)?,
-                    OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
                     OutputFormat::Markdown => {
-                        let md = output::markdown::render_check_markdown(&report, &ping_results);
-                        print!("{}", md);
+                        Some(output::markdown::render_check_markdown(&report, &ping_results))
                     }
-                    OutputFormat::Junit => output::junit::render_check(&report, &ping_results)?,
-                    OutputFormat::GithubAnnotation => {
-                        output::github_annotation::render_check(&report);
+                    _ => None,
+                };
+
+                if let Some(content) = maybe_string {
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, &content)?;
+                        eprintln!("wrote output to {}", out_path.display());
+                    } else {
+                        print!("{}", content);
                     }
-                    OutputFormat::Csv => output::csv::render_check(&report),
-                    OutputFormat::Slack => output::slack::render_check(&report)?,
-                    OutputFormat::Teams => output::teams::render_check(&report)?,
-                    OutputFormat::Datadog => output::datadog::render_check(&report)?,
+                } else {
+                    match format {
+                        OutputFormat::Terminal => {
+                            output::terminal::render_check(&report, &ping_results)
+                        }
+                        OutputFormat::Compact => {
+                            output::terminal::render_compact(&m, &report);
+                        }
+                        OutputFormat::Sarif => {
+                            output::sarif::render_check(&report, &ping_results)?
+                        }
+                        OutputFormat::Junit => {
+                            output::junit::render_check(&report, &ping_results)?
+                        }
+                        OutputFormat::GithubAnnotation => {
+                            output::github_annotation::render_check(&report);
+                        }
+                        OutputFormat::Csv => output::csv::render_check(&report),
+                        OutputFormat::Slack => output::slack::render_check(&report)?,
+                        OutputFormat::Teams => output::teams::render_check(&report)?,
+                        OutputFormat::Datadog => output::datadog::render_check(&report)?,
+                        // Already handled above:
+                        OutputFormat::Json | OutputFormat::Markdown => unreachable!(),
+                    }
                 }
             }
 
@@ -216,6 +238,7 @@ fn run() -> Result<i32> {
             format,
             team,
             filter,
+            output: output_path,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut m = manifest::Manifest::load(&path)?;
@@ -226,11 +249,22 @@ fn run() -> Result<i32> {
                 m.services.retain(|s| s.name.to_lowercase().contains(&pat_lower));
             }
 
-            match format {
-                GraphFormat::Mermaid => output::mermaid::render_graph_filtered(&m, team.as_deref()),
-                GraphFormat::Markdown => output::mermaid::render_markdown_table(&m),
-                GraphFormat::Dot => output::mermaid::render_dot(&m, team.as_deref()),
-                GraphFormat::Plantuml => output::mermaid::render_plantuml(&m, team.as_deref()),
+            let content = match format {
+                GraphFormat::Mermaid => {
+                    output::mermaid::render_graph_filtered_string(&m, team.as_deref())
+                }
+                GraphFormat::Markdown => output::mermaid::render_markdown_table_string(&m),
+                GraphFormat::Dot => output::mermaid::render_dot_string(&m, team.as_deref()),
+                GraphFormat::Plantuml => {
+                    output::mermaid::render_plantuml_string(&m, team.as_deref())
+                }
+            };
+
+            if let Some(out_path) = output_path {
+                std::fs::write(&out_path, &content)?;
+                eprintln!("wrote graph to {}", out_path.display());
+            } else {
+                print!("{}", content);
             }
             Ok(0)
         }
@@ -464,6 +498,42 @@ fn run() -> Result<i32> {
                 snapshot::delete(&root, &name)?;
                 Ok(0)
             }
+            SnapshotAction::Diff {
+                name,
+                ignore: cli_ignore,
+                depth,
+                format,
+            } => {
+                // Load the named snapshot as the "before" baseline.
+                let snap = snapshot::load(&root, &name)?;
+
+                // Build the current state as the "after" payload.
+                let manifest_path = manifest::find_default(&root);
+                let m = manifest::Manifest::load(&manifest_path)?;
+                let mut ignore: Vec<String> = cfg.ignore.clone();
+                ignore.extend(cli_ignore);
+                let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
+                let mut current_report = drift::analyze(&m, &discovered, &root);
+                current_report.manifest = manifest_path.display().to_string();
+
+                let after_payload = serde_json::json!({
+                    "services": m.services,
+                    "drift": current_report.drifts,
+                });
+
+                let diff_report = diff::diff_from_json(
+                    &snap.payload,
+                    &after_payload,
+                    &name,
+                    "current",
+                )?;
+
+                match format {
+                    DiffFormat::Terminal => diff::render_diff(&diff_report),
+                    DiffFormat::Markdown => diff::render_diff_markdown(&diff_report),
+                }
+                Ok(0)
+            }
         },
 
         Commands::Audit {
@@ -488,6 +558,65 @@ fn run() -> Result<i32> {
                 Ok(1)
             }
         }
+
+        Commands::Ci {
+            manifest: manifest_path,
+            ignore: cli_ignore,
+            depth,
+            format,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+            let result = ci::run(&m, &root, &ignore, depth);
+            match format {
+                CiFormat::Terminal => ci::render_terminal(&result),
+                CiFormat::Json => ci::render_json(&result)?,
+            }
+            if result.passed() { Ok(0) } else { Ok(1) }
+        }
+
+        Commands::Search {
+            query: query_raw,
+            manifest: manifest_path,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let total = m.services.len();
+            let q = search::Query::parse(&query_raw);
+            let matches = search::run(&m, &q);
+            search::render(&matches, &query_raw, total);
+            Ok(0)
+        }
+
+        Commands::Deps {
+            manifest: manifest_path,
+            format,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let report = deps::analyze(&m);
+            match format {
+                DepsFormat::Terminal => deps::render_terminal(&report),
+                DepsFormat::Mermaid => deps::render_mermaid(&report),
+                DepsFormat::Json => deps::render_json(&report)?,
+            }
+            if report.has_errors() { Ok(1) } else { Ok(0) }
+        }
+
+        Commands::Tag { action } => match action {
+            TagAction::Add { service, tag, manifest: manifest_path } => {
+                let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+                tag::add(&path, &service, &tag)?;
+                Ok(0)
+            }
+            TagAction::Remove { service, tag, manifest: manifest_path } => {
+                let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+                tag::remove(&path, &service, &tag)?;
+                Ok(0)
+            }
+        },
 
         Commands::Stats {
             manifest: manifest_path,

@@ -358,3 +358,92 @@ fn field_diff(before: &ServiceEntry, after: &ServiceEntry) -> Vec<FieldChange> {
 
     changes
 }
+
+// ── Diff from in-memory JSON (for snapshot diff) ──────────────────────────────
+
+/// Compute a diff between two snapshot JSON payloads without touching the filesystem.
+///
+/// `before_label` and `after_label` are used only as display names in the report.
+pub fn diff_from_json(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    before_label: &str,
+    after_label: &str,
+) -> Result<DiffReport> {
+    let before_snap: Snapshot =
+        serde_json::from_value(before.clone()).map_err(|e| anyhow::anyhow!("invalid before snapshot: {e}"))?;
+    let after_snap: Snapshot =
+        serde_json::from_value(after.clone()).map_err(|e| anyhow::anyhow!("invalid after snapshot: {e}"))?;
+
+    build_diff(before_snap, after_snap, before_label, after_label)
+}
+
+fn build_diff(
+    before: Snapshot,
+    after: Snapshot,
+    before_label: &str,
+    after_label: &str,
+) -> Result<DiffReport> {
+    use std::collections::HashMap;
+
+    let before_map: HashMap<&str, &ServiceEntry> = before
+        .services
+        .iter()
+        .map(|s| (s.name.as_str(), s))
+        .collect();
+    let after_map: HashMap<&str, &ServiceEntry> = after
+        .services
+        .iter()
+        .map(|s| (s.name.as_str(), s))
+        .collect();
+
+    let added: Vec<String> = after
+        .services
+        .iter()
+        .filter(|s| !before_map.contains_key(s.name.as_str()))
+        .map(|s| s.name.clone())
+        .collect();
+
+    let removed: Vec<String> = before
+        .services
+        .iter()
+        .filter(|s| !after_map.contains_key(s.name.as_str()))
+        .map(|s| s.name.clone())
+        .collect();
+
+    let mut changed = Vec::new();
+    let mut sorted_keys: Vec<&str> = before_map.keys().cloned().collect();
+    sorted_keys.sort_unstable();
+    for name in sorted_keys {
+        if let Some(after_svc) = after_map.get(name) {
+            let changes = field_diff(before_map[name], after_svc);
+            if !changes.is_empty() {
+                changed.push(ServiceDiff { name: name.to_string(), changes });
+            }
+        }
+    }
+
+    let before_drift: std::collections::HashSet<String> = before
+        .drift
+        .iter()
+        .map(|d| format!("{}:{}", d.service, d.message))
+        .collect();
+    let after_drift: std::collections::HashSet<String> = after
+        .drift
+        .iter()
+        .map(|d| format!("{}:{}", d.service, d.message))
+        .collect();
+
+    let new_drift: Vec<String> = after_drift.difference(&before_drift).cloned().collect();
+    let resolved_drift: Vec<String> = before_drift.difference(&after_drift).cloned().collect();
+
+    Ok(DiffReport {
+        before_path: before_label.to_string(),
+        after_path: after_label.to_string(),
+        added,
+        removed,
+        changed,
+        new_drift,
+        resolved_drift,
+    })
+}

@@ -302,3 +302,191 @@ fn plantuml_id(s: &str) -> String {
         .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
         .collect()
 }
+
+// ── String-building helpers for --output support ───────────────────────────────
+
+/// Macro to build graph content into a String instead of printing to stdout.
+macro_rules! sbuf {
+    ($buf:ident, $($arg:tt)*) => {
+        writeln!($buf, $($arg)*).unwrap()
+    };
+}
+
+pub fn render_graph_filtered_string(manifest: &Manifest, team: Option<&str>) -> String {
+    use std::fmt::Write;
+    let mut buf = String::new();
+
+    let in_scope: std::collections::HashSet<&str> = manifest
+        .services
+        .iter()
+        .filter(|s| match team {
+            None => true,
+            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
+    for svc in &manifest.services {
+        if in_scope.contains(svc.name.as_str()) {
+            let platform = svc.platform.clone().unwrap_or_else(|| "Undeployed".to_string());
+            groups.entry(platform).or_default().push(svc);
+        }
+    }
+
+    let declared_names: std::collections::HashSet<&str> =
+        manifest.services.iter().map(|s| s.name.as_str()).collect();
+    let mut external: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for svc in &manifest.services {
+        if !in_scope.contains(svc.name.as_str()) { continue; }
+        for dep in &svc.depends_on {
+            if !in_scope.contains(dep.as_str()) && declared_names.contains(dep.as_str()) {
+                external.insert(dep.as_str());
+            }
+        }
+    }
+
+    sbuf!(buf, "```mermaid");
+    sbuf!(buf, "graph TD");
+    for (platform, services) in &groups {
+        let safe_plat = safe_id(platform);
+        sbuf!(buf, "  subgraph {}[\"{}\"]", safe_plat, platform);
+        for svc in services {
+            sbuf!(buf, "    {}[\"{}\"]", safe_id(&svc.name), build_label(svc));
+        }
+        sbuf!(buf, "  end");
+    }
+    if !external.is_empty() {
+        sbuf!(buf, "  subgraph External[\"External (other teams)\"]");
+        for name in &external {
+            sbuf!(buf, "    {}[\"{}\\n[ext]\"]", safe_id(name), name);
+        }
+        sbuf!(buf, "  end");
+    }
+    for svc in &manifest.services {
+        if !in_scope.contains(svc.name.as_str()) { continue; }
+        for dep in &svc.depends_on {
+            if in_scope.contains(dep.as_str()) || external.contains(dep.as_str()) {
+                sbuf!(buf, "  {} --> {}", safe_id(&svc.name), safe_id(dep));
+            }
+        }
+    }
+    sbuf!(buf, "```");
+    buf
+}
+
+pub fn render_markdown_table_string(manifest: &Manifest) -> String {
+    use std::fmt::Write;
+    let mut buf = String::new();
+    sbuf!(buf, "# Service Catalog\n");
+    sbuf!(buf, "| Service | Language | Platform | Role | Team | URL |");
+    sbuf!(buf, "|---------|----------|----------|------|------|-----|");
+    for svc in &manifest.services {
+        sbuf!(
+            buf,
+            "| {} | {} | {} | {} | {} | {} |",
+            svc.name,
+            svc.language.as_deref().unwrap_or(""),
+            svc.platform.as_deref().unwrap_or(""),
+            svc.role.as_deref().unwrap_or(""),
+            svc.team.as_deref().unwrap_or(""),
+            svc.url.as_deref().unwrap_or("")
+        );
+    }
+    buf
+}
+
+pub fn render_dot_string(manifest: &Manifest, team: Option<&str>) -> String {
+    use std::fmt::Write;
+    let mut buf = String::new();
+
+    let in_scope: std::collections::HashSet<&str> = manifest
+        .services
+        .iter()
+        .filter(|s| match team {
+            None => true,
+            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
+    for svc in &manifest.services {
+        if in_scope.contains(svc.name.as_str()) {
+            let platform = svc.platform.clone().unwrap_or_else(|| "undeployed".to_string());
+            groups.entry(platform).or_default().push(svc);
+        }
+    }
+
+    sbuf!(buf, "digraph services {{");
+    sbuf!(buf, "  rankdir=LR;");
+    sbuf!(buf, "  node [shape=box fontname=Helvetica];");
+    sbuf!(buf, "");
+    for (idx, (platform, services)) in groups.iter().enumerate() {
+        sbuf!(buf, "  subgraph cluster_{idx} {{");
+        sbuf!(buf, "    label=\"{}\";", dot_escape(platform));
+        sbuf!(buf, "    style=filled;");
+        sbuf!(buf, "    color=lightgrey;");
+        for svc in services {
+            sbuf!(buf, "    \"{}\" [label=\"{}\"];", dot_escape(&svc.name), dot_escape(&svc.name));
+        }
+        sbuf!(buf, "  }}");
+        sbuf!(buf, "");
+    }
+    for svc in &manifest.services {
+        if !in_scope.contains(svc.name.as_str()) { continue; }
+        for dep in &svc.depends_on {
+            sbuf!(buf, "  \"{}\" -> \"{}\";", dot_escape(&svc.name), dot_escape(dep));
+        }
+    }
+    sbuf!(buf, "}}");
+    buf
+}
+
+pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String {
+    use std::fmt::Write;
+    let mut buf = String::new();
+
+    let in_scope: std::collections::HashSet<&str> = manifest
+        .services
+        .iter()
+        .filter(|s| match team {
+            None => true,
+            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
+    for svc in &manifest.services {
+        if in_scope.contains(svc.name.as_str()) {
+            let platform = svc.platform.clone().unwrap_or_else(|| "undeployed".to_string());
+            groups.entry(platform).or_default().push(svc);
+        }
+    }
+
+    sbuf!(buf, "@startuml");
+    sbuf!(buf, "skinparam componentStyle rectangle");
+    sbuf!(buf, "");
+    for (platform, services) in &groups {
+        sbuf!(buf, "package \"{}\" {{", plantuml_escape(platform));
+        for svc in services {
+            let label = match &svc.language {
+                Some(lang) => format!("{} ({})", svc.name, lang),
+                None => svc.name.clone(),
+            };
+            sbuf!(buf, "  component [{}] as {}", plantuml_escape(&label), plantuml_id(&svc.name));
+        }
+        sbuf!(buf, "}}");
+        sbuf!(buf, "");
+    }
+    for svc in &manifest.services {
+        if !in_scope.contains(svc.name.as_str()) { continue; }
+        for dep in &svc.depends_on {
+            sbuf!(buf, "{} ..> {} : depends", plantuml_id(&svc.name), plantuml_id(dep));
+        }
+    }
+    sbuf!(buf, "");
+    sbuf!(buf, "@enduml");
+    buf
+}

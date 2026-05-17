@@ -99,6 +99,7 @@ pub fn import_backstage(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
                 },
                 docs: None,
                 ci: None,
+                tags: Vec::new(),
                 depends_on: deps,
             };
 
@@ -279,6 +280,7 @@ pub fn import_docker_compose(root: &Path) -> Result<Vec<(ServiceEntry, String)>>
                 submodule: None,
                 docs: None,
                 ci: None,
+                tags: Vec::new(),
                 depends_on,
             },
             source.clone(),
@@ -478,6 +480,7 @@ pub fn import_openapi(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
             path: if rel_dir.is_empty() { None } else { Some(rel_dir) },
             docs: None,
             ci: None,
+            tags: Vec::new(),
             depends_on: vec![],
         };
 

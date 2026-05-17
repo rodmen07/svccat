@@ -75,6 +75,10 @@ pub enum Commands {
         /// Then gate on regressions only: svccat check --baseline baseline.json --fail-on-drift
         #[arg(long, value_name = "FILE")]
         baseline: Option<PathBuf>,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Generate a Mermaid or Markdown view of the service catalog
@@ -95,6 +99,10 @@ pub enum Commands {
         /// Only include services whose name contains this substring (case-insensitive)
         #[arg(long, value_name = "PATTERN")]
         filter: Option<String>,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Export the full service catalog with drift summary
@@ -366,6 +374,67 @@ pub enum Commands {
         action: SnapshotAction,
     },
 
+    /// Run lint + drift + policy in a single CI-friendly pass
+    ///
+    /// Combines `svccat lint`, `svccat check`, and `svccat policy` (when a
+    /// policy file exists) into one command.  Exits with code 1 on any errors.
+    Ci {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = CiFormat::Terminal)]
+        format: CiFormat,
+    },
+
+    /// Search the service catalog
+    ///
+    /// Supports `field:value` syntax (e.g. `team:payments`) and plain
+    /// substring matching against all fields.
+    ///
+    /// Searchable fields: name, language, platform, url, role, team, oncall,
+    /// docs, ci, path, tags, depends_on.
+    Search {
+        /// Search query, e.g. `team:platform` or `auth`
+        query: String,
+
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+    },
+
+    /// Analyse inter-service dependencies declared in the manifest
+    ///
+    /// Detects undeclared dependency targets (services referenced in
+    /// `depends_on` that are not in the manifest) and circular dependency
+    /// chains.  Exits with code 1 when errors are found.
+    Deps {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = DepsFormat::Terminal)]
+        format: DepsFormat,
+    },
+
+    /// Add or remove tags on a service entry in the manifest
+    ///
+    /// Modifies the manifest file in-place.
+    Tag {
+        #[command(subcommand)]
+        action: TagAction,
+    },
+
     /// Show field-coverage statistics for the service manifest
     ///
     /// Displays how many services have each metadata field set, with a
@@ -521,5 +590,65 @@ pub enum SnapshotAction {
     Delete {
         /// Name of the snapshot to delete
         name: String,
+    },
+
+    /// Compare a named snapshot against the current catalog state
+    Diff {
+        /// Name of the snapshot to compare against
+        name: String,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = DiffFormat::Terminal)]
+        format: DiffFormat,
+    },
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum CiFormat {
+    /// Coloured terminal output (default)
+    Terminal,
+    /// Machine-readable JSON
+    Json,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum DepsFormat {
+    /// Coloured terminal output (default)
+    Terminal,
+    /// Mermaid flowchart
+    Mermaid,
+    /// Machine-readable JSON
+    Json,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TagAction {
+    /// Add a tag to a service
+    Add {
+        /// Service name
+        service: String,
+        /// Tag to add
+        tag: String,
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+    },
+    /// Remove a tag from a service
+    Remove {
+        /// Service name
+        service: String,
+        /// Tag to remove
+        tag: String,
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
     },
 }

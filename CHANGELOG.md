@@ -7,6 +7,34 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.17.0] - 2025-07-20
+
+### Added
+
+- **`svccat ci`** - CI pipeline command that runs lint, drift, and policy checks in one pass.
+  Returns exit code 1 if any errors are found. Use `--format json` for machine-readable output.
+
+- **`svccat search <QUERY>`** - Search services by substring or `field:value` syntax.
+  Searchable fields: `name`, `language`/`lang`, `platform`, `url`, `role`, `team`, `oncall`,
+  `docs`, `ci`, `path`, `tags`, `depends_on`. Returns colored matches to the terminal.
+
+- **`svccat snapshot diff <NAME>`** - Compare a named snapshot against the current state of
+  the repo. Reports services added/removed/changed and drift items that appeared or resolved
+  since the snapshot was taken. Supports `--format terminal` and `--format markdown`.
+
+- **`--output <FILE>`** on `svccat check` and `svccat graph`** - Write output to a file
+  instead of stdout. `check` supports `--format json` and `--format markdown` with `--output`.
+  `graph` writes whichever graph format was requested directly to the specified file.
+
+- **`svccat deps`** - Analyze inter-service dependencies declared via `depends_on`.
+  Detects missing targets and circular dependency chains. Outputs a dependency summary to
+  the terminal, as a Mermaid diagram, or as JSON.
+
+- **`svccat tag add/remove`** - Mutate tags on services in the manifest YAML in-place.
+  Tags are stored on `ServiceEntry` under the `tags` field (skipped when empty).
+
+---
+
 ## [0.16.0] - 2025-07-18
 
 ### Added

@@ -84,6 +84,7 @@ pub fn run(
                 submodule: None,
                 docs: None,
                 ci: None,
+                tags: Vec::new(),
                 depends_on: Vec::new(),
             });
         }

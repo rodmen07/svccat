@@ -148,6 +148,10 @@ pub struct ServiceEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ci: Option<String>,
 
+    /// Arbitrary labels for grouping and filtering (e.g. "critical", "beta").
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+
     /// Names of other services this service depends on (used for graph edges).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub depends_on: Vec<String>,

@@ -105,6 +105,18 @@ svccat policy --fail-on-violations       # exit 1 when violations exist (CI gate
 svccat snapshot save release-v1          # save named drift snapshot
 svccat snapshot list                     # list all saved snapshots
 svccat snapshot delete release-v1        # delete a named snapshot
+svccat snapshot diff release-v1          # diff snapshot vs current state
+svccat ci                                # lint + drift + policy in one CI pass
+svccat ci --format json                  # machine-readable CI result
+svccat search auth                       # search services by substring
+svccat search team:platform              # search services by field:value
+svccat deps                              # analyze inter-service dependencies
+svccat deps --format mermaid             # dependency graph as Mermaid diagram
+svccat deps --format json                # machine-readable dependency report
+svccat tag add auth-service critical     # add tag to a service in the manifest
+svccat tag remove auth-service beta      # remove tag from a service
+svccat check --format json --output drift.json  # write check output to file
+svccat graph --output graph.md           # write graph to file
 svccat completions bash                  # print bash completion script
 ```
 
