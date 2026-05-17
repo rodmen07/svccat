@@ -7,6 +7,35 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.16.0] - 2025-07-18
+
+### Added
+
+- **`svccat policy`** - Enforce required and recommended fields across services using a
+  `.svccat/policy.yaml` config file. Reports violations per service with severity levels
+  (error/warning). Use `--format json` for machine-readable output and `--fail-on-violations`
+  to gate CI pipelines on policy compliance.
+
+- **`svccat snapshot save/list/delete`** - Named snapshot management in `.svccat/snapshots/`.
+  Save the current drift report as a named snapshot, list all saved snapshots, or delete one
+  by name. Snapshots capture manifest metadata and the full drift analysis for later comparison.
+
+- **`--format datadog`** for `svccat check` - Emit a Datadog Events API JSON payload.
+  Each drifting service becomes one event with `alert_type`, `tags`, and `priority` fields.
+  A clean run emits a single success event. Pipe directly to `curl` to post events.
+
+- **`--format json`** for `svccat report` - Machine-readable JSON output with manifest path,
+  summary counts (declared/discovered/errors/warnings), and a team-grouped service listing.
+
+- **`--filter <PATTERN>`** for `svccat graph` - Case-insensitive substring filter applied
+  before rendering. Only services whose name contains the pattern are included in the graph.
+
+- **`--interval <N>`** for `svccat watch` - Emit a synthetic re-check every N seconds in
+  addition to filesystem events. Useful for catching remote changes (config maps, external
+  registries) that do not touch local files.
+
+---
+
 ## [0.15.0] - 2026-05-18
 
 ### Added

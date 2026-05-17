@@ -488,3 +488,59 @@ pub fn render_badge(report: &DriftReport) -> String {
         badge_url(report)
     )
 }
+
+/// Render the full ownership and drift report as machine-readable JSON.
+pub fn render_json(manifest: &Manifest, report: &DriftReport) -> anyhow::Result<String> {
+    let team_groups: BTreeMap<String, Vec<serde_json::Value>> = {
+        let by_team = group_by_team(manifest);
+        let drift_map = drift_by_service(report);
+        by_team
+            .into_iter()
+            .map(|(team, svcs)| {
+                let entries: Vec<serde_json::Value> = svcs
+                    .iter()
+                    .map(|svc| {
+                        let drifts: Vec<serde_json::Value> = drift_map
+                            .get(svc.name.as_str())
+                            .map(|items| {
+                                items
+                                    .iter()
+                                    .map(|d| {
+                                        serde_json::json!({
+                                            "severity": format!("{:?}", d.severity).to_lowercase(),
+                                            "kind": format!("{:?}", d.kind),
+                                            "message": d.message,
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        serde_json::json!({
+                            "name": svc.name,
+                            "language": svc.language,
+                            "platform": svc.platform,
+                            "role": svc.role,
+                            "url": svc.url,
+                            "oncall": svc.oncall,
+                            "drift": drifts,
+                        })
+                    })
+                    .collect();
+                (team, entries)
+            })
+            .collect()
+    };
+
+    let out = serde_json::json!({
+        "manifest": report.manifest,
+        "summary": {
+            "declared": report.declared,
+            "discovered": report.discovered,
+            "errors": report.error_count(),
+            "warnings": report.warning_count(),
+        },
+        "teams": team_groups,
+    });
+
+    Ok(serde_json::to_string_pretty(&out)?)
+}

@@ -87,15 +87,24 @@ svccat serve                             # live HTML report at http://localhost:
 svccat serve --port 9000 --refresh 10    # custom port + auto-refresh every 10 s
 svccat graph --format dot                # Graphviz DOT output (pipe to dot -Tsvg)
 svccat graph --format plantuml           # PlantUML component diagram
+svccat graph --filter payments           # only services whose name contains "payments"
 svccat import --from openapi             # seed services.yaml from OpenAPI / Swagger specs
 svccat check --format slack              # Slack Block Kit JSON for posting to a channel
 svccat check --format teams              # Microsoft Teams Adaptive Card JSON
+svccat check --format datadog            # Datadog Events API JSON (pipe to curl)
 svccat diff before.json after.json --format markdown  # diff as Markdown tables for PR comments
 svccat watch --notify                    # desktop notification when drift count changes
+svccat watch --interval 30               # also re-check every 30 seconds
+svccat report --format json              # machine-readable JSON report
 svccat export --format json --since HEAD~1  # only export services changed since last commit
 svccat audit                             # lint + drift + score in one pass
 svccat audit --ping                      # include URL reachability in the score
 svccat audit --format json               # machine-readable JSON result
+svccat policy                            # check required/recommended fields per policy.yaml
+svccat policy --fail-on-violations       # exit 1 when violations exist (CI gate)
+svccat snapshot save release-v1          # save named drift snapshot
+svccat snapshot list                     # list all saved snapshots
+svccat snapshot delete release-v1        # delete a named snapshot
 svccat completions bash                  # print bash completion script
 ```
 

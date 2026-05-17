@@ -3,10 +3,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, AuditFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, ReportFormat};
+use svccat::cli::{Cli, Commands, AuditFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, SnapshotAction};
 use svccat::{
-    audit, config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output, ping,
-    report, serve, since, stats, watch,
+    audit, config, diff, discovery, drift, fix, hooks, import, init, lint, manifest, output,
+    ping, policy, report, serve, since, snapshot, stats, watch,
 };
 
 fn main() {
@@ -199,6 +199,7 @@ fn run() -> Result<i32> {
                     OutputFormat::Csv => output::csv::render_check(&report),
                     OutputFormat::Slack => output::slack::render_check(&report)?,
                     OutputFormat::Teams => output::teams::render_check(&report)?,
+                    OutputFormat::Datadog => output::datadog::render_check(&report)?,
                 }
             }
 
@@ -214,9 +215,16 @@ fn run() -> Result<i32> {
             manifest: manifest_path,
             format,
             team,
+            filter,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
-            let m = manifest::Manifest::load(&path)?;
+            let mut m = manifest::Manifest::load(&path)?;
+
+            // Apply --filter: keep only services whose name contains the substring.
+            if let Some(ref pat) = filter {
+                let pat_lower = pat.to_lowercase();
+                m.services.retain(|s| s.name.to_lowercase().contains(&pat_lower));
+            }
 
             match format {
                 GraphFormat::Mermaid => output::mermaid::render_graph_filtered(&m, team.as_deref()),
@@ -294,12 +302,13 @@ fn run() -> Result<i32> {
             depth,
             since: watch_since,
             notify,
+            interval,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref(), notify)?;
+            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref(), notify, interval)?;
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
             if should_fail && initial_errors > 0 {
@@ -339,6 +348,7 @@ fn run() -> Result<i32> {
                 match format {
                     ReportFormat::Markdown => report::render_markdown(&m, &drift_report),
                     ReportFormat::Html => report::render_html(&m, &drift_report),
+                    ReportFormat::Json => report::render_json(&m, &drift_report)?,
                 }
             };
 
@@ -401,6 +411,60 @@ fn run() -> Result<i32> {
             hooks::install(&root, hook_name, fail_on_drift)?;
             Ok(0)
         }
+
+        Commands::Policy {
+            manifest: manifest_path,
+            format,
+            fail_on_violations,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let policy_cfg = policy::PolicyConfig::load(&root).unwrap_or_default();
+            if policy_cfg.is_empty() {
+                eprintln!(
+                    "No policy file found. Create .svccat/policy.yaml to define required/recommended fields."
+                );
+                return Ok(0);
+            }
+            let result = policy::check(&m, &policy_cfg);
+            match format {
+                PolicyFormat::Terminal => policy::render_terminal(&result, &policy_cfg),
+                PolicyFormat::Json => policy::render_json(&result)?,
+            }
+            if fail_on_violations && !result.passed() {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
+        }
+
+        Commands::Snapshot { action } => match action {
+            SnapshotAction::Save {
+                name,
+                manifest: manifest_path,
+                ignore: cli_ignore,
+                depth,
+            } => {
+                let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+                let m = manifest::Manifest::load(&path)?;
+                let mut ignore: Vec<String> = cfg.ignore.clone();
+                ignore.extend(cli_ignore);
+                let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
+                let mut drift_report = drift::analyze(&m, &discovered, &root);
+                drift_report.manifest = path.display().to_string();
+                snapshot::save(&root, &name, &m, &drift_report)?;
+                Ok(0)
+            }
+            SnapshotAction::List => {
+                let snaps = snapshot::list(&root)?;
+                snapshot::render_list(&snaps);
+                Ok(0)
+            }
+            SnapshotAction::Delete { name } => {
+                snapshot::delete(&root, &name)?;
+                Ok(0)
+            }
+        },
 
         Commands::Audit {
             manifest: manifest_path,

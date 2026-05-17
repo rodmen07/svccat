@@ -28,6 +28,7 @@ pub fn run(
     depth: u32,
     since: Option<&str>,
     notify: bool,
+    interval: Option<u64>,
 ) -> Result<usize> {
     let manifest_path = manifest_path.to_path_buf();
     let root = root.to_path_buf();
@@ -37,7 +38,7 @@ pub fn run(
 
     let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
 
-    let mut watcher = RecommendedWatcher::new(tx, Config::default())?;
+    let mut watcher = RecommendedWatcher::new(tx.clone(), Config::default())?;
 
     // Always watch the manifest file itself.
     watcher.watch(&manifest_path, RecursiveMode::NonRecursive)?;
@@ -52,11 +53,33 @@ pub fn run(
         }
     }
 
+    // Spawn a polling thread when --interval is set.
+    if let Some(secs) = interval {
+        let tx2 = tx.clone();
+        let path_clone = manifest_path.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(secs));
+            // Synthesise a synthetic modify event on the manifest to trigger a recheck.
+            use notify::{event::ModifyKind, Event, EventKind};
+            let synthetic = Event {
+                kind: EventKind::Modify(ModifyKind::Any),
+                paths: vec![path_clone.clone()],
+                attrs: Default::default(),
+            };
+            if tx2.send(Ok(synthetic)).is_err() {
+                break;
+            }
+        });
+    }
+
     // First run immediately.
     let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
 
+    let interval_note = interval
+        .map(|s| format!(" (polling every {s}s)"))
+        .unwrap_or_default();
     eprintln!(
-        "\n{} Watching {} and service directories. Press Ctrl-C to stop.\n",
+        "\n{} Watching {} and service directories{interval_note}. Press Ctrl-C to stop.\n",
         "●".cyan().bold(),
         manifest_path.display()
     );

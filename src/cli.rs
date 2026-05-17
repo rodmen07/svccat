@@ -91,6 +91,10 @@ pub enum Commands {
         /// are shown as external nodes
         #[arg(long, value_name = "TEAM")]
         team: Option<String>,
+
+        /// Only include services whose name contains this substring (case-insensitive)
+        #[arg(long, value_name = "PATTERN")]
+        filter: Option<String>,
     },
 
     /// Export the full service catalog with drift summary
@@ -179,6 +183,13 @@ pub enum Commands {
         /// Send a native OS desktop notification when the drift count changes
         #[arg(long)]
         notify: bool,
+
+        /// Also re-run every N seconds regardless of file-system events
+        ///
+        /// Useful in Docker containers, network mounts, or other environments
+        /// where inotify is unreliable.
+        #[arg(long, value_name = "N")]
+        interval: Option<u64>,
     },
 
     /// Generate a full ownership and drift report
@@ -315,6 +326,46 @@ pub enum Commands {
         format: AuditFormat,
     },
 
+    /// Enforce metadata policies defined in .svccat/policy.yaml
+    ///
+    /// Policies declare which fields are `required` (errors) or `recommended`
+    /// (warnings) for every service in the manifest.
+    ///
+    /// Example policy file (.svccat/policy.yaml):
+    ///   required:
+    ///     - team
+    ///     - oncall
+    ///   recommended:
+    ///     - language
+    ///     - docs
+    Policy {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = PolicyFormat::Terminal)]
+        format: PolicyFormat,
+
+        /// Exit with code 1 when policy errors are present
+        #[arg(long)]
+        fail_on_violations: bool,
+    },
+
+    /// Manage named snapshots of the service catalog
+    ///
+    /// Snapshots are saved to .svccat/snapshots/ and can be compared with
+    /// `svccat diff` by using the snapshot file path.
+    ///
+    /// Commands:
+    ///   save <name>    - Save the current catalog as a named snapshot
+    ///   list           - List all saved snapshots
+    ///   delete <name>  - Remove a snapshot
+    Snapshot {
+        #[command(subcommand)]
+        action: SnapshotAction,
+    },
+
     /// Show field-coverage statistics for the service manifest
     ///
     /// Displays how many services have each metadata field set, with a
@@ -371,6 +422,8 @@ pub enum OutputFormat {
     Slack,
     /// Microsoft Teams Adaptive Card JSON payload
     Teams,
+    /// Datadog Events API JSON payload
+    Datadog,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -387,6 +440,8 @@ pub enum GraphFormat {
 pub enum ReportFormat {
     Markdown,
     Html,
+    /// Machine-readable JSON: manifest summary + per-team service breakdown
+    Json,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -429,4 +484,42 @@ pub enum AuditFormat {
     Terminal,
     /// Machine-readable JSON object
     Json,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum PolicyFormat {
+    /// Coloured terminal output (default)
+    Terminal,
+    /// Machine-readable JSON array of violations
+    Json,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SnapshotAction {
+    /// Save the current catalog state as a named snapshot
+    Save {
+        /// Name for this snapshot (e.g. v1.0, pre-migration)
+        name: String,
+
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+    },
+
+    /// List all saved snapshots
+    List,
+
+    /// Delete a named snapshot
+    Delete {
+        /// Name of the snapshot to delete
+        name: String,
+    },
 }
