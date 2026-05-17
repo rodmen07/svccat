@@ -223,6 +223,11 @@ pub fn render_mermaid(report: &DepsReport) {
 }
 
 pub fn render_json(report: &DepsReport) -> Result<()> {
+    println!("{}", render_json_to_string(report)?);
+    Ok(())
+}
+
+pub fn render_json_to_string(report: &DepsReport) -> Result<String> {
     let j = serde_json::json!({
         "total_services": report.total_services,
         "services_with_deps": report.services_with_deps,
@@ -231,8 +236,7 @@ pub fn render_json(report: &DepsReport) -> Result<()> {
         "cycles": report.cycles,
         "has_errors": report.has_errors(),
     });
-    println!("{}", serde_json::to_string_pretty(&j)?);
-    Ok(())
+    Ok(serde_json::to_string_pretty(&j)?)
 }
 
 fn mermaid_id(name: &str) -> String {

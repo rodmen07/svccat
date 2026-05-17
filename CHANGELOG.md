@@ -7,6 +7,38 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.18.0] - 2025-07-21
+
+### Added
+
+- **`svccat scorecard`** - Per-service health scoring (completeness 40%, drift 40%, policy 20%).
+  Outputs a ranked table to the terminal, or use `--format json/markdown` and `--output <file>`
+  to write reports for dashboards and CI pipelines.
+
+- **`svccat snapshot compare <BEFORE> <AFTER>`** - Side-by-side diff of two named snapshots.
+  Reuses the existing diff renderer; supports `--format terminal/markdown`.
+
+- **`svccat graph --format html`** - Self-contained HTML page with a D3.js v7 force-directed
+  graph. Colour-coded by platform, hover tooltips, draggable nodes. Pipe to a file:
+  `svccat graph --format html > services.html`.
+
+- **`svccat ci --watch`** - File-watcher mode for CI. Re-runs the full CI check on every
+  manifest change. Use `--interval <secs>` (default 2s debounce) to tune sensitivity.
+  Exits non-zero if the last run had errors.
+
+- **`svccat webhook`** - Fire a one-shot webhook with the current drift report as JSON payload.
+  Use `--url <URL>` to override the URL in `svccat.toml`. Also fires automatically from
+  `svccat check` and `svccat ci` when `[webhook]` is configured in `svccat.toml`.
+
+- **`--output <file>`** on `svccat search` and `svccat deps`** - Write JSON output to a file
+  instead of stdout, consistent with the existing `--output` flag on other commands.
+
+### Changed
+
+- `svccat check` and `svccat ci` now fire the configured webhook automatically on each run.
+
+---
+
 ## [0.17.0] - 2025-07-20
 
 ### Added

@@ -1,7 +1,10 @@
 use crate::{discovery, drift, lint, manifest, policy};
 use anyhow::Result;
 use colored::Colorize;
-use std::path::Path;
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 // ── Report ────────────────────────────────────────────────────────────────────
 
@@ -129,4 +132,119 @@ pub fn render_json(report: &CiReport) -> Result<()> {
     });
     println!("{}", serde_json::to_string_pretty(&j)?);
     Ok(())
+}
+
+// ── Watch mode ────────────────────────────────────────────────────────────────
+
+/// Run `ci::run` continuously, re-triggering on file-system changes.
+///
+/// Watches the manifest file and every service discovery path.  On each
+/// detected change (debounced to 500 ms) it reloads the manifest and reruns
+/// the full CI pass, printing a timestamped report.
+///
+/// Returns the initial error count so callers can honour exit-code semantics
+/// on the first run.
+pub fn watch(
+    manifest_path: &Path,
+    root: &Path,
+    ignore: &[String],
+    depth: u32,
+    interval: Option<u64>,
+) -> Result<usize> {
+    let manifest_path = manifest_path.to_path_buf();
+    let root = root.to_path_buf();
+    let ignore = ignore.to_vec();
+
+    let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
+    let mut watcher = RecommendedWatcher::new(tx.clone(), Config::default())?;
+    watcher.watch(&manifest_path, RecursiveMode::NonRecursive)?;
+
+    // Pre-load manifest to register discovery paths.
+    let initial_m = manifest::Manifest::load(&manifest_path)?;
+    let watch_paths = effective_watch_paths(&initial_m, &root);
+    for p in &watch_paths {
+        if p.exists() {
+            let _ = watcher.watch(p, RecursiveMode::Recursive);
+        }
+    }
+
+    // Optional polling thread.
+    if let Some(secs) = interval {
+        let tx2 = tx.clone();
+        let path_clone = manifest_path.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_secs(secs));
+            use notify::{event::ModifyKind, Event};
+            let ev = Event {
+                kind: EventKind::Modify(ModifyKind::Any),
+                paths: vec![path_clone.clone()],
+                attrs: Default::default(),
+            };
+            if tx2.send(Ok(ev)).is_err() { break; }
+        });
+    }
+
+    // First run immediately.
+    let initial_errors = run_once(&manifest_path, &root, &ignore, depth);
+
+    let interval_note = interval.map(|s| format!(" (polling every {s}s)")).unwrap_or_default();
+    eprintln!(
+        "\n{} watching for changes{interval_note}. Press Ctrl-C to stop.",
+        "svccat ci --watch".bold()
+    );
+
+    let mut last_event = Instant::now();
+    for res in rx {
+        if let Ok(event) = res {
+            if matches!(
+                event.kind,
+                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+            ) {
+                if last_event.elapsed() < Duration::from_millis(500) {
+                    continue;
+                }
+                last_event = Instant::now();
+                let ts = chrono_lite_now();
+                eprintln!("\n[{ts}] change detected - re-running ci…");
+                run_once(&manifest_path, &root, &ignore, depth);
+            }
+        }
+    }
+
+    Ok(initial_errors)
+}
+
+fn run_once(manifest_path: &PathBuf, root: &Path, ignore: &[String], depth: u32) -> usize {
+    match manifest::Manifest::load(manifest_path) {
+        Err(e) => {
+            eprintln!("{} {e:#}", "error:".red().bold());
+            1
+        }
+        Ok(m) => {
+            let report = run(&m, root, ignore, depth);
+            render_terminal(&report);
+            report.total_errors()
+        }
+    }
+}
+
+fn effective_watch_paths(m: &manifest::Manifest, root: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = m
+        .effective_discovery_paths()
+        .iter()
+        .map(|p| root.join(p))
+        .collect();
+    paths.push(root.join(".svccat"));
+    paths
+}
+
+fn chrono_lite_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let s = secs % 60;
+    let m = (secs / 60) % 60;
+    let h = (secs / 3600) % 24;
+    format!("{h:02}:{m:02}:{s:02} UTC")
 }

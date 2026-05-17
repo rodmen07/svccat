@@ -159,3 +159,25 @@ pub fn render(matches: &[&ServiceEntry], query_raw: &str, total: usize) {
         }
     }
 }
+
+/// Render search results as JSON - used when writing to `--output`.
+pub fn render_json(matches: &[&ServiceEntry], query_raw: &str, total: usize) -> anyhow::Result<String> {
+    let json = serde_json::json!({
+        "query": query_raw,
+        "total_searched": total,
+        "match_count": matches.len(),
+        "matches": matches.iter().map(|svc| serde_json::json!({
+            "name": svc.name,
+            "team": svc.team,
+            "language": svc.language,
+            "platform": svc.platform,
+            "role": svc.role,
+            "oncall": svc.oncall,
+            "url": svc.url,
+            "tags": svc.tags,
+            "depends_on": svc.depends_on,
+            "path": svc.path,
+        })).collect::<Vec<_>>(),
+    });
+    Ok(serde_json::to_string_pretty(&json)?)
+}

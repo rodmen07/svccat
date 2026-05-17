@@ -394,6 +394,14 @@ pub enum Commands {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = CiFormat::Terminal)]
         format: CiFormat,
+
+        /// Watch the manifest and service directories; re-run on every change
+        #[arg(long)]
+        watch: bool,
+
+        /// Also re-run every N seconds regardless of file-system events
+        #[arg(long, value_name = "N")]
+        interval: Option<u64>,
     },
 
     /// Search the service catalog
@@ -410,6 +418,10 @@ pub enum Commands {
         /// Path to the manifest file (auto-detected if omitted)
         #[arg(short, long)]
         manifest: Option<PathBuf>,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Analyse inter-service dependencies declared in the manifest
@@ -425,6 +437,10 @@ pub enum Commands {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = DepsFormat::Terminal)]
         format: DepsFormat,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Add or remove tags on a service entry in the manifest
@@ -433,6 +449,64 @@ pub enum Commands {
     Tag {
         #[command(subcommand)]
         action: TagAction,
+    },
+
+    /// Score every service on completeness, drift health, and policy compliance
+    ///
+    /// Each service receives three dimension scores (0-100):
+    ///   completeness - how many optional metadata fields are populated
+    ///   drift        - 100 when clean, reduced by drift errors
+    ///   policy       - 100 when no policy errors are present
+    ///
+    /// A composite total is computed as: completeness*40% + drift*40% + policy*20%.
+    Scorecard {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = ScorecardFormat::Terminal)]
+        format: ScorecardFormat,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
+
+    /// Fire a webhook manually or configure automatic webhook notifications
+    ///
+    /// When invoked without a subcommand, runs the current drift check and fires
+    /// the configured webhook if thresholds are met.
+    ///
+    /// Configure a webhook URL in `svccat.toml`:
+    ///   [webhook]
+    ///   url = "https://hooks.slack.com/services/..."
+    ///   on_errors = true
+    ///   on_warnings = false
+    Webhook {
+        /// Path to the manifest file (auto-detected if omitted)
+        #[arg(short, long)]
+        manifest: Option<PathBuf>,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Override the webhook URL from svccat.toml
+        #[arg(long, value_name = "URL")]
+        url: Option<String>,
     },
 
     /// Show field-coverage statistics for the service manifest
@@ -503,6 +577,8 @@ pub enum GraphFormat {
     Dot,
     /// PlantUML component diagram (paste at plantuml.com or pipe to plantuml)
     Plantuml,
+    /// Interactive self-contained HTML file with a D3.js force-directed graph
+    Html,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -592,6 +668,17 @@ pub enum SnapshotAction {
         name: String,
     },
 
+    /// Compare two named snapshots against each other
+    Compare {
+        /// Name of the older ("before") snapshot
+        before: String,
+        /// Name of the newer ("after") snapshot
+        after: String,
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = DiffFormat::Terminal)]
+        format: DiffFormat,
+    },
+
     /// Compare a named snapshot against the current catalog state
     Diff {
         /// Name of the snapshot to compare against
@@ -627,6 +714,16 @@ pub enum DepsFormat {
     Mermaid,
     /// Machine-readable JSON
     Json,
+}
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum ScorecardFormat {
+    /// Coloured table output (default)
+    Terminal,
+    /// Machine-readable JSON
+    Json,
+    /// GitHub-flavoured Markdown table
+    Markdown,
 }
 
 #[derive(Subcommand, Debug)]

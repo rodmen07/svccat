@@ -123,6 +123,15 @@ pub fn delete(root: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Compare two named snapshots against each other, returning a `DiffReport`.
+///
+/// `before_name` is the older snapshot; `after_name` is the newer one.
+pub fn compare(root: &Path, before_name: &str, after_name: &str) -> Result<crate::diff::DiffReport> {
+    let before = load(root, before_name)?;
+    let after = load(root, after_name)?;
+    crate::diff::diff_from_json(&before.payload, &after.payload, before_name, after_name)
+}
+
 // ── Renderers ──────────────────────────────────────────────────────────────────
 
 pub fn render_list(snaps: &[Snapshot]) {

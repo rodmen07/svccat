@@ -3,10 +3,10 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, AuditFormat, CiFormat, DepsFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, SnapshotAction, TagAction};
+use svccat::cli::{Cli, Commands, AuditFormat, CiFormat, DepsFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, ScorecardFormat, SnapshotAction, TagAction};
 use svccat::{
     audit, ci, config, deps, diff, discovery, drift, fix, hooks, import, init, lint, manifest,
-    output, ping, policy, report, search, serve, since, snapshot, stats, tag, watch,
+    output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag, watch, webhook,
 };
 
 fn main() {
@@ -226,6 +226,11 @@ fn run() -> Result<i32> {
             }
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
+
+            // Fire webhook when configured.
+            let wh_cfg = webhook::load_config(&root);
+            let _ = webhook::fire_from_drift(&root, &wh_cfg, &report);
+
             if should_fail && !report.drifts.is_empty() {
                 Ok(1)
             } else {
@@ -258,6 +263,7 @@ fn run() -> Result<i32> {
                 GraphFormat::Plantuml => {
                     output::mermaid::render_plantuml_string(&m, team.as_deref())
                 }
+                GraphFormat::Html => output::mermaid::render_html_graph(&m, team.as_deref()),
             };
 
             if let Some(out_path) = output_path {
@@ -498,6 +504,14 @@ fn run() -> Result<i32> {
                 snapshot::delete(&root, &name)?;
                 Ok(0)
             }
+            SnapshotAction::Compare { before, after, format } => {
+                let diff_report = snapshot::compare(&root, &before, &after)?;
+                match format {
+                    DiffFormat::Terminal => diff::render_diff(&diff_report),
+                    DiffFormat::Markdown => diff::render_diff_markdown(&diff_report),
+                }
+                Ok(0)
+            }
             SnapshotAction::Diff {
                 name,
                 ignore: cli_ignore,
@@ -564,45 +578,72 @@ fn run() -> Result<i32> {
             ignore: cli_ignore,
             depth,
             format,
+            watch: do_watch,
+            interval,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
-            let m = manifest::Manifest::load(&path)?;
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
+
+            if do_watch {
+                let errors = ci::watch(&path, &root, &ignore, depth, interval)?;
+                return if errors > 0 { Ok(1) } else { Ok(0) };
+            }
+
+            let m = manifest::Manifest::load(&path)?;
             let result = ci::run(&m, &root, &ignore, depth);
             match format {
                 CiFormat::Terminal => ci::render_terminal(&result),
                 CiFormat::Json => ci::render_json(&result)?,
             }
+
+            // Fire webhook when configured.
+            let wh_cfg = webhook::load_config(&root);
+            let _ = webhook::fire_from_ci(&root, &wh_cfg, &result);
+
             if result.passed() { Ok(0) } else { Ok(1) }
         }
 
         Commands::Search {
             query: query_raw,
             manifest: manifest_path,
+            output: output_path,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
             let total = m.services.len();
             let q = search::Query::parse(&query_raw);
             let matches = search::run(&m, &q);
-            search::render(&matches, &query_raw, total);
+            if let Some(out_path) = output_path {
+                let content = search::render_json(&matches, &query_raw, total)?;
+                std::fs::write(&out_path, &content)?;
+                eprintln!("wrote search results to {}", out_path.display());
+            } else {
+                search::render(&matches, &query_raw, total);
+            }
             Ok(0)
         }
 
         Commands::Deps {
             manifest: manifest_path,
             format,
+            output: output_path,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
-            let report = deps::analyze(&m);
-            match format {
-                DepsFormat::Terminal => deps::render_terminal(&report),
-                DepsFormat::Mermaid => deps::render_mermaid(&report),
-                DepsFormat::Json => deps::render_json(&report)?,
+            let dep_report = deps::analyze(&m);
+            if let Some(out_path) = output_path {
+                let content = deps::render_json_to_string(&dep_report)?;
+                std::fs::write(&out_path, &content)?;
+                eprintln!("wrote deps report to {}", out_path.display());
+            } else {
+                match format {
+                    DepsFormat::Terminal => deps::render_terminal(&dep_report),
+                    DepsFormat::Mermaid => deps::render_mermaid(&dep_report),
+                    DepsFormat::Json => deps::render_json(&dep_report)?,
+                }
             }
-            if report.has_errors() { Ok(1) } else { Ok(0) }
+            if dep_report.has_errors() { Ok(1) } else { Ok(0) }
         }
 
         Commands::Tag { action } => match action {
@@ -617,6 +658,64 @@ fn run() -> Result<i32> {
                 Ok(0)
             }
         },
+
+        Commands::Scorecard {
+            manifest: manifest_path,
+            ignore: cli_ignore,
+            depth,
+            format,
+            output: output_path,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+            let sc = scorecard::run(&m, &root, &ignore, depth);
+            match &output_path {
+                Some(out_path) => {
+                    let content = match format {
+                        ScorecardFormat::Terminal | ScorecardFormat::Markdown => {
+                            scorecard::render_markdown(&sc)
+                        }
+                        ScorecardFormat::Json => scorecard::render_json_to_string(&sc)?,
+                    };
+                    std::fs::write(out_path, &content)?;
+                    eprintln!("wrote scorecard to {}", out_path.display());
+                }
+                None => match format {
+                    ScorecardFormat::Terminal => scorecard::render_terminal(&sc),
+                    ScorecardFormat::Json => scorecard::render_json(&sc)?,
+                    ScorecardFormat::Markdown => {
+                        print!("{}", scorecard::render_markdown(&sc));
+                    }
+                },
+            }
+            Ok(0)
+        }
+
+        Commands::Webhook {
+            manifest: manifest_path,
+            ignore: cli_ignore,
+            depth,
+            url: url_override,
+        } => {
+            let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
+            let m = manifest::Manifest::load(&path)?;
+            let mut ignore: Vec<String> = cfg.ignore.clone();
+            ignore.extend(cli_ignore);
+            let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
+            let drift_report = drift::analyze(&m, &discovered, &root);
+
+            let mut wh_cfg = webhook::load_config(&root);
+            // URL from --url overrides config.
+            if let Some(u) = url_override {
+                wh_cfg.url = Some(u);
+                wh_cfg.on_errors = true;
+                wh_cfg.on_warnings = true;
+            }
+            webhook::fire_from_drift(&root, &wh_cfg, &drift_report)?;
+            Ok(0)
+        }
 
         Commands::Stats {
             manifest: manifest_path,

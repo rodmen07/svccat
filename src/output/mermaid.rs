@@ -490,3 +490,161 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
     sbuf!(buf, "@enduml");
     buf
 }
+
+// ── HTML interactive graph ─────────────────────────────────────────────────────
+
+/// Render a self-contained HTML file with a D3.js v7 force-directed dependency graph.
+///
+/// Nodes are coloured by platform; edges represent `depends_on` links.
+/// The HTML file has no external CDN dependencies: D3 is embedded via a CDN
+/// `<script>` tag so the file requires an internet connection to render.
+pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
+    use std::fmt::Write;
+
+    let in_scope: std::collections::HashSet<&str> = manifest
+        .services
+        .iter()
+        .filter(|s| match team {
+            None => true,
+            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+        })
+        .map(|s| s.name.as_str())
+        .collect();
+
+    // Build JSON node and link arrays for D3.
+    let mut nodes_json = String::from("[\n");
+    for svc in manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())) {
+        let platform = svc.platform.as_deref().unwrap_or("unknown");
+        let team_str = svc.team.as_deref().unwrap_or("");
+        let lang_str = svc.language.as_deref().unwrap_or("");
+        writeln!(
+            nodes_json,
+            "  {{\"id\":{id:?},\"platform\":{plat:?},\"team\":{team:?},\"language\":{lang:?}}},",
+            id = svc.name,
+            plat = platform,
+            team = team_str,
+            lang = lang_str,
+        )
+        .unwrap();
+    }
+    nodes_json.push(']');
+
+    let mut links_json = String::from("[\n");
+    for svc in manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())) {
+        for dep in &svc.depends_on {
+            writeln!(
+                links_json,
+                "  {{\"source\":{src:?},\"target\":{tgt:?}}},",
+                src = svc.name,
+                tgt = dep,
+            )
+            .unwrap();
+        }
+    }
+    links_json.push(']');
+
+    let title = format!(
+        "svccat graph - {} service(s)",
+        manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())).count()
+    );
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title}</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  body {{ margin: 0; background: #1a1a2e; color: #eee; font-family: sans-serif; }}
+  h1 {{ text-align: center; padding: 1rem 0 0; font-size: 1.1rem; opacity: 0.7; }}
+  svg {{ width: 100vw; height: calc(100vh - 60px); }}
+  .node circle {{ stroke: #fff; stroke-width: 1.5px; cursor: pointer; }}
+  .node text {{ font-size: 11px; fill: #eee; pointer-events: none; }}
+  .link {{ stroke: #aaa; stroke-opacity: 0.5; stroke-width: 1.5px; }}
+  #tooltip {{
+    position: absolute; background: rgba(0,0,0,0.8); color: #fff;
+    padding: 8px 12px; border-radius: 4px; font-size: 12px;
+    pointer-events: none; display: none;
+  }}
+</style>
+</head>
+<body>
+<h1>{title}</h1>
+<div id="tooltip"></div>
+<svg id="graph"></svg>
+<script>
+const nodes = {nodes_json};
+const links = {links_json};
+
+// Assign a stable colour per platform using D3 ordinal scale.
+const platforms = [...new Set(nodes.map(d => d.platform))];
+const colour = d3.scaleOrdinal(d3.schemeTableau10).domain(platforms);
+
+const svg = d3.select("#graph");
+const width = window.innerWidth;
+const height = window.innerHeight - 60;
+svg.attr("viewBox", [0, 0, width, height]);
+
+// Arrow marker
+svg.append("defs").append("marker")
+  .attr("id", "arrow")
+  .attr("viewBox", "0 -5 10 10")
+  .attr("refX", 22).attr("refY", 0)
+  .attr("markerWidth", 6).attr("markerHeight", 6)
+  .attr("orient", "auto")
+  .append("path").attr("fill", "#aaa").attr("d", "M0,-5L10,0L0,5");
+
+const sim = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+  .force("charge", d3.forceManyBody().strength(-300))
+  .force("center", d3.forceCenter(width / 2, height / 2))
+  .force("collide", d3.forceCollide(40));
+
+const link = svg.append("g")
+  .selectAll("line")
+  .data(links).join("line")
+  .attr("class", "link")
+  .attr("marker-end", "url(#arrow)");
+
+const node = svg.append("g")
+  .selectAll("g")
+  .data(nodes).join("g")
+  .attr("class", "node")
+  .call(d3.drag()
+    .on("start", (e, d) => {{ if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }})
+    .on("drag",  (e, d) => {{ d.fx = e.x; d.fy = e.y; }})
+    .on("end",   (e, d) => {{ if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }}));
+
+node.append("circle")
+  .attr("r", 16)
+  .attr("fill", d => colour(d.platform));
+
+node.append("text")
+  .attr("dy", 28).attr("text-anchor", "middle")
+  .text(d => d.id);
+
+const tip = document.getElementById("tooltip");
+node.on("mouseover", (e, d) => {{
+  tip.style.display = "block";
+  tip.innerHTML = `<b>${{d.id}}</b><br>platform: ${{d.platform}}<br>team: ${{d.team || "-"}}<br>lang: ${{d.language || "-"}}`;
+}}).on("mousemove", e => {{
+  tip.style.left = (e.pageX + 12) + "px";
+  tip.style.top  = (e.pageY - 28) + "px";
+}}).on("mouseout", () => {{ tip.style.display = "none"; }});
+
+sim.on("tick", () => {{
+  link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+  node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
+}});
+</script>
+</body>
+</html>
+"##,
+        title = title,
+        nodes_json = nodes_json,
+        links_json = links_json,
+    )
+}
