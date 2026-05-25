@@ -554,6 +554,7 @@ fn run() -> Result<i32> {
             manifest: manifest_path,
             format,
             ping: do_ping,
+            cost_estimate,
             ignore: cli_ignore,
             depth,
         } => {
@@ -561,7 +562,7 @@ fn run() -> Result<i32> {
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
             let (result, lint_result, drift_report, ping_results) =
-                audit::run(&path, &root, &ignore, depth, do_ping)?;
+                audit::run(&path, &root, &ignore, depth, do_ping, cost_estimate)?;
             match format {
                 AuditFormat::Terminal => audit::render_terminal(&result, &lint_result, &drift_report, &ping_results),
                 AuditFormat::Json => audit::render_json(&result)?,

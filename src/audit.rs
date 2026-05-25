@@ -1,4 +1,4 @@
-use crate::{discovery, drift, lint, manifest, ping};
+use crate::{cost, discovery, drift, lint, manifest, ping};
 use anyhow::Result;
 use colored::Colorize;
 use std::path::Path;
@@ -14,11 +14,12 @@ pub struct AuditResult {
     pub ping_failures: usize,
     pub score: u32,
     pub passed: bool,
+    pub cost: Option<cost::CostBreakdown>,
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/// Run a full audit: lint + drift + optional ping.
+/// Run a full audit: lint + drift + optional ping + optional cost analysis.
 ///
 /// Returns the structured result for the caller to render.  Does not print
 /// anything itself - use `render_terminal` or `render_json` after this call.
@@ -28,6 +29,7 @@ pub fn run(
     ignore: &[String],
     depth: u32,
     do_ping: bool,
+    do_cost_estimate: bool,
 ) -> Result<(AuditResult, lint::LintResult, drift::DriftReport, Vec<ping::PingResult>)> {
     let m = manifest::Manifest::load(manifest_path)?;
 
@@ -48,6 +50,12 @@ pub fn run(
     };
     let ping_failures = ping_results.iter().filter(|p| !p.is_ok()).count();
 
+    let cost_breakdown = if do_cost_estimate {
+        Some(cost::analyze(&m))
+    } else {
+        None
+    };
+
     let deductions = (drift_errors * 10)
         + (drift_warnings * 3)
         + (lint_errors * 5)
@@ -65,6 +73,7 @@ pub fn run(
         ping_failures,
         score,
         passed,
+        cost: cost_breakdown,
     };
 
     Ok((result, lint_result, report, ping_results))
@@ -168,6 +177,21 @@ pub fn render_terminal(
         println!();
     }
 
+    // Cost section (if available)
+    if let Some(ref cost) = result.cost {
+        println!("{}", "Cost".bold());
+        println!("  Estimated monthly: ${:.2}", cost.total_monthly);
+        if !cost.by_platform.is_empty() {
+            println!("  By platform:");
+            let mut platforms: Vec<_> = cost.by_platform.iter().collect();
+            platforms.sort_by_key(|(_, &cost)| (cost as i32).wrapping_neg()); // Sort descending by cost
+            for (platform, &platform_cost) in platforms {
+                println!("    {}: ${:.2}", platform, platform_cost);
+            }
+        }
+        println!();
+    }
+
     // Score bar
     let bar_width = 20usize;
     let filled = (result.score as usize * bar_width) / 100;
@@ -192,7 +216,7 @@ pub fn render_terminal(
 }
 
 pub fn render_json(result: &AuditResult) -> anyhow::Result<()> {
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "manifest": result.manifest_path,
         "lint_errors": result.lint_errors,
         "lint_warnings": result.lint_warnings,
@@ -202,6 +226,16 @@ pub fn render_json(result: &AuditResult) -> anyhow::Result<()> {
         "score": result.score,
         "passed": result.passed,
     });
+
+    if let Some(ref cost) = result.cost {
+        let by_platform: std::collections::BTreeMap<_, _> = cost.by_platform.iter().collect();
+        payload["cost"] = serde_json::json!({
+            "estimated_monthly_usd": cost.total_monthly,
+            "by_platform": by_platform,
+            "services_count": cost.services_count,
+        });
+    }
+
     println!("{}", serde_json::to_string_pretty(&payload)?);
     Ok(())
 }

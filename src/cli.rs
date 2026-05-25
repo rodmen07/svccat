@@ -321,6 +321,10 @@ pub enum Commands {
         #[arg(long)]
         ping: bool,
 
+        /// Estimate deployment costs based on declared platforms
+        #[arg(long)]
+        cost_estimate: bool,
+
         /// Glob patterns to exclude from discovery (repeatable)
         #[arg(long, value_name = "PATTERN")]
         ignore: Vec<String>,

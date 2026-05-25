@@ -7,6 +7,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`svccat audit --cost-estimate`** - Analyze declared platforms and estimate monthly deployment costs.
+  Outputs total cost and breakdown by platform. Supports `--format json` for integration with dashboards.
+  Includes sensible defaults for common platforms (Cloud Run, Fly.io, GitHub Pages, AWS, etc.).
+
+---
+
 ## [0.18.0] - 2025-07-21
 
 ### Added
