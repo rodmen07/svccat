@@ -54,6 +54,22 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy -- -D warnings
 
+  security:
+    name: Security audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit (deny vulnerabilities)
+        run: cargo audit --deny warnings
+
   catalog-check:
     name: Catalog self-check
     runs-on: ubuntu-latest
