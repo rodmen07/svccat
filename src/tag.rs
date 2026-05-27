@@ -30,7 +30,9 @@ pub fn add(manifest_path: &Path, service_name: &str, tag: &str) -> Result<()> {
         .entry(serde_yaml::Value::String("tags".to_string()))
         .or_insert(serde_yaml::Value::Sequence(vec![]));
 
-    let seq = tags.as_sequence_mut().context("'tags' field is not a list")?;
+    let seq = tags
+        .as_sequence_mut()
+        .context("'tags' field is not a list")?;
     let tag_val = serde_yaml::Value::String(tag.to_string());
     if seq.contains(&tag_val) {
         eprintln!("tag '{}' already present on '{}'", tag, service_name);
@@ -63,7 +65,9 @@ pub fn remove(manifest_path: &Path, service_name: &str, tag: &str) -> Result<()>
         .find(|s| s.get("name").and_then(|n| n.as_str()) == Some(service_name))
         .with_context(|| format!("service '{}' not found in manifest", service_name))?;
 
-    let mapping = svc.as_mapping_mut().context("service entry is not a mapping")?;
+    let mapping = svc
+        .as_mapping_mut()
+        .context("service entry is not a mapping")?;
 
     let tags_key = serde_yaml::Value::String("tags".to_string());
     let tags = mapping

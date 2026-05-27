@@ -126,7 +126,11 @@ pub fn delete(root: &Path, name: &str) -> Result<()> {
 /// Compare two named snapshots against each other, returning a `DiffReport`.
 ///
 /// `before_name` is the older snapshot; `after_name` is the newer one.
-pub fn compare(root: &Path, before_name: &str, after_name: &str) -> Result<crate::diff::DiffReport> {
+pub fn compare(
+    root: &Path,
+    before_name: &str,
+    after_name: &str,
+) -> Result<crate::diff::DiffReport> {
     let before = load(root, before_name)?;
     let after = load(root, after_name)?;
     crate::diff::diff_from_json(&before.payload, &after.payload, before_name, after_name)
@@ -140,7 +144,10 @@ pub fn render_list(snaps: &[Snapshot]) {
         println!("No snapshots found. Run: svccat snapshot save <name>");
         return;
     }
-    println!("{}", format!("{:<20}  {:<24}  manifest", "NAME", "CREATED").bold());
+    println!(
+        "{}",
+        format!("{:<20}  {:<24}  manifest", "NAME", "CREATED").bold()
+    );
     println!("{}", "-".repeat(72).dimmed());
     for s in snaps {
         let dt = format_ts(s.created_at);

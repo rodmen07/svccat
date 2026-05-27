@@ -87,5 +87,9 @@ pub fn render_check(report: &DriftReport) -> Result<()> {
 }
 
 fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }

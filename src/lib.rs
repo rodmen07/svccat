@@ -1,8 +1,8 @@
-pub mod cli;
+pub mod audit;
 pub mod ci;
+pub mod cli;
 pub mod config;
 pub mod cost;
-pub mod audit;
 pub mod deps;
 pub mod diff;
 pub mod discovery;

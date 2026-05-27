@@ -121,7 +121,10 @@ pub fn run_backstage(root: &Path, output_path: PathBuf, force: bool) -> Result<(
     let imported = import_backstage(root)?;
 
     if imported.is_empty() {
-        println!("No Backstage Component entities found in {}.", root.display());
+        println!(
+            "No Backstage Component entities found in {}.",
+            root.display()
+        );
         println!("Make sure your catalog-info.yaml files use `kind: Component`.");
         return Ok(());
     }
@@ -145,11 +148,8 @@ pub fn run_backstage(root: &Path, output_path: PathBuf, force: bool) -> Result<(
         }
     };
 
-    let existing_names: std::collections::HashSet<String> = manifest
-        .services
-        .iter()
-        .map(|s| s.name.clone())
-        .collect();
+    let existing_names: std::collections::HashSet<String> =
+        manifest.services.iter().map(|s| s.name.clone()).collect();
 
     let mut added = 0usize;
     let mut skipped = 0usize;
@@ -169,8 +169,7 @@ pub fn run_backstage(root: &Path, output_path: PathBuf, force: bool) -> Result<(
     }
 
     // Serialise back to YAML. serde_yaml produces clean output.
-    let yaml = serde_yaml::to_string(&manifest)
-        .context("failed to serialise manifest to YAML")?;
+    let yaml = serde_yaml::to_string(&manifest).context("failed to serialise manifest to YAML")?;
 
     std::fs::write(&output_path, &yaml)
         .with_context(|| format!("cannot write {}", output_path.display()))?;
@@ -237,11 +236,12 @@ fn parse_compose_depends_on(val: &serde_yaml::Value) -> Vec<String> {
 /// Parse all services from a `docker-compose.yml` / `compose.yaml` file found
 /// in `root` and return them as `ServiceEntry` values.
 pub fn import_docker_compose(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
-    let compose_path = find_compose_file(root)
-        .ok_or_else(|| anyhow::anyhow!(
+    let compose_path = find_compose_file(root).ok_or_else(|| {
+        anyhow::anyhow!(
             "no docker-compose.yml / compose.yaml found in {}",
             root.display()
-        ))?;
+        )
+    })?;
 
     let text = std::fs::read_to_string(&compose_path)
         .with_context(|| format!("cannot read {}", compose_path.display()))?;
@@ -260,9 +260,7 @@ pub fn import_docker_compose(root: &Path) -> Result<Vec<(ServiceEntry, String)>>
 
         let path = svc.build.as_ref().map(|b| {
             // Normalise "./" prefix and backslashes.
-            b.context_path()
-                .trim_start_matches("./")
-                .replace('\\', "/")
+            b.context_path().trim_start_matches("./").replace('\\', "/")
         });
 
         let depends_on = parse_compose_depends_on(&svc.depends_on);
@@ -325,7 +323,10 @@ pub fn run_docker_compose(root: &Path, output_path: PathBuf, force: bool) -> Res
 
     for (svc, source) in &imported {
         if existing_names.contains(&svc.name) {
-            eprintln!("  skip  '{}' already in manifest  (from {})", svc.name, source);
+            eprintln!(
+                "  skip  '{}' already in manifest  (from {})",
+                svc.name, source
+            );
             skipped += 1;
         } else {
             eprintln!("  add   '{}'  (from {})", svc.name, source);
@@ -334,8 +335,7 @@ pub fn run_docker_compose(root: &Path, output_path: PathBuf, force: bool) -> Res
         }
     }
 
-    let yaml = serde_yaml::to_string(&manifest)
-        .context("failed to serialise manifest to YAML")?;
+    let yaml = serde_yaml::to_string(&manifest).context("failed to serialise manifest to YAML")?;
     std::fs::write(&output_path, &yaml)
         .with_context(|| format!("cannot write {}", output_path.display()))?;
 
@@ -477,7 +477,11 @@ pub fn import_openapi(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
             team: spec.info.x_team,
             oncall: spec.info.x_oncall,
             submodule: None,
-            path: if rel_dir.is_empty() { None } else { Some(rel_dir) },
+            path: if rel_dir.is_empty() {
+                None
+            } else {
+                Some(rel_dir)
+            },
             docs: None,
             ci: None,
             tags: Vec::new(),
@@ -495,10 +499,7 @@ pub fn run_openapi(root: &Path, output_path: PathBuf, force: bool) -> Result<()>
     let imported = import_openapi(root)?;
 
     if imported.is_empty() {
-        println!(
-            "No OpenAPI / Swagger specs found in {}.",
-            root.display()
-        );
+        println!("No OpenAPI / Swagger specs found in {}.", root.display());
         println!("Searched for: openapi.yaml, openapi.yml, swagger.yaml, swagger.yml");
         return Ok(());
     }
@@ -529,7 +530,10 @@ pub fn run_openapi(root: &Path, output_path: PathBuf, force: bool) -> Result<()>
 
     for (svc, source) in &imported {
         if existing_names.contains(&svc.name) {
-            eprintln!("  skip  '{}' already in manifest  (from {})", svc.name, source);
+            eprintln!(
+                "  skip  '{}' already in manifest  (from {})",
+                svc.name, source
+            );
             skipped += 1;
         } else {
             eprintln!("  add   '{}'  (from {})", svc.name, source);
@@ -538,8 +542,7 @@ pub fn run_openapi(root: &Path, output_path: PathBuf, force: bool) -> Result<()>
         }
     }
 
-    let yaml = serde_yaml::to_string(&manifest)
-        .context("failed to serialise manifest to YAML")?;
+    let yaml = serde_yaml::to_string(&manifest).context("failed to serialise manifest to YAML")?;
     std::fs::write(&output_path, &yaml)
         .with_context(|| format!("cannot write {}", output_path.display()))?;
 

@@ -91,23 +91,26 @@ pub fn run(
     }
 
     for name in &to_prune {
-        let label = if dry_run { "would prune" } else { "- prune     " };
+        let label = if dry_run {
+            "would prune"
+        } else {
+            "- prune     "
+        };
         println!("  {}  {} (directory not found)", label.red(), name.bold());
         pruned.push(name.clone());
     }
 
     if !dry_run {
         manifest.services.retain(|s| !to_prune.contains(&s.name));
-        let yaml =
-            serde_yaml::to_string(&manifest).context("failed to serialize manifest")?;
+        let yaml = serde_yaml::to_string(&manifest).context("failed to serialize manifest")?;
         std::fs::write(manifest_path, &yaml)
             .with_context(|| format!("failed to write {}", manifest_path.display()))?;
-        println!("\n{}", format!("  wrote {}", manifest_path.display()).bold());
-    } else {
         println!(
             "\n{}",
-            "  (dry-run: no files were modified)".dimmed()
+            format!("  wrote {}", manifest_path.display()).bold()
         );
+    } else {
+        println!("\n{}", "  (dry-run: no files were modified)".dimmed());
     }
 
     Ok(FixSummary { added, pruned })

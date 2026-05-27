@@ -17,16 +17,23 @@ fn validate_git_ref(git_ref: &str) -> Result<()> {
 
     // Check for null bytes and dangerous patterns
     if git_ref.contains('\0') || git_ref.contains("..") {
-        anyhow::bail!("invalid git reference '{}': dangerous pattern detected", git_ref);
+        anyhow::bail!(
+            "invalid git reference '{}': dangerous pattern detected",
+            git_ref
+        );
     }
 
     // Whitelist allowed characters: alphanumerics, common git special chars, separators
     let is_valid = git_ref.chars().all(|c| {
-        c.is_alphanumeric() || matches!(c, '.' | '_' | '/' | '-' | ':' | '@' | '^' | '~' | '!' | '+')
+        c.is_alphanumeric()
+            || matches!(c, '.' | '_' | '/' | '-' | ':' | '@' | '^' | '~' | '!' | '+')
     });
 
     if !is_valid {
-        anyhow::bail!("invalid git reference '{}': contains illegal characters", git_ref);
+        anyhow::bail!(
+            "invalid git reference '{}': contains illegal characters",
+            git_ref
+        );
     }
 
     Ok(())
@@ -76,7 +83,7 @@ pub fn load_at_ref(root: &Path, manifest_path: &Path, git_ref: &str) -> Result<M
             "-C",
             &root.to_string_lossy(),
             "show",
-            "--",  // Separator: prevent git from interpreting spec as a ref/path
+            "--", // Separator: prevent git from interpreting spec as a ref/path
             &spec,
         ])
         .output()?;

@@ -13,8 +13,7 @@ use std::time::Duration;
 /// so the browser polls automatically.
 pub fn serve(root: &Path, port: u16, refresh_secs: u32) -> Result<()> {
     let addr = format!("127.0.0.1:{port}");
-    let listener =
-        TcpListener::bind(&addr).with_context(|| format!("failed to bind to {addr}"))?;
+    let listener = TcpListener::bind(&addr).with_context(|| format!("failed to bind to {addr}"))?;
 
     let url = format!("http://localhost:{port}");
     println!("svccat serving at {url}");

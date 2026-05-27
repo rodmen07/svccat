@@ -370,10 +370,10 @@ pub fn diff_from_json(
     before_label: &str,
     after_label: &str,
 ) -> Result<DiffReport> {
-    let before_snap: Snapshot =
-        serde_json::from_value(before.clone()).map_err(|e| anyhow::anyhow!("invalid before snapshot: {e}"))?;
-    let after_snap: Snapshot =
-        serde_json::from_value(after.clone()).map_err(|e| anyhow::anyhow!("invalid after snapshot: {e}"))?;
+    let before_snap: Snapshot = serde_json::from_value(before.clone())
+        .map_err(|e| anyhow::anyhow!("invalid before snapshot: {e}"))?;
+    let after_snap: Snapshot = serde_json::from_value(after.clone())
+        .map_err(|e| anyhow::anyhow!("invalid after snapshot: {e}"))?;
 
     build_diff(before_snap, after_snap, before_label, after_label)
 }
@@ -418,7 +418,10 @@ fn build_diff(
         if let Some(after_svc) = after_map.get(name) {
             let changes = field_diff(before_map[name], after_svc);
             if !changes.is_empty() {
-                changed.push(ServiceDiff { name: name.to_string(), changes });
+                changed.push(ServiceDiff {
+                    name: name.to_string(),
+                    changes,
+                });
             }
         }
     }

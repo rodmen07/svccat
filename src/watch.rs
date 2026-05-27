@@ -73,7 +73,14 @@ pub fn run(
     }
 
     // First run immediately.
-    let initial_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
+    let initial_errors = run_once(
+        &manifest_path,
+        &root,
+        &ignore,
+        team.as_deref(),
+        depth,
+        since.as_deref(),
+    );
 
     let interval_note = interval
         .map(|s| format!(" (polling every {s}s)"))
@@ -110,7 +117,14 @@ pub fn run(
                     }
                 }
 
-                let new_errors = run_once(&manifest_path, &root, &ignore, team.as_deref(), depth, since.as_deref());
+                let new_errors = run_once(
+                    &manifest_path,
+                    &root,
+                    &ignore,
+                    team.as_deref(),
+                    depth,
+                    since.as_deref(),
+                );
 
                 if notify && new_errors != prev_errors {
                     let body = if new_errors == 0 {
@@ -131,7 +145,14 @@ pub fn run(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], team: Option<&str>, depth: u32, since: Option<&str>) -> usize {
+fn run_once(
+    manifest_path: &Path,
+    root: &Path,
+    ignore: &[String],
+    team: Option<&str>,
+    depth: u32,
+    since: Option<&str>,
+) -> usize {
     let ts = timestamp();
     match manifest::Manifest::load(manifest_path) {
         Err(e) => {
@@ -208,7 +229,11 @@ fn timestamp() -> String {
 }
 
 fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }
 
 /// Fire a native desktop notification using platform-specific tooling.
@@ -229,7 +254,13 @@ fn send_os_notification(body: &str) {
             body.replace('\'', "''")
         );
         let _ = std::process::Command::new("powershell")
-            .args(["-WindowStyle", "Hidden", "-NonInteractive", "-Command", &script])
+            .args([
+                "-WindowStyle",
+                "Hidden",
+                "-NonInteractive",
+                "-Command",
+                &script,
+            ])
             .spawn();
     }
     #[cfg(target_os = "macos")]

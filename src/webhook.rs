@@ -81,7 +81,8 @@ pub fn fire_from_drift(root: &Path, cfg: &WebhookConfig, report: &DriftReport) -
     let errors = report.error_count();
     let warnings = report.warning_count();
 
-    let should_fire = (errors > 0 && cfg.on_errors) || (errors == 0 && warnings > 0 && cfg.on_warnings);
+    let should_fire =
+        (errors > 0 && cfg.on_errors) || (errors == 0 && warnings > 0 && cfg.on_warnings);
     if !should_fire {
         return Ok(());
     }
@@ -93,7 +94,10 @@ pub fn fire_from_drift(root: &Path, cfg: &WebhookConfig, report: &DriftReport) -
     };
 
     let summary = if errors > 0 {
-        format!("{} drift error(s), {} warning(s) detected", errors, warnings)
+        format!(
+            "{} drift error(s), {} warning(s) detected",
+            errors, warnings
+        )
     } else if warnings > 0 {
         format!("No errors, {} warning(s) detected", warnings)
     } else {
@@ -122,7 +126,8 @@ pub fn fire_from_ci(root: &Path, cfg: &WebhookConfig, report: &CiReport) -> Resu
     let errors = report.total_errors();
     let warnings = report.total_warnings();
 
-    let should_fire = (errors > 0 && cfg.on_errors) || (errors == 0 && warnings > 0 && cfg.on_warnings);
+    let should_fire =
+        (errors > 0 && cfg.on_errors) || (errors == 0 && warnings > 0 && cfg.on_warnings);
     if !should_fire {
         return Ok(());
     }
@@ -164,8 +169,7 @@ pub fn fire_from_ci(root: &Path, cfg: &WebhookConfig, report: &CiReport) -> Resu
 fn post(url: &str, payload: &WebhookPayload) -> Result<()> {
     // Validate webhook URL to prevent SSRF attacks.
     // Webhooks should use HTTPS (with localhost exception for development).
-    urlvalidation::validate_url(url, true)
-        .context("webhook URL validation failed")?;
+    urlvalidation::validate_url(url, true).context("webhook URL validation failed")?;
 
     let body = serde_json::to_string(payload).context("serialising webhook payload")?;
     ureq::post(url)
@@ -196,8 +200,11 @@ pub fn load_config(root: &Path) -> WebhookConfig {
     // Check file size to prevent TOML bomb attacks
     if let Ok(metadata) = std::fs::metadata(&path) {
         if metadata.len() > MAX_CONFIG_FILE_SIZE {
-            eprintln!("warning: svccat.toml is too large ({}  bytes, max {}). Ignoring config file.",
-                metadata.len(), MAX_CONFIG_FILE_SIZE);
+            eprintln!(
+                "warning: svccat.toml is too large ({}  bytes, max {}). Ignoring config file.",
+                metadata.len(),
+                MAX_CONFIG_FILE_SIZE
+            );
             return WebhookConfig::default();
         }
     }

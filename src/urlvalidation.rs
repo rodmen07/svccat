@@ -14,14 +14,16 @@ pub fn validate_url(url: &str, strict_https: bool) -> Result<()> {
     }
 
     // Parse URL to extract host
-    let parsed = url::Url::parse(url)
-        .map_err(|_| anyhow::anyhow!("invalid URL: {}", url))?;
+    let parsed = url::Url::parse(url).map_err(|_| anyhow::anyhow!("invalid URL: {}", url))?;
 
     // Check scheme
     match parsed.scheme() {
         "http" | "https" => {}
         "ftp" | "file" | "data" => {
-            anyhow::bail!("URL scheme '{}' not allowed (use http or https)", parsed.scheme())
+            anyhow::bail!(
+                "URL scheme '{}' not allowed (use http or https)",
+                parsed.scheme()
+            )
         }
         _ => {
             anyhow::bail!("unsupported URL scheme: {}", parsed.scheme())

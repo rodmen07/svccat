@@ -41,10 +41,7 @@ const SCORED_FIELDS: &[&str] = &[
 ];
 
 fn completeness_score(svc: &ServiceEntry) -> u8 {
-    let filled = SCORED_FIELDS
-        .iter()
-        .filter(|&&f| field_set(svc, f))
-        .count();
+    let filled = SCORED_FIELDS.iter().filter(|&&f| field_set(svc, f)).count();
     ((filled * 100) / SCORED_FIELDS.len()) as u8
 }
 
@@ -108,10 +105,7 @@ fn score_service(
     let drift_errors = drift_report
         .drifts
         .iter()
-        .filter(|d| {
-            d.service == svc.name
-                && matches!(d.severity, crate::drift::Severity::Error)
-        })
+        .filter(|d| d.service == svc.name && matches!(d.severity, crate::drift::Severity::Error))
         .count();
     let drift = (100u8).saturating_sub((drift_errors * 20).min(100) as u8);
 
@@ -120,9 +114,7 @@ fn score_service(
         let policy_errors = pr
             .violations
             .iter()
-            .filter(|v| {
-                v.service == svc.name && matches!(v.severity, PolicySeverity::Error)
-            })
+            .filter(|v| v.service == svc.name && matches!(v.severity, PolicySeverity::Error))
             .count();
         (100u8).saturating_sub((policy_errors * 25).min(100) as u8)
     } else {
@@ -130,8 +122,7 @@ fn score_service(
     };
 
     // Weighted composite: completeness 40%, drift 40%, policy 20%.
-    let total =
-        ((completeness as u32 * 40 + drift as u32 * 40 + policy as u32 * 20) / 100) as u8;
+    let total = ((completeness as u32 * 40 + drift as u32 * 40 + policy as u32 * 20) / 100) as u8;
 
     ServiceScore {
         name: svc.name.clone(),
@@ -145,12 +136,7 @@ fn score_service(
 // ── Run helper ────────────────────────────────────────────────────────────────
 
 /// Convenience: load manifest, run drift + policy, return a scored scorecard.
-pub fn run(
-    manifest: &Manifest,
-    root: &Path,
-    ignore: &[String],
-    depth: u32,
-) -> Scorecard {
+pub fn run(manifest: &Manifest, root: &Path, ignore: &[String], depth: u32) -> Scorecard {
     use crate::discovery;
     use crate::drift;
 
@@ -238,16 +224,8 @@ pub fn render_markdown(sc: &Scorecard) -> String {
     let mut out = String::new();
     writeln!(out, "# Service Scorecard").unwrap();
     writeln!(out).unwrap();
-    writeln!(
-        out,
-        "| Service | Total | Completeness | Drift | Policy |"
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "|---------|------:|-------------:|------:|-------:|"
-    )
-    .unwrap();
+    writeln!(out, "| Service | Total | Completeness | Drift | Policy |").unwrap();
+    writeln!(out, "|---------|------:|-------------:|------:|-------:|").unwrap();
     for svc in &sc.services {
         writeln!(
             out,

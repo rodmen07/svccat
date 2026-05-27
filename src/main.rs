@@ -3,10 +3,15 @@ use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
 use std::process;
-use svccat::cli::{Cli, Commands, AuditFormat, CiFormat, DepsFormat, DiffFormat, ExportFormat, GraphFormat, HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, ScorecardFormat, SnapshotAction, TagAction};
+use svccat::cli::{
+    AuditFormat, CiFormat, Cli, Commands, DepsFormat, DiffFormat, ExportFormat, GraphFormat,
+    HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, ScorecardFormat,
+    SnapshotAction, TagAction,
+};
 use svccat::{
     audit, ci, config, deps, diff, discovery, drift, fix, hooks, import, init, lint, manifest,
-    output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag, watch, webhook,
+    output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag, watch,
+    webhook,
 };
 
 fn main() {
@@ -67,7 +72,8 @@ fn run() -> Result<i32> {
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let discovered_all = discovery::discover_services_with_opts(&root, &full_m, &ignore, depth);
+            let discovered_all =
+                discovery::discover_services_with_opts(&root, &full_m, &ignore, depth);
 
             // When a team filter is active, exclude discovered services that are known to
             // belong to other teams so they don't show up as UndeclaredInRepo noise.
@@ -96,13 +102,23 @@ fn run() -> Result<i32> {
                     drift: Vec<drift::DriftItem>,
                 }
 
-                let text = std::fs::read_to_string(baseline_path)
-                    .map_err(|e| anyhow::anyhow!("cannot read baseline {}: {e}", baseline_path.display()))?;
+                let text = std::fs::read_to_string(baseline_path).map_err(|e| {
+                    anyhow::anyhow!("cannot read baseline {}: {e}", baseline_path.display())
+                })?;
                 let snap: BaselineFile = serde_json::from_str(&text)
                     .map_err(|e| anyhow::anyhow!("cannot parse baseline JSON: {e}"))?;
 
-                let baseline_keys: HashSet<String> = snap.drift.iter()
-                    .map(|d| format!("{:?}|{}|{}", d.kind, d.service, d.detail.as_deref().unwrap_or("")))
+                let baseline_keys: HashSet<String> = snap
+                    .drift
+                    .iter()
+                    .map(|d| {
+                        format!(
+                            "{:?}|{}|{}",
+                            d.kind,
+                            d.service,
+                            d.detail.as_deref().unwrap_or("")
+                        )
+                    })
                     .collect();
 
                 report.drifts.retain(|d| {
@@ -182,12 +198,14 @@ fn run() -> Result<i32> {
             } else {
                 // For Json and Markdown formats, capture to string so we can write to --output.
                 let maybe_string: Option<String> = match &format {
-                    OutputFormat::Json => {
-                        Some(output::json::render_check_to_string(&report, &ping_results)?)
-                    }
-                    OutputFormat::Markdown => {
-                        Some(output::markdown::render_check_markdown(&report, &ping_results))
-                    }
+                    OutputFormat::Json => Some(output::json::render_check_to_string(
+                        &report,
+                        &ping_results,
+                    )?),
+                    OutputFormat::Markdown => Some(output::markdown::render_check_markdown(
+                        &report,
+                        &ping_results,
+                    )),
                     _ => None,
                 };
 
@@ -206,12 +224,8 @@ fn run() -> Result<i32> {
                         OutputFormat::Compact => {
                             output::terminal::render_compact(&m, &report);
                         }
-                        OutputFormat::Sarif => {
-                            output::sarif::render_check(&report, &ping_results)?
-                        }
-                        OutputFormat::Junit => {
-                            output::junit::render_check(&report, &ping_results)?
-                        }
+                        OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
+                        OutputFormat::Junit => output::junit::render_check(&report, &ping_results)?,
                         OutputFormat::GithubAnnotation => {
                             output::github_annotation::render_check(&report);
                         }
@@ -251,7 +265,8 @@ fn run() -> Result<i32> {
             // Apply --filter: keep only services whose name contains the substring.
             if let Some(ref pat) = filter {
                 let pat_lower = pat.to_lowercase();
-                m.services.retain(|s| s.name.to_lowercase().contains(&pat_lower));
+                m.services
+                    .retain(|s| s.name.to_lowercase().contains(&pat_lower));
             }
 
             let content = match format {
@@ -305,7 +320,8 @@ fn run() -> Result<i32> {
                         }
                     });
                     // Rebuild report with the filtered manifest
-                    let discovered2 = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
+                    let discovered2 =
+                        discovery::discover_services_with_opts(&root, &m, &ignore, depth);
                     report = drift::analyze(&m, &discovered2, &root);
                     report.manifest = path.display().to_string();
                 }
@@ -325,7 +341,11 @@ fn run() -> Result<i32> {
             Ok(0)
         }
 
-        Commands::Diff { before, after, format } => {
+        Commands::Diff {
+            before,
+            after,
+            format,
+        } => {
             let report = diff::diff_snapshots(&before, &after)?;
             match format {
                 DiffFormat::Terminal => diff::render_diff(&report),
@@ -348,7 +368,16 @@ fn run() -> Result<i32> {
             let mut ignore: Vec<String> = cfg.ignore.clone();
             ignore.extend(cli_ignore);
 
-            let initial_errors = watch::run(&path, &root, &ignore, team.as_deref(), depth, watch_since.as_deref(), notify, interval)?;
+            let initial_errors = watch::run(
+                &path,
+                &root,
+                &ignore,
+                team.as_deref(),
+                depth,
+                watch_since.as_deref(),
+                notify,
+                interval,
+            )?;
 
             let should_fail = fail_on_drift || cfg.fail_on_drift;
             if should_fail && initial_errors > 0 {
@@ -443,7 +472,10 @@ fn run() -> Result<i32> {
             Ok(0)
         }
 
-        Commands::InstallHooks { hook, fail_on_drift } => {
+        Commands::InstallHooks {
+            hook,
+            fail_on_drift,
+        } => {
             let hook_name = match hook {
                 HookKind::PreCommit => "pre-commit",
                 HookKind::PrePush => "pre-push",
@@ -504,7 +536,11 @@ fn run() -> Result<i32> {
                 snapshot::delete(&root, &name)?;
                 Ok(0)
             }
-            SnapshotAction::Compare { before, after, format } => {
+            SnapshotAction::Compare {
+                before,
+                after,
+                format,
+            } => {
                 let diff_report = snapshot::compare(&root, &before, &after)?;
                 match format {
                     DiffFormat::Terminal => diff::render_diff(&diff_report),
@@ -535,12 +571,8 @@ fn run() -> Result<i32> {
                     "drift": current_report.drifts,
                 });
 
-                let diff_report = diff::diff_from_json(
-                    &snap.payload,
-                    &after_payload,
-                    &name,
-                    "current",
-                )?;
+                let diff_report =
+                    diff::diff_from_json(&snap.payload, &after_payload, &name, "current")?;
 
                 match format {
                     DiffFormat::Terminal => diff::render_diff(&diff_report),
@@ -564,7 +596,9 @@ fn run() -> Result<i32> {
             let (result, lint_result, drift_report, ping_results) =
                 audit::run(&path, &root, &ignore, depth, do_ping, cost_estimate)?;
             match format {
-                AuditFormat::Terminal => audit::render_terminal(&result, &lint_result, &drift_report, &ping_results),
+                AuditFormat::Terminal => {
+                    audit::render_terminal(&result, &lint_result, &drift_report, &ping_results)
+                }
                 AuditFormat::Json => audit::render_json(&result)?,
             }
             if result.passed {
@@ -602,7 +636,11 @@ fn run() -> Result<i32> {
             let wh_cfg = webhook::load_config(&root);
             let _ = webhook::fire_from_ci(&root, &wh_cfg, &result);
 
-            if result.passed() { Ok(0) } else { Ok(1) }
+            if result.passed() {
+                Ok(0)
+            } else {
+                Ok(1)
+            }
         }
 
         Commands::Search {
@@ -644,16 +682,28 @@ fn run() -> Result<i32> {
                     DepsFormat::Json => deps::render_json(&dep_report)?,
                 }
             }
-            if dep_report.has_errors() { Ok(1) } else { Ok(0) }
+            if dep_report.has_errors() {
+                Ok(1)
+            } else {
+                Ok(0)
+            }
         }
 
         Commands::Tag { action } => match action {
-            TagAction::Add { service, tag, manifest: manifest_path } => {
+            TagAction::Add {
+                service,
+                tag,
+                manifest: manifest_path,
+            } => {
                 let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
                 tag::add(&path, &service, &tag)?;
                 Ok(0)
             }
-            TagAction::Remove { service, tag, manifest: manifest_path } => {
+            TagAction::Remove {
+                service,
+                tag,
+                manifest: manifest_path,
+            } => {
                 let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
                 tag::remove(&path, &service, &tag)?;
                 Ok(0)

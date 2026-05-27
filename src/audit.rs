@@ -30,7 +30,12 @@ pub fn run(
     depth: u32,
     do_ping: bool,
     do_cost_estimate: bool,
-) -> Result<(AuditResult, lint::LintResult, drift::DriftReport, Vec<ping::PingResult>)> {
+) -> Result<(
+    AuditResult,
+    lint::LintResult,
+    drift::DriftReport,
+    Vec<ping::PingResult>,
+)> {
     let m = manifest::Manifest::load(manifest_path)?;
 
     let lint_result = lint::run(&m);
@@ -155,7 +160,12 @@ pub fn render_terminal(
         let reachable = ping_results.iter().filter(|p| p.is_ok()).count();
         let unreachable = ping_results.len() - reachable;
         let ping_header = if unreachable == 0 {
-            format!("Ping  {} ({}/{} reachable)", "OK".green().bold(), reachable, ping_results.len())
+            format!(
+                "Ping  {} ({}/{} reachable)",
+                "OK".green().bold(),
+                reachable,
+                ping_results.len()
+            )
         } else {
             format!("Ping  {}/{} reachable", reachable, ping_results.len())
         };
@@ -243,5 +253,9 @@ pub fn render_json(result: &AuditResult) -> anyhow::Result<()> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }

@@ -167,7 +167,11 @@ pub fn render_terminal(report: &PolicyReport, config: &PolicyConfig) {
         println!("  {}  {}", "Required:".bold(), config.required.join(", "));
     }
     if !config.recommended.is_empty() {
-        println!("  {}  {}", "Recommended:".bold(), config.recommended.join(", "));
+        println!(
+            "  {}  {}",
+            "Recommended:".bold(),
+            config.recommended.join(", ")
+        );
     }
     println!("  {}  {}", "Services:".bold(), report.services_checked);
     println!();
@@ -177,7 +181,11 @@ pub fn render_terminal(report: &PolicyReport, config: &PolicyConfig) {
             "  {} All {} service{} comply with policy",
             "✓".green().bold(),
             report.services_checked,
-            if report.services_checked == 1 { "" } else { "s" }
+            if report.services_checked == 1 {
+                ""
+            } else {
+                "s"
+            }
         );
         return;
     }
@@ -209,5 +217,9 @@ pub fn render_json(report: &PolicyReport) -> Result<()> {
 }
 
 fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }

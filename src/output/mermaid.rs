@@ -198,7 +198,11 @@ pub fn render_dot(manifest: &Manifest, team: Option<&str>) {
         println!("    style=filled;");
         println!("    color=lightgrey;");
         for svc in services {
-            println!("    \"{}\" [label=\"{}\"];", dot_escape(&svc.name), dot_escape(&svc.name));
+            println!(
+                "    \"{}\" [label=\"{}\"];",
+                dot_escape(&svc.name),
+                dot_escape(&svc.name)
+            );
         }
         println!("  }}");
         println!();
@@ -210,7 +214,11 @@ pub fn render_dot(manifest: &Manifest, team: Option<&str>) {
             continue;
         }
         for dep in &svc.depends_on {
-            println!("  \"{}\" -> \"{}\";", dot_escape(&svc.name), dot_escape(dep));
+            println!(
+                "  \"{}\" -> \"{}\";",
+                dot_escape(&svc.name),
+                dot_escape(dep)
+            );
         }
     }
 
@@ -299,7 +307,13 @@ fn plantuml_escape(s: &str) -> String {
 
 fn plantuml_id(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -321,7 +335,11 @@ pub fn render_graph_filtered_string(manifest: &Manifest, team: Option<&str>) -> 
         .iter()
         .filter(|s| match team {
             None => true,
-            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+            Some(t) => s
+                .team
+                .as_deref()
+                .map(|v| v.eq_ignore_ascii_case(t))
+                .unwrap_or(false),
         })
         .map(|s| s.name.as_str())
         .collect();
@@ -329,7 +347,10 @@ pub fn render_graph_filtered_string(manifest: &Manifest, team: Option<&str>) -> 
     let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
     for svc in &manifest.services {
         if in_scope.contains(svc.name.as_str()) {
-            let platform = svc.platform.clone().unwrap_or_else(|| "Undeployed".to_string());
+            let platform = svc
+                .platform
+                .clone()
+                .unwrap_or_else(|| "Undeployed".to_string());
             groups.entry(platform).or_default().push(svc);
         }
     }
@@ -338,7 +359,9 @@ pub fn render_graph_filtered_string(manifest: &Manifest, team: Option<&str>) -> 
         manifest.services.iter().map(|s| s.name.as_str()).collect();
     let mut external: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     for svc in &manifest.services {
-        if !in_scope.contains(svc.name.as_str()) { continue; }
+        if !in_scope.contains(svc.name.as_str()) {
+            continue;
+        }
         for dep in &svc.depends_on {
             if !in_scope.contains(dep.as_str()) && declared_names.contains(dep.as_str()) {
                 external.insert(dep.as_str());
@@ -364,7 +387,9 @@ pub fn render_graph_filtered_string(manifest: &Manifest, team: Option<&str>) -> 
         sbuf!(buf, "  end");
     }
     for svc in &manifest.services {
-        if !in_scope.contains(svc.name.as_str()) { continue; }
+        if !in_scope.contains(svc.name.as_str()) {
+            continue;
+        }
         for dep in &svc.depends_on {
             if in_scope.contains(dep.as_str()) || external.contains(dep.as_str()) {
                 sbuf!(buf, "  {} --> {}", safe_id(&svc.name), safe_id(dep));
@@ -405,7 +430,11 @@ pub fn render_dot_string(manifest: &Manifest, team: Option<&str>) -> String {
         .iter()
         .filter(|s| match team {
             None => true,
-            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+            Some(t) => s
+                .team
+                .as_deref()
+                .map(|v| v.eq_ignore_ascii_case(t))
+                .unwrap_or(false),
         })
         .map(|s| s.name.as_str())
         .collect();
@@ -413,7 +442,10 @@ pub fn render_dot_string(manifest: &Manifest, team: Option<&str>) -> String {
     let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
     for svc in &manifest.services {
         if in_scope.contains(svc.name.as_str()) {
-            let platform = svc.platform.clone().unwrap_or_else(|| "undeployed".to_string());
+            let platform = svc
+                .platform
+                .clone()
+                .unwrap_or_else(|| "undeployed".to_string());
             groups.entry(platform).or_default().push(svc);
         }
     }
@@ -428,15 +460,27 @@ pub fn render_dot_string(manifest: &Manifest, team: Option<&str>) -> String {
         sbuf!(buf, "    style=filled;");
         sbuf!(buf, "    color=lightgrey;");
         for svc in services {
-            sbuf!(buf, "    \"{}\" [label=\"{}\"];", dot_escape(&svc.name), dot_escape(&svc.name));
+            sbuf!(
+                buf,
+                "    \"{}\" [label=\"{}\"];",
+                dot_escape(&svc.name),
+                dot_escape(&svc.name)
+            );
         }
         sbuf!(buf, "  }}");
         sbuf!(buf, "");
     }
     for svc in &manifest.services {
-        if !in_scope.contains(svc.name.as_str()) { continue; }
+        if !in_scope.contains(svc.name.as_str()) {
+            continue;
+        }
         for dep in &svc.depends_on {
-            sbuf!(buf, "  \"{}\" -> \"{}\";", dot_escape(&svc.name), dot_escape(dep));
+            sbuf!(
+                buf,
+                "  \"{}\" -> \"{}\";",
+                dot_escape(&svc.name),
+                dot_escape(dep)
+            );
         }
     }
     sbuf!(buf, "}}");
@@ -452,7 +496,11 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
         .iter()
         .filter(|s| match team {
             None => true,
-            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+            Some(t) => s
+                .team
+                .as_deref()
+                .map(|v| v.eq_ignore_ascii_case(t))
+                .unwrap_or(false),
         })
         .map(|s| s.name.as_str())
         .collect();
@@ -460,7 +508,10 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
     let mut groups: BTreeMap<String, Vec<&crate::manifest::ServiceEntry>> = BTreeMap::new();
     for svc in &manifest.services {
         if in_scope.contains(svc.name.as_str()) {
-            let platform = svc.platform.clone().unwrap_or_else(|| "undeployed".to_string());
+            let platform = svc
+                .platform
+                .clone()
+                .unwrap_or_else(|| "undeployed".to_string());
             groups.entry(platform).or_default().push(svc);
         }
     }
@@ -475,15 +526,27 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
                 Some(lang) => format!("{} ({})", svc.name, lang),
                 None => svc.name.clone(),
             };
-            sbuf!(buf, "  component [{}] as {}", plantuml_escape(&label), plantuml_id(&svc.name));
+            sbuf!(
+                buf,
+                "  component [{}] as {}",
+                plantuml_escape(&label),
+                plantuml_id(&svc.name)
+            );
         }
         sbuf!(buf, "}}");
         sbuf!(buf, "");
     }
     for svc in &manifest.services {
-        if !in_scope.contains(svc.name.as_str()) { continue; }
+        if !in_scope.contains(svc.name.as_str()) {
+            continue;
+        }
         for dep in &svc.depends_on {
-            sbuf!(buf, "{} ..> {} : depends", plantuml_id(&svc.name), plantuml_id(dep));
+            sbuf!(
+                buf,
+                "{} ..> {} : depends",
+                plantuml_id(&svc.name),
+                plantuml_id(dep)
+            );
         }
     }
     sbuf!(buf, "");
@@ -506,14 +569,22 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
         .iter()
         .filter(|s| match team {
             None => true,
-            Some(t) => s.team.as_deref().map(|v| v.eq_ignore_ascii_case(t)).unwrap_or(false),
+            Some(t) => s
+                .team
+                .as_deref()
+                .map(|v| v.eq_ignore_ascii_case(t))
+                .unwrap_or(false),
         })
         .map(|s| s.name.as_str())
         .collect();
 
     // Build JSON node and link arrays for D3.
     let mut nodes_json = String::from("[\n");
-    for svc in manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())) {
+    for svc in manifest
+        .services
+        .iter()
+        .filter(|s| in_scope.contains(s.name.as_str()))
+    {
         let platform = svc.platform.as_deref().unwrap_or("unknown");
         let team_str = svc.team.as_deref().unwrap_or("");
         let lang_str = svc.language.as_deref().unwrap_or("");
@@ -530,7 +601,11 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
     nodes_json.push(']');
 
     let mut links_json = String::from("[\n");
-    for svc in manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())) {
+    for svc in manifest
+        .services
+        .iter()
+        .filter(|s| in_scope.contains(s.name.as_str()))
+    {
         for dep in &svc.depends_on {
             writeln!(
                 links_json,
@@ -545,7 +620,11 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
 
     let title = format!(
         "svccat graph - {} service(s)",
-        manifest.services.iter().filter(|s| in_scope.contains(s.name.as_str())).count()
+        manifest
+            .services
+            .iter()
+            .filter(|s| in_scope.contains(s.name.as_str()))
+            .count()
     );
 
     format!(

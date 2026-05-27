@@ -16,8 +16,7 @@ pub fn install(root: &Path, hook_name: &str, fail_on_drift: bool) -> Result<()> 
     }
 
     let hooks_dir = git_dir.join("hooks");
-    std::fs::create_dir_all(&hooks_dir)
-        .context("failed to create .git/hooks directory")?;
+    std::fs::create_dir_all(&hooks_dir).context("failed to create .git/hooks directory")?;
 
     let hook_path = hooks_dir.join(hook_name);
     if hook_path.exists() {
@@ -27,7 +26,11 @@ pub fn install(root: &Path, hook_name: &str, fail_on_drift: bool) -> Result<()> 
         );
     }
 
-    let drift_flag = if fail_on_drift { " --fail-on-drift" } else { "" };
+    let drift_flag = if fail_on_drift {
+        " --fail-on-drift"
+    } else {
+        ""
+    };
     let script = format!(
         "#!/usr/bin/env sh\n\
          # Installed by `svccat install-hooks`\n\

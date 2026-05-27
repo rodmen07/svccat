@@ -144,7 +144,11 @@ fn find_cycle_path(
             if next == start {
                 let mut full = path.clone();
                 full.push(start);
-                let s = full.iter().map(|&i| names[i]).collect::<Vec<_>>().join(" -> ");
+                let s = full
+                    .iter()
+                    .map(|&i| names[i])
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
                 return Some(s);
             }
             if !visited.contains(&next) {
@@ -180,7 +184,10 @@ pub fn render_terminal(report: &DepsReport) {
     }
 
     if !report.missing.is_empty() {
-        println!("{}", "Undeclared targets (missing from manifest):".red().bold());
+        println!(
+            "{}",
+            "Undeclared targets (missing from manifest):".red().bold()
+        );
         for edge in &report.missing {
             println!("  {} -> {} (not found)", edge.from.yellow(), edge.to.red());
         }

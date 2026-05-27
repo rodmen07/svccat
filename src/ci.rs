@@ -39,12 +39,7 @@ impl CiReport {
 ///
 /// Steps are always lint -> drift -> policy.  Policy is skipped when no
 /// `.svccat/policy.yaml` exists.
-pub fn run(
-    manifest: &manifest::Manifest,
-    root: &Path,
-    ignore: &[String],
-    depth: u32,
-) -> CiReport {
+pub fn run(manifest: &manifest::Manifest, root: &Path, ignore: &[String], depth: u32) -> CiReport {
     let mut report = CiReport::default();
 
     // Lint
@@ -88,8 +83,16 @@ pub fn render_terminal(report: &CiReport) {
     println!("  steps: {}", report.steps_run.join(" -> "));
     println!();
 
-    let lint_icon = if report.lint_errors > 0 { "FAIL".red() } else { "pass".green() };
-    let drift_icon = if report.drift_errors > 0 { "FAIL".red() } else { "pass".green() };
+    let lint_icon = if report.lint_errors > 0 {
+        "FAIL".red()
+    } else {
+        "pass".green()
+    };
+    let drift_icon = if report.drift_errors > 0 {
+        "FAIL".red()
+    } else {
+        "pass".green()
+    };
     println!(
         "  {:<8} {}  ({} errors, {} warnings)",
         "lint", lint_icon, report.lint_errors, report.lint_warnings
@@ -100,7 +103,11 @@ pub fn render_terminal(report: &CiReport) {
     );
 
     if report.steps_run.contains(&"policy".to_string()) {
-        let policy_icon = if report.policy_errors > 0 { "FAIL".red() } else { "pass".green() };
+        let policy_icon = if report.policy_errors > 0 {
+            "FAIL".red()
+        } else {
+            "pass".green()
+        };
         println!(
             "  {:<8} {}  ({} errors, {} warnings)",
             "policy", policy_icon, report.policy_errors, report.policy_warnings
@@ -180,14 +187,18 @@ pub fn watch(
                 paths: vec![path_clone.clone()],
                 attrs: Default::default(),
             };
-            if tx2.send(Ok(ev)).is_err() { break; }
+            if tx2.send(Ok(ev)).is_err() {
+                break;
+            }
         });
     }
 
     // First run immediately.
     let initial_errors = run_once(&manifest_path, &root, &ignore, depth);
 
-    let interval_note = interval.map(|s| format!(" (polling every {s}s)")).unwrap_or_default();
+    let interval_note = interval
+        .map(|s| format!(" (polling every {s}s)"))
+        .unwrap_or_default();
     eprintln!(
         "\n{} watching for changes{interval_note}. Press Ctrl-C to stop.",
         "svccat ci --watch".bold()

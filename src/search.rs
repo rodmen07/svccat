@@ -117,7 +117,11 @@ pub fn render(matches: &[&ServiceEntry], query_raw: &str, total: usize) {
         } else {
             matches.len().to_string().green().bold().to_string()
         },
-        if matches.len() == 1 { "result" } else { "results" },
+        if matches.len() == 1 {
+            "result"
+        } else {
+            "results"
+        },
         if matches.len() == 1 { "" } else { "es" },
         query_raw,
         total,
@@ -161,7 +165,11 @@ pub fn render(matches: &[&ServiceEntry], query_raw: &str, total: usize) {
 }
 
 /// Render search results as JSON - used when writing to `--output`.
-pub fn render_json(matches: &[&ServiceEntry], query_raw: &str, total: usize) -> anyhow::Result<String> {
+pub fn render_json(
+    matches: &[&ServiceEntry],
+    query_raw: &str,
+    total: usize,
+) -> anyhow::Result<String> {
     let json = serde_json::json!({
         "query": query_raw,
         "total_searched": total,

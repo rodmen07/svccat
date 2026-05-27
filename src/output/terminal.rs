@@ -287,13 +287,7 @@ pub fn render_compact(manifest: &Manifest, report: &DriftReport) {
                     } else {
                         String::new()
                     };
-                    println!(
-                        "  {}  {}  {}{}",
-                        icon,
-                        label,
-                        svc.name,
-                        extra
-                    );
+                    println!("  {}  {}  {}{}", icon, label, svc.name, extra);
                 }
             }
         }
@@ -311,7 +305,10 @@ pub fn render_compact(manifest: &Manifest, report: &DriftReport) {
 
     println!();
     if errors == 0 && warnings == 0 {
-        println!("{}", format!("  {} ok, 0 errors, 0 warnings", ok).green().bold());
+        println!(
+            "{}",
+            format!("  {} ok, 0 errors, 0 warnings", ok).green().bold()
+        );
     } else {
         println!(
             "  {} ok  {}  {}",
