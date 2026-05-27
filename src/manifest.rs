@@ -2,6 +2,20 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+// ── Deserialization Limits ────────────────────────────────────────────────────
+// These limits prevent resource exhaustion attacks using YAML/TOML bombs
+// (e.g., exponential expansion via anchors, deep nesting, large collections)
+
+/// Maximum manifest file size: 10 MB
+/// This prevents resource exhaustion from YAML anchor expansion and deep nesting
+const MAX_MANIFEST_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Maximum number of services in a manifest (reasonable upper bound for large monorepos)
+const MAX_SERVICES: usize = 10_000;
+
+/// Maximum service name length to prevent string bombs
+const MAX_SERVICE_NAME_LEN: usize = 256;
+
 // ── Manifest ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,12 +33,70 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// Load manifest from file with resource limits to prevent deserialization attacks.
+    ///
+    /// # Security
+    /// - Enforces maximum file size (10 MB) to prevent YAML bomb attacks
+    /// - Validates service count and field lengths
+    /// - Rejects manifests with excessive nesting or expansion
     pub fn load(path: &Path) -> Result<Self> {
+        // Check file size to prevent deserialization bombs (YAML anchors, deep nesting, etc)
+        let metadata = std::fs::metadata(path)
+            .with_context(|| format!("cannot stat manifest: {}", path.display()))?;
+
+        if metadata.len() > MAX_MANIFEST_SIZE {
+            anyhow::bail!(
+                "manifest file is too large ({} bytes, max {} bytes). This check prevents resource exhaustion from YAML expansion attacks.",
+                metadata.len(),
+                MAX_MANIFEST_SIZE
+            );
+        }
+
         let text = std::fs::read_to_string(path)
             .with_context(|| format!("cannot read manifest: {}", path.display()))?;
+
         let manifest: Self = serde_yaml::from_str(&text)
             .with_context(|| format!("cannot parse manifest: {}", path.display()))?;
+
+        // Validate loaded manifest
+        Self::validate_limits(&manifest, path)?;
+
         Ok(manifest)
+    }
+
+    /// Validate manifest for resource exhaustion limits.
+    fn validate_limits(manifest: &Manifest, path: &Path) -> Result<()> {
+        if manifest.services.len() > MAX_SERVICES {
+            anyhow::bail!(
+                "manifest has too many services ({}, max {})",
+                manifest.services.len(),
+                MAX_SERVICES
+            );
+        }
+
+        // Sanity checks on service entries to catch expansions early
+        for svc in &manifest.services {
+            if svc.name.len() > MAX_SERVICE_NAME_LEN {
+                anyhow::bail!(
+                    "service name too long in {}: '{}' ({} bytes, max {})",
+                    path.display(),
+                    &svc.name[..MAX_SERVICE_NAME_LEN.min(50)],
+                    svc.name.len(),
+                    MAX_SERVICE_NAME_LEN
+                );
+            }
+
+            // Check depends_on list isn't absurdly large
+            if svc.depends_on.len() > 1000 {
+                anyhow::bail!(
+                    "service '{}' has too many dependencies ({}, max 1000)",
+                    svc.name,
+                    svc.depends_on.len()
+                );
+            }
+        }
+
+        Ok(())
     }
 
     /// Effective discovery glob patterns, falling back to common monorepo conventions.

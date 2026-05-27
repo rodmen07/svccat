@@ -179,12 +179,27 @@ fn post(url: &str, payload: &WebhookPayload) -> Result<()> {
 
 // ── Config loading ─────────────────────────────────────────────────────────────
 
+/// Maximum config file size (1 MB) to prevent resource exhaustion
+const MAX_CONFIG_FILE_SIZE: u64 = 1024 * 1024;
+
 /// Load webhook config from `svccat.toml`.
 /// Returns a default (disabled) config if the key is absent.
+///
+/// # Security
+/// Enforces maximum file size to prevent TOML bomb attacks
 pub fn load_config(root: &Path) -> WebhookConfig {
     let path = root.join("svccat.toml");
     if !path.exists() {
         return WebhookConfig::default();
+    }
+
+    // Check file size to prevent TOML bomb attacks
+    if let Ok(metadata) = std::fs::metadata(&path) {
+        if metadata.len() > MAX_CONFIG_FILE_SIZE {
+            eprintln!("warning: svccat.toml is too large ({}  bytes, max {}). Ignoring config file.",
+                metadata.len(), MAX_CONFIG_FILE_SIZE);
+            return WebhookConfig::default();
+        }
     }
 
     #[derive(serde::Deserialize, Default)]
