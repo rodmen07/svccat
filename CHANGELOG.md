@@ -15,6 +15,32 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Outputs total cost and breakdown by platform. Supports `--format json` for integration with dashboards.
   Includes sensible defaults for common platforms (Cloud Run, Fly.io, GitHub Pages, AWS, etc.).
 
+### Security
+
+**⚠️ Important: Multiple security fixes and hardening in this release.**
+
+- **Git command injection (CRITICAL)** - Validate `--since` git references against strict allowlist pattern.
+  Prevents injection via malicious git refs in compromised repositories.
+
+- **SSRF in ping/webhooks (HIGH)** - Add URL validation module to block requests to private IP addresses
+  (127.x, 10.x, 172.16-31.x, 192.168.x, ::1, fe80::/10, fc00::/7). Enforce `https://` for webhooks
+  (except localhost for development). Prevents probing of internal infrastructure.
+
+- **Deserialization bombs (HIGH)** - Add resource limits to prevent YAML/TOML expansion attacks:
+  - Manifest files limited to 10 MB
+  - Maximum 10,000 services per manifest
+  - Service names limited to 256 bytes
+  - `depends_on` lists limited to 1,000 entries
+  - Config files limited to 1 MB
+
+- **Added SECURITY.md** - Comprehensive security policy documenting threat model, mitigations,
+  known limitations, and responsible disclosure process.
+
+- **Added cargo-audit to CI** - GitHub Actions job runs `cargo audit --deny warnings` on every push/PR
+  to catch dependency vulnerabilities early.
+
+**See SECURITY.md for details on all security concerns and mitigations.**
+
 ---
 
 ## [0.18.0] - 2025-07-21
