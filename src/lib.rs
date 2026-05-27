@@ -24,5 +24,6 @@ pub mod since;
 pub mod snapshot;
 pub mod stats;
 pub mod tag;
+pub mod urlvalidation;
 pub mod watch;
 pub mod webhook;

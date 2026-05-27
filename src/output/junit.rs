@@ -55,6 +55,11 @@ pub fn build_check_document(report: &DriftReport, ping_results: &[PingResult]) -
                 let failure = failure_xml("error", reason, reason);
                 body.push_str(&testcase("svccat.ping", &name, Some(&failure)));
             }
+            PingStatus::Invalid { reason } => {
+                failures += 1;
+                let failure = failure_xml("error", &format!("invalid URL: {}", reason), reason);
+                body.push_str(&testcase("svccat.ping", &name, Some(&failure)));
+            }
         }
     }
 

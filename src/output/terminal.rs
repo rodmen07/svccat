@@ -171,6 +171,16 @@ pub fn render_ping_results(results: &[PingResult]) {
                     reason
                 );
             }
+            PingStatus::Invalid { reason } => {
+                println!(
+                    "  {}  {}  {}  {} — invalid URL: {}",
+                    "⚠".yellow().bold(),
+                    "[PING]".yellow(),
+                    r.service,
+                    r.url,
+                    reason
+                );
+            }
         }
     }
 }

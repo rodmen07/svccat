@@ -1,5 +1,6 @@
 use crate::ci::CiReport;
 use crate::drift::DriftReport;
+use crate::urlvalidation;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use std::path::Path;
@@ -161,6 +162,11 @@ pub fn fire_from_ci(root: &Path, cfg: &WebhookConfig, report: &CiReport) -> Resu
 // ── HTTP POST ──────────────────────────────────────────────────────────────────
 
 fn post(url: &str, payload: &WebhookPayload) -> Result<()> {
+    // Validate webhook URL to prevent SSRF attacks.
+    // Webhooks should use HTTPS (with localhost exception for development).
+    urlvalidation::validate_url(url, true)
+        .context("webhook URL validation failed")?;
+
     let body = serde_json::to_string(payload).context("serialising webhook payload")?;
     ureq::post(url)
         .set("Content-Type", "application/json")

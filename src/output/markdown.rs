@@ -82,6 +82,9 @@ pub fn render_check_markdown(report: &DriftReport, ping_results: &[PingResult]) 
                 PingStatus::Unreachable { reason } => {
                     format!("| ❌ Fail | `{}` | {} | {} |", r.service, r.url, reason)
                 }
+                PingStatus::Invalid { reason } => {
+                    format!("| ❌ Invalid | `{}` | {} | {} |", r.service, r.url, reason)
+                }
             };
             writeln!(out, "{}", row).unwrap();
         }
