@@ -14,6 +14,7 @@ pub mod init;
 pub mod lint;
 pub mod manifest;
 pub mod output;
+pub mod pathredaction;
 pub mod ping;
 pub mod policy;
 pub mod report;

@@ -55,23 +55,39 @@ fn is_public_ip(host: &str) -> Result<()> {
         return Ok(()); // Allow for development
     }
 
-    // Try to parse as IP address
-    if let Ok(ip) = IpAddr::from_str(host) {
-        if is_private_ip(&ip) {
-            anyhow::bail!("URL uses private/internal IP address: {}", ip);
+    // Strip IPv6 brackets if present (e.g., "[::1]" -> "::1")
+    // Handle both "[::1]" and "[::1]:8080" formats
+    let host_to_parse = if host.starts_with('[') {
+        if let Some(bracket_idx) = host.find(']') {
+            // Extract just the IPv6 address between brackets
+            &host[1..bracket_idx]
+        } else {
+            host // Malformed, will fail parsing below
         }
-        return Ok(());
+    } else {
+        host
+    };
+
+    // Try to parse as IP address
+    match IpAddr::from_str(host_to_parse) {
+        Ok(ip) => {
+            if is_private_ip(&ip) {
+                anyhow::bail!("URL uses private/internal IP address: {}", ip);
+            }
+            Ok(())
+        }
+        Err(_) => {
+            // Not an IP address, treat as hostname
+            // For hostnames, we cannot reliably check without DNS resolution.
+            // In production, the HTTP request will fail if it's a private IP.
+            // We log a warning but allow it to proceed.
+            // This is acceptable because:
+            // 1. Most internal DNS won't resolve from external networks
+            // 2. The HTTP timeout will catch slow/hanging connections
+            // 3. Stricter validation could break legitimate use cases (custom internal domains)
+            Ok(())
+        }
     }
-
-    // For hostnames, we cannot reliably check without DNS resolution.
-    // In production, the HTTP request will fail if it's a private IP.
-    // We log a warning but allow it to proceed.
-    // This is acceptable because:
-    // 1. Most internal DNS won't resolve from external networks
-    // 2. The HTTP timeout will catch slow/hanging connections
-    // 3. Stricter validation could break legitimate use cases (custom internal domains)
-
-    Ok(())
 }
 
 /// Check if an IP is in a private/internal range.

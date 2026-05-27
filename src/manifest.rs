@@ -64,7 +64,7 @@ impl Manifest {
         Ok(manifest)
     }
 
-    /// Validate manifest for resource exhaustion limits.
+    /// Validate manifest for resource exhaustion limits and security constraints.
     fn validate_limits(manifest: &Manifest, path: &Path) -> Result<()> {
         if manifest.services.len() > MAX_SERVICES {
             anyhow::bail!(
@@ -94,6 +94,10 @@ impl Manifest {
                     svc.depends_on.len()
                 );
             }
+
+            // Validate service paths to prevent directory traversal
+            svc.validate()
+                .with_context(|| format!("service '{}' has invalid paths", svc.name))?;
         }
 
         Ok(())
@@ -235,6 +239,70 @@ impl ServiceEntry {
     pub fn declared_path(&self) -> Option<&str> {
         self.path.as_deref().or(self.submodule.as_deref())
     }
+
+    /// Validate the service entry for path traversal and other security issues.
+    ///
+    /// # Security
+    /// Rejects paths that could escape the repo root (containing "..", absolute paths, etc)
+    pub fn validate(&self) -> Result<()> {
+        validate_optional_path(&self.path, "path")?;
+        validate_optional_path(&self.submodule, "submodule")?;
+        validate_optional_path(&self.docs, "docs")?;
+        validate_optional_path(&self.ci, "ci")?;
+        Ok(())
+    }
+}
+
+/// Validate an optional relative path to prevent directory traversal attacks.
+///
+/// Rejects:
+/// - Absolute paths (starting with "/" or "C:\")
+/// - Paths containing ".." (parent directory traversal)
+/// - Paths with null bytes
+/// - Empty strings
+fn validate_optional_path(path_opt: &Option<String>, field_name: &str) -> Result<()> {
+    let path = match path_opt {
+        Some(p) => p,
+        None => return Ok(()),
+    };
+
+    if path.is_empty() {
+        anyhow::bail!("{} field cannot be empty", field_name);
+    }
+
+    // Reject absolute paths
+    if path.starts_with('/') || path.starts_with('\\') {
+        anyhow::bail!(
+            "{}: absolute paths not allowed (must be relative to repo root): {}",
+            field_name,
+            path
+        );
+    }
+
+    // Reject parent directory traversal
+    if path.contains("..") {
+        anyhow::bail!(
+            "{}: path traversal not allowed (contains '..'): {}",
+            field_name,
+            path
+        );
+    }
+
+    // Reject null bytes
+    if path.contains('\0') {
+        anyhow::bail!("{}: path contains null bytes", field_name);
+    }
+
+    // Reject Windows drive letters (C:, D:, etc)
+    if path.len() >= 2 && path.chars().nth(1) == Some(':') {
+        anyhow::bail!(
+            "{}: absolute paths (Windows drive letters) not allowed: {}",
+            field_name,
+            path
+        );
+    }
+
+    Ok(())
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::manifest::Manifest;
+use crate::pathredaction;
 
 /// Validate git reference format to prevent injection attacks.
 /// Allows: branch names, tags, commit SHAs, and git special refs like HEAD, HEAD~1, etc.
@@ -82,7 +83,8 @@ pub fn load_at_ref(root: &Path, manifest_path: &Path, git_ref: &str) -> Result<M
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("git show failed at {}: {}", git_ref, stderr.trim());
+        let redacted_error = pathredaction::redact_message(stderr.trim());
+        anyhow::bail!("git show failed at {}: {}", git_ref, redacted_error);
     }
 
     let text = String::from_utf8(output.stdout)?;

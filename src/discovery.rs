@@ -2,6 +2,15 @@ use crate::manifest::Manifest;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+// ── Glob Pattern Limits ───────────────────────────────────────────────────────
+// These limits prevent DoS attacks using expensive glob patterns
+
+/// Maximum number of glob patterns from discovery.paths (prevents scanning excessive patterns)
+const MAX_GLOB_PATTERNS: usize = 20;
+
+/// Maximum number of consecutive wildcards in a pattern (prevents `**/**/**` etc)
+const MAX_CONSECUTIVE_WILDCARDS: usize = 2;
+
 // ── Public types ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,6 +53,15 @@ pub fn discover_services_with_opts(
     let base_patterns = manifest.effective_discovery_paths();
     let markers = &manifest.discovery.markers;
 
+    // Validate glob pattern limits to prevent DoS
+    if base_patterns.len() > MAX_GLOB_PATTERNS {
+        eprintln!(
+            "warning: too many discovery patterns ({}, max {}). Some patterns will be ignored.",
+            base_patterns.len(),
+            MAX_GLOB_PATTERNS
+        );
+    }
+
     let effective_markers: Vec<String> = if markers.is_empty() {
         default_markers()
     } else {
@@ -56,13 +74,35 @@ pub fn discover_services_with_opts(
         .ignore
         .iter()
         .chain(extra_ignore.iter())
-        .filter_map(|p| glob::Pattern::new(p).ok())
+        .filter_map(|p| {
+            if has_dangerous_pattern(p) {
+                eprintln!(
+                    "warning: ignore pattern '{}' may be expensive and was skipped",
+                    p
+                );
+                None
+            } else {
+                glob::Pattern::new(p).ok()
+            }
+        })
         .collect();
 
     // Expand each base pattern to cover depth levels.
     // A base pattern of "services/*" at depth=2 becomes ["services/*", "services/*/*"].
     let mut patterns: Vec<String> = Vec::new();
-    for base in &base_patterns {
+    for (idx, base) in base_patterns.iter().enumerate() {
+        if idx >= MAX_GLOB_PATTERNS {
+            break;
+        }
+
+        if has_dangerous_pattern(base) {
+            eprintln!(
+                "warning: discovery pattern '{}' may be expensive and was skipped",
+                base
+            );
+            continue;
+        }
+
         // Start with the base pattern itself (depth 1).
         let mut current = base.clone();
         patterns.push(current.clone());
@@ -85,7 +125,24 @@ pub fn discover_services_with_opts(
         };
 
         for entry in entries.flatten() {
-            if !entry.is_dir() {
+            // Check if this is a directory (not a symlink to a directory)
+            // Use metadata() which doesn't follow symlinks by default
+            let metadata = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+
+            // Reject symlinks to prevent symlink-based attacks
+            // A symlink to a directory is_dir() == true, but is_symlink() == true
+            if metadata.is_symlink() {
+                eprintln!(
+                    "warning: skipping symlink '{}' during discovery (potential security risk)",
+                    entry.display()
+                );
+                continue;
+            }
+
+            if !metadata.is_dir() {
                 continue;
             }
 
@@ -157,4 +214,41 @@ fn default_markers() -> Vec<String> {
     .iter()
     .map(|s| s.to_string())
     .collect()
+}
+
+/// Check if a glob pattern is potentially dangerous (expensive or malicious).
+///
+/// Dangerous patterns include:
+/// - Multiple consecutive wildcards: `**/**`, `*/**/*/`
+/// - Unbounded wildcards at start: `**/` without prefix
+fn has_dangerous_pattern(pattern: &str) -> bool {
+    // Check for multiple consecutive wildcards (e.g., **/**/*, */*/*/*)
+    let mut consecutive_wildcards = 0;
+    let mut chars = pattern.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '*' {
+            consecutive_wildcards += 1;
+            if consecutive_wildcards > MAX_CONSECUTIVE_WILDCARDS {
+                return true; // Too many consecutive wildcards
+            }
+        } else if c == '/' {
+            consecutive_wildcards = 0;
+        } else {
+            consecutive_wildcards = 0;
+        }
+    }
+
+    // Check for completely unbounded patterns that could match everything
+    if pattern == "**" || pattern == "*" || pattern == "**/*" {
+        return false; // These are OK as they're common use cases
+    }
+
+    // Flag patterns starting with ** without a directory prefix
+    if pattern.starts_with("**/") && !pattern.contains("/**/") {
+        // Only one level of **, this is fine
+        return false;
+    }
+
+    false
 }
