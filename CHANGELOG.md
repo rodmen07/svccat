@@ -15,9 +15,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Outputs total cost and breakdown by platform. Supports `--format json` for integration with dashboards.
   Includes sensible defaults for common platforms (Cloud Run, Fly.io, GitHub Pages, AWS, etc.).
 
-### Security
+---
 
-**⚠️ Important: Multiple security fixes and hardening in this release.**
+## [0.19.0] - 2026-05-28
+
+### 🔒 Security (10 vulnerabilities addressed)
+
+**⚠️ Important: Multiple critical and high-severity security fixes in this release.**
 
 - **Git command injection (CRITICAL)** - Validate `--since` git references against strict allowlist pattern.
   Prevents injection via malicious git refs in compromised repositories.
@@ -33,13 +37,41 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `depends_on` lists limited to 1,000 entries
   - Config files limited to 1 MB
 
-- **Added SECURITY.md** - Comprehensive security policy documenting threat model, mitigations,
-  known limitations, and responsible disclosure process.
+- **Path traversal (MEDIUM)** - Validate manifest paths to prevent `..` and absolute path attacks.
+  Applies to service `path`, `submodule`, `docs`, and `ci` fields.
 
-- **Added cargo-audit to CI** - GitHub Actions job runs `cargo audit --deny warnings` on every push/PR
-  to catch dependency vulnerabilities early.
+- **Symlink attacks (MEDIUM)** - Reject symlinks during service discovery to prevent
+  directory traversal and time-of-check-time-of-use (TOCTOU) attacks.
 
-**See SECURITY.md for details on all security concerns and mitigations.**
+- **Glob pattern DoS (MEDIUM)** - Limit discovery patterns to 20 total with max 2 consecutive
+  wildcards. Prevents expensive glob expansion on untrusted manifests.
+
+- **Information disclosure (MEDIUM)** - Path redaction module converts absolute paths to
+  repo-relative in error messages, preventing system information leaks.
+
+- **IPv6 loopback detection (MEDIUM)** - Properly detect and reject IPv6 loopback (::1)
+  and link-local addresses (fe80::/10) in URL validation.
+
+- **Cross-platform compatibility (MEDIUM)** - Convert Windows backslashes to forward slashes
+  in git ref:path specifications for correct behavior on all platforms.
+
+- **Dependency scanning (MEDIUM)** - Added `cargo audit` to GitHub Actions CI to catch
+  vulnerable dependencies on every push and pull request.
+
+### Code Quality Improvements
+
+- Fixed 11 clippy warnings for improved code quality and maintainability
+- Updated all GitHub Actions to Node.js 24 (actions/checkout@v4.1.7, Swatinem/rust-cache@v2.7.3)
+- Optimized iterator patterns and removed redundant code branches
+- Comprehensive test coverage: 69 passing tests (17 unit + 52 integration)
+
+### Documentation
+
+- **Added SECURITY.md** - Comprehensive security policy documenting threat model, attack vectors,
+  all mitigations, known limitations, and responsible disclosure process.
+- Updated CHANGELOG with detailed security fix descriptions and impact assessment.
+
+**See SECURITY.md for complete threat model documentation and security recommendations.**
 
 ---
 
