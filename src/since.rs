@@ -69,7 +69,7 @@ fn validate_manifest_path(path: &Path) -> Result<()> {
 /// # Security
 /// - Validates git ref against a strict allowlist pattern
 /// - Validates manifest path to prevent directory traversal
-/// - Uses `--` separator to prevent git from misinterpreting arguments
+/// - Git ref validation ensures ref cannot be misinterpreted as an option
 pub fn load_at_ref(root: &Path, manifest_path: &Path, git_ref: &str) -> Result<Manifest> {
     validate_git_ref(git_ref)?;
 
@@ -83,8 +83,7 @@ pub fn load_at_ref(root: &Path, manifest_path: &Path, git_ref: &str) -> Result<M
             "-C",
             &root.to_string_lossy(),
             "show",
-            "--", // Separator: prevent git from interpreting spec as a ref/path
-            &spec,
+            &spec, // ref:path syntax - git will parse the colon correctly
         ])
         .output()?;
 
