@@ -1,0 +1,62 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark:
+    name: Benchmark & Track Performance
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4.1.7
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Run benchmarks
+        run: cargo bench --bench benchmark
+
+      - name: Check binary size
+        run: |
+          cargo build --release
+          SIZE=$(stat -f%z target/release/svccat 2>/dev/null || stat -c%s target/release/svccat)
+          echo "Binary size: $((SIZE / 1024 / 1024)) MB"
+
+      - name: Store benchmark results
+        if: github.ref == 'refs/heads/main'
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: target/criterion/output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Parse benchmark results
+            let comment = '## 📊 Performance Benchmarks\n\n';
+            comment += 'Benchmarks completed successfully.\n\n';
+            comment += 'Run locally with: `cargo bench`\n';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment,
+            });

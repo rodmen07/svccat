@@ -33,4 +33,9 @@ url         = "2"
 
 [dev-dependencies]
 clap_complete = "4"
+criterion = "0.5"
 tempfile = "3"
+
+[[bench]]
+name = "benchmark"
+harness = false
