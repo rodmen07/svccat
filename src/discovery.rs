@@ -224,16 +224,13 @@ fn default_markers() -> Vec<String> {
 fn has_dangerous_pattern(pattern: &str) -> bool {
     // Check for multiple consecutive wildcards (e.g., **/**/*, */*/*/*)
     let mut consecutive_wildcards = 0;
-    let mut chars = pattern.chars().peekable();
 
-    while let Some(c) = chars.next() {
+    for c in pattern.chars() {
         if c == '*' {
             consecutive_wildcards += 1;
             if consecutive_wildcards > MAX_CONSECUTIVE_WILDCARDS {
                 return true; // Too many consecutive wildcards
             }
-        } else if c == '/' {
-            consecutive_wildcards = 0;
         } else {
             consecutive_wildcards = 0;
         }

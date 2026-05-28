@@ -76,7 +76,9 @@ pub fn load_at_ref(root: &Path, manifest_path: &Path, git_ref: &str) -> Result<M
     let rel = manifest_path.strip_prefix(root).unwrap_or(manifest_path);
     validate_manifest_path(rel)?;
 
-    let spec = format!("{}:{}", git_ref, rel.to_string_lossy());
+    // Convert path to forward slashes for git (it expects unix-style paths)
+    let path_str = rel.to_string_lossy().replace('\\', "/");
+    let spec = format!("{}:{}", git_ref, path_str);
 
     let output = std::process::Command::new("git")
         .args([

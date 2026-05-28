@@ -77,7 +77,7 @@ pub fn import_backstage(root: &Path) -> Result<Vec<(ServiceEntry, String)>> {
                         .iter()
                         .filter_map(|d| {
                             // "component:default/auth-service" -> "auth-service"
-                            d.split('/').last().map(str::to_owned)
+                            d.split('/').next_back().map(str::to_owned)
                         })
                         .collect()
                 })

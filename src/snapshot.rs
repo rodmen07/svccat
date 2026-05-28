@@ -195,6 +195,7 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
     (year, month, days + 1)
 }
 
+#[allow(clippy::manual_is_multiple_of)]
 fn is_leap(y: u64) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }

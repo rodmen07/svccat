@@ -20,6 +20,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 ///
 /// Returns the initial drift error count so callers can honour `--fail-on-drift`
 /// on the *first* run.
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     manifest_path: &Path,
     root: &Path,

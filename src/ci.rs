@@ -205,27 +205,25 @@ pub fn watch(
     );
 
     let mut last_event = Instant::now();
-    for res in rx {
-        if let Ok(event) = res {
-            if matches!(
-                event.kind,
-                EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
-            ) {
-                if last_event.elapsed() < Duration::from_millis(500) {
-                    continue;
-                }
-                last_event = Instant::now();
-                let ts = chrono_lite_now();
-                eprintln!("\n[{ts}] change detected - re-running ci…");
-                run_once(&manifest_path, &root, &ignore, depth);
+    for event in rx.into_iter().flatten() {
+        if matches!(
+            event.kind,
+            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+        ) {
+            if last_event.elapsed() < Duration::from_millis(500) {
+                continue;
             }
+            last_event = Instant::now();
+            let ts = chrono_lite_now();
+            eprintln!("\n[{ts}] change detected - re-running ci…");
+            run_once(&manifest_path, &root, &ignore, depth);
         }
     }
 
     Ok(initial_errors)
 }
 
-fn run_once(manifest_path: &PathBuf, root: &Path, ignore: &[String], depth: u32) -> usize {
+fn run_once(manifest_path: &Path, root: &Path, ignore: &[String], depth: u32) -> usize {
     match manifest::Manifest::load(manifest_path) {
         Err(e) => {
             eprintln!("{} {e:#}", "error:".red().bold());

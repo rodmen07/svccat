@@ -46,7 +46,7 @@ fn service_field<'a>(svc: &'a ServiceEntry, field: &str) -> Option<&'a str> {
     }
 }
 
-fn service_tags<'a>(svc: &'a ServiceEntry) -> &'a [String] {
+fn service_tags(svc: &ServiceEntry) -> &[String] {
     &svc.tags
 }
 
