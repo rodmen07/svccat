@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.7
         with:
           # Full history so --since can compare against the base branch.
           fetch-depth: 0
@@ -23,7 +23,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.7.3
 
       - name: Install svccat
         run: cargo install svccat --locked
@@ -50,7 +50,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v7.0.1
         with:
           script: |
             const output = `${{ steps.drift.outputs.output }}`;
