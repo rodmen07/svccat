@@ -42,13 +42,3 @@ jobs:
 
       - name: Publish to crates.io
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      - name: Create GitHub release notes
-        uses: softprops/action-gh-release@v1
-        with:
-          body: |
-            ## Security & Quality Release
-
-            This release includes all security improvements and code quality enhancements.
-
-            See SECURITY.md for comprehensive threat model documentation and security mitigations.
