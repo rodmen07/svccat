@@ -1,5 +1,6 @@
 use crate::discovery::DiscoveredService;
 use crate::manifest::Manifest;
+use crate::rules::RuleEngine;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -41,7 +42,7 @@ pub struct DriftItem {
     pub detail: Option<String>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DriftReport {
     pub manifest: String,
     pub declared: usize,
@@ -149,17 +150,18 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
     }
 
     // 2. Flag service directories found in the repo but absent from the manifest.
-    let declared_paths: Vec<&str> = manifest
+    let declared_paths: std::collections::HashSet<&str> = manifest
         .services
         .iter()
         .filter_map(|s| s.declared_path())
         .collect();
 
-    let declared_names: Vec<&str> = manifest.services.iter().map(|s| s.name.as_str()).collect();
+    let declared_names: std::collections::HashSet<&str> =
+        manifest.services.iter().map(|s| s.name.as_str()).collect();
 
     for disc in discovered {
-        let matched_by_path = declared_paths.iter().any(|p| *p == disc.path);
-        let matched_by_name = declared_names.contains(&disc.name.as_str());
+        let matched_by_path = declared_paths.contains(disc.path.as_str());
+        let matched_by_name = declared_names.contains(disc.name.as_str());
 
         if !matched_by_path && !matched_by_name {
             report.drifts.push(DriftItem {
@@ -202,6 +204,36 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                         detail: Some(field.clone()),
                     });
                 }
+            }
+        }
+    }
+
+    // 3b. Apply custom validation rules.
+    if !manifest.policy.rules.is_empty() {
+        match RuleEngine::compile(&manifest.policy.rules) {
+            Ok(engine) => {
+                for svc in &manifest.services {
+                    for violation in engine.evaluate(svc) {
+                        let severity = match violation.severity.as_str() {
+                            "error" => Severity::Error,
+                            "warning" => Severity::Warning,
+                            _ => Severity::Warning,
+                        };
+                        report.drifts.push(DriftItem {
+                            kind: DriftKind::PolicyViolation,
+                            severity,
+                            service: violation.service_name.clone(),
+                            message: format!(
+                                "'{}' violates policy: {}",
+                                violation.service_name, violation.message
+                            ),
+                            detail: Some(violation.rule_id),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to compile custom rules: {}", e);
             }
         }
     }

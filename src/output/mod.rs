@@ -9,3 +9,4 @@ pub mod sarif;
 pub mod slack;
 pub mod teams;
 pub mod terminal;
+pub mod workspace;

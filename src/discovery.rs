@@ -114,6 +114,7 @@ pub fn discover_services_with_opts(
     }
 
     let mut discovered: Vec<DiscoveredService> = Vec::new();
+    let mut seen_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for pattern in &patterns {
         let full_pattern = root.join(pattern);
@@ -167,7 +168,7 @@ pub fn discover_services_with_opts(
                 .unwrap_or_default();
 
             // Deduplicate paths (e.g. overlapping glob patterns or depth expansion).
-            if discovered.iter().any(|d| d.path == rel_path) {
+            if !seen_paths.insert(rel_path.clone()) {
                 continue;
             }
 

@@ -18,7 +18,6 @@ pub mod pathredaction;
 pub mod ping;
 pub mod policy;
 pub mod report;
-pub mod rules;
 pub mod scorecard;
 pub mod search;
 pub mod serve;

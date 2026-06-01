@@ -1,0 +1,5 @@
+[workspace]
+repos = [
+    { name = "backend", path = "repo1", manifest = "services.yaml", enabled = true },
+    { name = "frontend", path = "repo2", manifest = "services.yaml", enabled = true },
+]

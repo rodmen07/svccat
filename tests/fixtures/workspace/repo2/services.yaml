@@ -1,0 +1,17 @@
+version: "1"
+
+discovery:
+  paths: ["services/*"]
+
+services:
+  - name: web
+    language: TypeScript
+    platform: Cloud Run
+    role: Web Frontend
+    team: frontend
+
+  - name: admin-panel
+    language: TypeScript
+    platform: Cloud Run
+    role: Admin Dashboard
+    team: frontend

@@ -542,6 +542,16 @@ pub enum Commands {
         refresh: u32,
     },
 
+    /// Manage multiple service repositories as a workspace
+    ///
+    /// Check drift across multiple repositories, with aggregated reporting
+    /// and cross-repo dependency analysis. Requires a workspace configuration
+    /// with a [workspace] section in svccat.toml.
+    Workspace {
+        #[command(subcommand)]
+        action: WorkspaceAction,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
@@ -550,6 +560,40 @@ pub enum Commands {
     Completions {
         /// Shell to generate completions for
         shell: Shell,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum WorkspaceAction {
+    /// Check declared services against multiple repositories and report drift
+    Check {
+        /// Path to workspace config file (default: svccat.toml)
+        #[arg(long, default_value = "svccat.toml")]
+        config: PathBuf,
+
+        /// Filter to specific repositories (comma-separated names)
+        #[arg(long, value_name = "REPOS")]
+        filter: Option<String>,
+
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
+        format: OutputFormat,
+
+        /// Exit with code 1 when drift is detected (useful in CI)
+        #[arg(long)]
+        fail_on_drift: bool,
+
+        /// Glob patterns to exclude from discovery (repeatable)
+        #[arg(long, value_name = "PATTERN")]
+        ignore: Vec<String>,
+
+        /// Maximum directory depth to scan for services (default: 1)
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        depth: u32,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 }
 

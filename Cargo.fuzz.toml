@@ -1,0 +1,29 @@
+[package]
+name = "svccat-fuzz"
+version = "0.19.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+svccat = { path = ".", features = ["__fuzz_target"] }
+serde_yaml = "0.9"
+glob = "0.3"
+
+[[bin]]
+name = "fuzz_manifest"
+path = "fuzz/fuzz_targets/fuzz_manifest.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_url"
+path = "fuzz/fuzz_targets/fuzz_url.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_glob"
+path = "fuzz/fuzz_targets/fuzz_glob.rs"
+test = false
+doc = false

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use crate::rules::Rule;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -126,6 +127,11 @@ pub struct PolicyConfig {
     /// Example: ["url", "language", "platform"]
     #[serde(default)]
     pub require_fields: Vec<String>,
+
+    /// Custom validation rules for services.
+    /// Example: { id: "naming_convention", description: "...", expression: "name matches ^service-", severity: "error" }
+    #[serde(default)]
+    pub rules: Vec<Rule>,
 }
 
 // ── Discovery config ─────────────────────────────────────────────────────────

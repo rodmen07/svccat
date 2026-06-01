@@ -62,7 +62,10 @@ services:
 
     // Loading manifest should fail (on all platforms)
     let result = svccat::manifest::Manifest::load(&root.join("services.yaml"));
-    assert!(result.is_err(), "Expected error for Windows drive letter path");
+    assert!(
+        result.is_err(),
+        "Expected error for Windows drive letter path"
+    );
 }
 
 // ── Manifest Size Limits Tests ────────────────────────────────────────────────
@@ -101,7 +104,10 @@ services:
 
     // This should succeed
     let result = svccat::manifest::Manifest::load(&root.join("services.yaml"));
-    assert!(result.is_ok(), "Manifest within size limit should load successfully");
+    assert!(
+        result.is_ok(),
+        "Manifest within size limit should load successfully"
+    );
 }
 
 // ── Discovery & Symlink Tests ─────────────────────────────────────────────────
@@ -135,7 +141,10 @@ services: []
     let discovered = svccat::discovery::discover_services(root, &m);
 
     // Should only find the real-api service (symlink is skipped)
-    assert!(discovered.iter().any(|d| d.name == "real-api"), "Should find real-api service");
+    assert!(
+        discovered.iter().any(|d| d.name == "real-api"),
+        "Should find real-api service"
+    );
 }
 
 // ── Glob Pattern Limits Tests ─────────────────────────────────────────────────

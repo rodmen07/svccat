@@ -1,0 +1,18 @@
+version: "1"
+
+discovery:
+  paths: ["services/*"]
+
+services:
+  - name: api
+    language: Rust
+    platform: Cloud Run
+    role: Backend API
+    team: backend
+    docs: docs/api.md
+
+  - name: auth
+    language: Python
+    platform: Cloud Run
+    role: Authentication Service
+    team: backend

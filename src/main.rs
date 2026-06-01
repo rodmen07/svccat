@@ -6,12 +6,12 @@ use std::process;
 use svccat::cli::{
     AuditFormat, CiFormat, Cli, Commands, DepsFormat, DiffFormat, ExportFormat, GraphFormat,
     HookKind, ImportSource, OutputFormat, PolicyFormat, ReportFormat, ScorecardFormat,
-    SnapshotAction, TagAction,
+    SnapshotAction, TagAction, WorkspaceAction,
 };
 use svccat::{
     audit, ci, config, deps, diff, discovery, drift, fix, hooks, import, init, lint, manifest,
     output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag, watch,
-    webhook,
+    webhook, workspace,
 };
 
 fn main() {
@@ -784,6 +784,56 @@ fn run() -> Result<i32> {
         } => {
             serve::serve(&root, port, refresh)?;
             Ok(0)
+        }
+
+        Commands::Workspace { action } => {
+            match action {
+                WorkspaceAction::Check {
+                    config: config_path,
+                    filter: _filter,
+                    format,
+                    fail_on_drift,
+                    ignore: cli_ignore,
+                    depth,
+                    output: output_path,
+                } => {
+                    // Load workspace configuration
+                    let (workspace_config, workspace_root) =
+                        workspace::load_workspace_config(&config_path)?;
+
+                    // Merge ignore patterns
+                    let mut ignore = cfg.ignore.clone();
+                    ignore.extend(cli_ignore);
+
+                    // Analyze all repositories
+                    let report = workspace::analyze_workspace(&workspace_config, &workspace_root, &ignore, depth)?;
+
+                    // Render output
+                    let content = match format {
+                        svccat::cli::OutputFormat::Json => {
+                            output::workspace::render_json(&report)?
+                        }
+                        svccat::cli::OutputFormat::Markdown => output::workspace::render_markdown(&report),
+                        _ => {
+                            output::workspace::render_terminal(&report);
+                            String::new()
+                        }
+                    };
+
+                    if let Some(out_path) = output_path {
+                        std::fs::write(&out_path, &content)?;
+                        eprintln!("wrote workspace report to {}", out_path.display());
+                    } else if !content.is_empty() {
+                        print!("{}", content);
+                    }
+
+                    if fail_on_drift && report.has_errors() {
+                        Ok(1)
+                    } else {
+                        Ok(0)
+                    }
+                }
+            }
         }
 
         Commands::Completions { shell } => {
