@@ -4,6 +4,7 @@ pub mod cli;
 pub mod config;
 pub mod cost;
 pub mod deps;
+pub mod deps_graph;
 pub mod diff;
 pub mod discovery;
 pub mod drift;

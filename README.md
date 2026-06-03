@@ -44,81 +44,87 @@ cargo build --release
 
 ## Quick start
 
-```
-svccat init                              # scaffold services.yaml from your repo
-svccat import --from backstage           # seed services.yaml from catalog-info.yaml files
-svccat check                             # inspect drift in the current repo
-svccat check --fail-on-drift             # gate CI on zero drift (exit 1 on drift)
-svccat check --format compact            # one-line-per-service summary (great for large repos)
-svccat check --format csv                # CSV output: service, severity, kind, message, detail
-svccat check --depth 2                   # also discover services nested one level deeper
-svccat check --team platform             # only check services owned by "platform"
-svccat check --ignore "examples/*"       # skip directories matching the pattern
-svccat check --format json               # machine-readable output
-svccat check --format sarif              # SARIF 2.1.0 for GitHub Code Scanning
-svccat check --format markdown           # Markdown table for PR comments
-svccat check --format junit              # JUnit XML for CI test reporting
-svccat check --format github-annotation  # GitHub Actions annotations for CI
-svccat check --since HEAD~1              # show only drift new since the previous commit
-svccat check --since HEAD~1 --fail-on-new-drift  # exit 1 only on new drift (ignores pre-existing)
-svccat check --baseline baseline.json    # ignore pre-existing drift in the saved baseline
-svccat fix                               # add undeclared services to the manifest
-svccat fix --prune                       # also remove declared services with missing directories
-svccat fix --dry-run                     # preview what would change without writing
-svccat import --from backstage           # seed services.yaml from catalog-info.yaml files
-svccat import --from docker-compose      # seed services.yaml from docker-compose.yml
-svccat install-hooks                     # install a pre-commit hook (runs svccat check)
-svccat install-hooks --hook pre-push     # install a pre-push hook instead
-svccat graph                             # Mermaid diagram grouped by platform
-svccat graph --team platform             # diagram scoped to one team
-svccat graph --format markdown           # Markdown table
-svccat report                            # full ownership + drift report (Markdown)
-svccat report --format html --output report.html  # self-contained HTML report
-svccat report --history 5                # drift evolution across last 5 commits
-svccat report --badge                    # Shields.io badge (for README)
-svccat lint                              # validate manifest for structural issues
-svccat export --format json > snap.json  # save a catalog snapshot
-svccat export --format csv               # CSV catalog: name, language, platform, role, url, team
-svccat diff before.json after.json       # compare two snapshots
-svccat watch                             # continuous drift detection (re-runs on changes)
-svccat watch --since main                # continuous drift detection, showing only new items vs main
-svccat stats                             # field-coverage summary with ASCII bar charts
-svccat serve                             # live HTML report at http://localhost:7777
-svccat serve --port 9000 --refresh 10    # custom port + auto-refresh every 10 s
-svccat graph --format dot                # Graphviz DOT output (pipe to dot -Tsvg)
-svccat graph --format plantuml           # PlantUML component diagram
-svccat graph --filter payments           # only services whose name contains "payments"
-svccat import --from openapi             # seed services.yaml from OpenAPI / Swagger specs
-svccat check --format slack              # Slack Block Kit JSON for posting to a channel
-svccat check --format teams              # Microsoft Teams Adaptive Card JSON
-svccat check --format datadog            # Datadog Events API JSON (pipe to curl)
-svccat diff before.json after.json --format markdown  # diff as Markdown tables for PR comments
-svccat watch --notify                    # desktop notification when drift count changes
-svccat watch --interval 30               # also re-check every 30 seconds
-svccat report --format json              # machine-readable JSON report
-svccat export --format json --since HEAD~1  # only export services changed since last commit
-svccat audit                             # lint + drift + score in one pass
-svccat audit --ping                      # include URL reachability in the score
-svccat audit --format json               # machine-readable JSON result
-svccat policy                            # check required/recommended fields per policy.yaml
-svccat policy --fail-on-violations       # exit 1 when violations exist (CI gate)
-svccat snapshot save release-v1          # save named drift snapshot
-svccat snapshot list                     # list all saved snapshots
-svccat snapshot delete release-v1        # delete a named snapshot
-svccat snapshot diff release-v1          # diff snapshot vs current state
-svccat ci                                # lint + drift + policy in one CI pass
-svccat ci --format json                  # machine-readable CI result
-svccat search auth                       # search services by substring
-svccat search team:platform              # search services by field:value
-svccat deps                              # analyze inter-service dependencies
-svccat deps --format mermaid             # dependency graph as Mermaid diagram
-svccat deps --format json                # machine-readable dependency report
-svccat tag add auth-service critical     # add tag to a service in the manifest
-svccat tag remove auth-service beta      # remove tag from a service
-svccat check --format json --output drift.json  # write check output to file
-svccat graph --output graph.md           # write graph to file
-svccat completions bash                  # print bash completion script
-```
+Commands are grouped by task. Every command runs against the auto-detected
+manifest in the current repo unless you pass `-m <file>`.
+
+**Set up a manifest**
+
+- `svccat init` scaffolds a `services.yaml` from your repo (`--force` to overwrite)
+- `svccat import --from backstage` seeds it from `catalog-info.yaml` files
+- `svccat import --from docker-compose` seeds it from `docker-compose.yml`
+- `svccat import --from openapi` seeds it from OpenAPI / Swagger specs
+- `svccat lint` validates the manifest for structural issues
+- `svccat install-hooks` installs a pre-commit hook (`--hook pre-push` for pre-push)
+- `svccat completions bash` prints a shell completion script (also `zsh`, `fish`)
+
+**Check for drift**
+
+- `svccat check` inspects drift in the current repo
+- `svccat check --fail-on-drift` exits 1 on any drift (CI gate)
+- `svccat check --depth 2` also discovers services nested one level deeper
+- `svccat check --team platform` limits the check to one team's services
+- `svccat check --ignore "examples/*"` skips directories matching a pattern
+- `svccat check --since HEAD~1` shows only drift new since a git ref
+- `svccat check --since HEAD~1 --fail-on-new-drift` exits 1 only on new drift
+- `svccat check --baseline baseline.json` ignores drift saved in a baseline
+- `svccat check --ping` verifies that each service `url` is reachable
+
+Add `--format <fmt>` to change the output, where `<fmt>` is one of `compact`, `csv`,
+`json`, `sarif`, `markdown`, `junit`, `github-annotation`, `slack`, `teams`, or `datadog`.
+
+**Fix drift**
+
+- `svccat fix` adds undeclared services to the manifest
+- `svccat fix --prune` also removes declared services with missing directories
+- `svccat fix --dry-run` previews the changes without writing
+
+**Visualize and report**
+
+- `svccat graph` renders a Mermaid diagram grouped by platform
+- `svccat graph --team platform` / `--filter payments` scopes the diagram
+- `svccat graph --format dot|plantuml|markdown` selects another format
+- `svccat report` writes a full ownership and drift report (Markdown)
+- `svccat report --format html --output report.html` writes a self-contained page
+- `svccat report --history 5` shows drift evolution across the last 5 commits
+- `svccat report --badge` prints a Shields.io badge for your README
+- `svccat scorecard` scores each service on completeness, drift, and policy
+
+**Snapshots and diffs**
+
+- `svccat export --format json > snap.json` saves a catalog snapshot (`csv` also works)
+- `svccat export --format json --since HEAD~1` exports only services changed since a ref
+- `svccat diff before.json after.json` compares two snapshots (add `--format markdown`)
+- `svccat snapshot save|list|delete|diff <name>` manages named drift snapshots
+
+**Watch and serve**
+
+- `svccat watch` re-runs drift detection on every file change
+- `svccat watch --since main` / `--notify` / `--interval 30` refine watching
+- `svccat serve` serves a live HTML report at http://localhost:7777
+- `svccat serve --port 9000 --refresh 10` customizes the port and refresh interval
+
+**Audit, policy, and CI**
+
+- `svccat audit` runs lint + drift + score in one pass (add `--ping`)
+- `svccat policy` checks required/recommended fields (add `--fail-on-violations`)
+- `svccat ci` runs lint + drift + policy in one CI-friendly pass
+- `svccat stats` prints a field-coverage summary with ASCII bar charts
+- `svccat webhook` fires a configured Slack/webhook notification on drift
+
+**Query the catalog**
+
+- `svccat search auth` searches by substring; `svccat search team:platform` by field
+- `svccat deps` analyzes inter-service dependencies (add `--format mermaid|json`)
+- `svccat tag add auth-service critical` / `tag remove auth-service beta` edits tags
+
+**Multiple repositories**
+
+- `svccat workspace check` checks drift across every repo in a `[workspace]` config
+- `svccat workspace check --filter backend,api` limits the run to named repos
+- `svccat workspace check --format markdown --fail-on-drift` aggregates results for CI
+
+Most commands accept `--output <file>` to write to a file and `--format json` for
+machine-readable output.
 
 Manifest is auto-detected: svccat tries `svccat.yaml`, `svccat.yml`,
 `services.yaml`, `services.yml` in order.
@@ -901,18 +907,19 @@ svccat export --format json
 
 ## Project status
 
-`v0.11.0` — `svccat check --format junit` (JUnit XML output for CI test report ingestion and `--since` support for new-drift-only test failures).
+**Latest stable:** `v0.20.0` (2026-06-01): `svccat audit --cost-estimate` for monthly deployment-cost estimation by platform, performance benchmarking with criterion, and security integration tests.
 
-Previous releases:
-- `v0.10.0` — `svccat report --badge` (Shields.io drift-status badge for your README), `svccat check --format github-annotation` (native GitHub Actions workflow annotations), included workflow template (`.github/workflows/svccat-pr.yml`)
-- `v0.9` — `svccat check --format markdown` (PR-comment-ready Markdown output), `svccat check --since --fail-on-new-drift` (CI gate on new drift only), `svccat report --history <N>` (drift evolution over last N commits)
-- `v0.8` — `svccat report` ownership report (Markdown + HTML), `svccat lint` manifest validation, `svccat check --since` PR-friendly drift diffs
-- `v0.6` — `svccat watch` continuous drift detection, `team`/`oncall` ownership metadata, `--team` team-scoped checks
-- `v0.5` — `svccat diff` snapshot comparison, `policy.require_fields` enforcement
-- `v0.4` — `svccat.toml` workspace config, `--ignore` discovery patterns, shell tab completions
-- `v0.3` — GitHub Action (`rodmen07/svccat@v1`), `depends_on` dependency graph edges, `svccat check --ping` health checks
-- `v0.2` — `svccat init` command (scaffold `services.yaml` from your repo)
-- `v0.1` — core drift detection, terminal/JSON/Mermaid/Markdown output, CI integration
+**In development:** multi-repo workspaces (`svccat workspace check`) with aggregated cross-repo reporting and dependency analysis.
+
+**Notable recent releases:**
+
+- `v0.19.0`: 10 critical and high-severity security fixes (git injection, SSRF, deserialization bombs, path traversal, symlink attacks, glob DoS, information disclosure, IPv6 detection), plus a SECURITY.md threat model
+- `v0.18.0`: `svccat scorecard` (per-service health scoring), `svccat snapshot compare`, `svccat graph --format html` (D3.js visualization), `svccat ci --watch`, webhook automation
+- `v0.17.0`: `svccat ci`, `svccat search`, `svccat snapshot diff`, `svccat deps` dependency analysis, `svccat tag add/remove`
+- `v0.16.0`: `svccat policy` enforcement framework, `svccat snapshot` save/list/delete
+- `v0.15.0`: `svccat audit` (lint + drift + score in one pass), `--ping` reachability checks
+- `v0.14.0`: `svccat serve` live HTML dashboard
+- Earlier: graph (Mermaid/Graphviz/PlantUML), report (Markdown/HTML), watch, import, init, drift detection, multiple output formats
 
 ---
 

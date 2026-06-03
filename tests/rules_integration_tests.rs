@@ -9,6 +9,7 @@ fn test_rule_expression_parsing() {
         description: "Test rule".to_string(),
         expression: "name matches ^service-".to_string(),
         severity: "error".to_string(),
+        base: None,
     };
 
     let result = svccat::rules::RuleEngine::compile(&[rule]);
@@ -22,6 +23,7 @@ fn test_invalid_rule_expression() {
         description: "Invalid rule".to_string(),
         expression: "invalid expression syntax".to_string(),
         severity: "error".to_string(),
+        base: None,
     };
 
     let result = svccat::rules::RuleEngine::compile(&[rule]);
@@ -32,11 +34,13 @@ fn test_invalid_rule_expression() {
 fn test_rule_evaluation_with_manifest() {
     let manifest_path = PathBuf::from("tests/fixtures/rules/manifest-basic.yaml");
 
-    let manifest = Manifest::load(&manifest_path)
-        .expect("Failed to load test manifest");
+    let manifest = Manifest::load(&manifest_path).expect("Failed to load test manifest");
 
     // Verify the manifest has rules defined
-    assert!(!manifest.policy.rules.is_empty(), "Manifest should have rules defined");
+    assert!(
+        !manifest.policy.rules.is_empty(),
+        "Manifest should have rules defined"
+    );
     assert_eq!(manifest.policy.rules.len(), 3, "Should have 3 custom rules");
 
     // Compile the rule engine
@@ -65,13 +69,19 @@ fn test_rule_evaluation_with_manifest() {
                     .iter()
                     .filter(|v| v.rule_id == "naming_convention")
                     .collect();
-                assert!(!naming_violations.is_empty(), "invalid-service should fail naming convention");
+                assert!(
+                    !naming_violations.is_empty(),
+                    "invalid-service should fail naming convention"
+                );
 
                 let team_violations: Vec<_> = violations
                     .iter()
                     .filter(|v| v.rule_id == "required_team")
                     .collect();
-                assert!(!team_violations.is_empty(), "invalid-service should have no team");
+                assert!(
+                    !team_violations.is_empty(),
+                    "invalid-service should have no team"
+                );
             }
             "service-auth" => {
                 // service-auth passes naming convention but has no team
@@ -83,7 +93,10 @@ fn test_rule_evaluation_with_manifest() {
                     .iter()
                     .filter(|v| v.rule_id == "required_team")
                     .collect();
-                assert!(!team_violations.is_empty(), "service-auth should have no team");
+                assert!(
+                    !team_violations.is_empty(),
+                    "service-auth should have no team"
+                );
             }
             _ => {}
         }
@@ -94,15 +107,16 @@ fn test_rule_evaluation_with_manifest() {
 fn test_rule_violations_in_drift_report() {
     let manifest_path = PathBuf::from("tests/fixtures/rules/manifest-basic.yaml");
 
-    let manifest = Manifest::load(&manifest_path)
-        .expect("Failed to load test manifest");
+    let manifest = Manifest::load(&manifest_path).expect("Failed to load test manifest");
 
     let discovered = Vec::new(); // Empty discovered services
 
     let report = drift::analyze(&manifest, &discovered, Path::new("tests/fixtures/rules"));
 
     // Should have policy violations from custom rules
-    let policy_violations: Vec<_> = report.drifts.iter()
+    let policy_violations: Vec<_> = report
+        .drifts
+        .iter()
         .filter(|d| d.kind == drift::DriftKind::PolicyViolation)
         .collect();
 
@@ -112,10 +126,14 @@ fn test_rule_violations_in_drift_report() {
     );
 
     // invalid-service should have multiple violations
-    let invalid_violations: Vec<_> = policy_violations.iter()
+    let invalid_violations: Vec<_> = policy_violations
+        .iter()
         .filter(|d| d.service == "invalid-service")
         .collect();
-    assert!(invalid_violations.len() >= 2, "invalid-service should have at least 2 violations");
+    assert!(
+        invalid_violations.len() >= 2,
+        "invalid-service should have at least 2 violations"
+    );
 }
 
 #[test]
@@ -126,17 +144,18 @@ fn test_rule_severity_levels() {
             description: "This is an error rule".to_string(),
             expression: "name matches ^error-".to_string(),
             severity: "error".to_string(),
+            base: None,
         },
         svccat::rules::Rule {
             id: "warning_rule".to_string(),
             description: "This is a warning rule".to_string(),
             expression: "name matches ^warn-".to_string(),
             severity: "warning".to_string(),
+            base: None,
         },
     ];
 
-    let engine = svccat::rules::RuleEngine::compile(&rules)
-        .expect("Failed to compile rules");
+    let engine = svccat::rules::RuleEngine::compile(&rules).expect("Failed to compile rules");
 
     let warn_service = svccat::manifest::ServiceEntry {
         name: "warn-test".to_string(),
@@ -157,30 +176,37 @@ fn test_rule_severity_levels() {
     let violations = engine.evaluate(&warn_service);
 
     // Should have one violation from error_rule
-    let error_violations: Vec<_> = violations.iter()
+    let error_violations: Vec<_> = violations
+        .iter()
         .filter(|v| v.severity == "error")
         .collect();
     assert_eq!(error_violations.len(), 1, "Should have 1 error violation");
 
     // Should have no violation from warning_rule (name matches warn-)
-    let warning_violations: Vec<_> = violations.iter()
+    let warning_violations: Vec<_> = violations
+        .iter()
         .filter(|v| v.severity == "warning")
         .collect();
-    assert_eq!(warning_violations.len(), 0, "Should have 0 warning violations");
+    assert_eq!(
+        warning_violations.len(),
+        0,
+        "Should have 0 warning violations"
+    );
 }
 
 #[test]
 fn test_multiple_rules_on_service() {
     let manifest_path = PathBuf::from("tests/fixtures/rules/manifest-basic.yaml");
 
-    let manifest = Manifest::load(&manifest_path)
-        .expect("Failed to load test manifest");
+    let manifest = Manifest::load(&manifest_path).expect("Failed to load test manifest");
 
     let engine = svccat::rules::RuleEngine::compile(&manifest.policy.rules)
         .expect("Failed to compile rules");
 
     // Find invalid-service which should violate multiple rules
-    let invalid_service = manifest.services.iter()
+    let invalid_service = manifest
+        .services
+        .iter()
         .find(|s| s.name == "invalid-service")
         .expect("Should find invalid-service");
 
@@ -188,23 +214,27 @@ fn test_multiple_rules_on_service() {
 
     // Should have violations for naming_convention and required_team
     let rule_ids: Vec<_> = violations.iter().map(|v| v.rule_id.as_str()).collect();
-    assert!(rule_ids.contains(&"naming_convention"), "Should have naming_convention violation");
-    assert!(rule_ids.contains(&"required_team"), "Should have required_team violation");
+    assert!(
+        rule_ids.contains(&"naming_convention"),
+        "Should have naming_convention violation"
+    );
+    assert!(
+        rule_ids.contains(&"required_team"),
+        "Should have required_team violation"
+    );
 }
 
 #[test]
 fn test_platform_in_list_rule() {
-    let rules = vec![
-        svccat::rules::Rule {
-            id: "approved_platforms".to_string(),
-            description: "Only approved platforms".to_string(),
-            expression: "platform in [Cloud Run, GKE, Heroku]".to_string(),
-            severity: "warning".to_string(),
-        },
-    ];
+    let rules = vec![svccat::rules::Rule {
+        id: "approved_platforms".to_string(),
+        description: "Only approved platforms".to_string(),
+        expression: "platform in [Cloud Run, GKE, Heroku]".to_string(),
+        severity: "warning".to_string(),
+        base: None,
+    }];
 
-    let engine = svccat::rules::RuleEngine::compile(&rules)
-        .expect("Failed to compile rules");
+    let engine = svccat::rules::RuleEngine::compile(&rules).expect("Failed to compile rules");
 
     // Approved platform
     let approved_service = svccat::manifest::ServiceEntry {

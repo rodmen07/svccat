@@ -73,10 +73,7 @@ fn bench_large_manifest_discovery(c: &mut Criterion) {
                     // Simulate service lookup by name (common operation in drift detection)
                     let _names: Vec<&str> =
                         manifest.services.iter().map(|s| s.name.as_str()).collect();
-                    let _found = manifest
-                        .services
-                        .iter()
-                        .any(|s| s.name == "service-0500");
+                    let _found = manifest.services.iter().any(|s| s.name == "service-0500");
                 })
             },
         );

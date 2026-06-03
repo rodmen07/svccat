@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+
+# rustfmt temp files (left behind on interrupted/locked runs)
+*.rs.tmp.*

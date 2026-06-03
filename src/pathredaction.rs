@@ -41,7 +41,6 @@ pub fn redact_message(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_redact_relative_path() {

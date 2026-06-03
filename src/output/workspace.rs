@@ -53,6 +53,48 @@ pub fn render_terminal(report: &WorkspaceDriftReport) {
     );
     println!();
 
+    // Render dependency analysis if available
+    if let Some(dep_summary) = &report.dependency_summary {
+        println!();
+        println!("──────────────────────────────────────────────────────────────────");
+        println!("📊 DEPENDENCY ANALYSIS");
+        println!("──────────────────────────────────────────────────────────────────");
+        println!(
+            "Services: {} total, {} with dependencies",
+            dep_summary.total_services, dep_summary.services_with_dependencies
+        );
+        println!(
+            "Dependencies: {} total, {} cross-repo",
+            dep_summary.total_dependencies, dep_summary.cross_repo_dependencies
+        );
+
+        if dep_summary.circular_dependencies > 0 {
+            println!(
+                "⚠️  Circular dependencies found: {}",
+                dep_summary.circular_dependencies
+            );
+            for circular_dep in &report.circular_dependencies {
+                println!("   - {}", circular_dep.description);
+            }
+        }
+
+        if dep_summary.unresolvable_dependencies > 0 {
+            println!(
+                "❌ Unresolvable dependencies: {}",
+                dep_summary.unresolvable_dependencies
+            );
+            for unres in &report.unresolvable_dependencies {
+                println!(
+                    "   - {} depends on {} (not found)",
+                    unres.service, unres.dependency
+                );
+            }
+        }
+    }
+
+    println!();
+    println!("═══════════════════════════════════════════════════════════════════");
+
     if report.has_errors() {
         println!("❌ Drift detected. Use --fail-on-drift to gate in CI.");
     } else if report.has_warnings() {
@@ -65,7 +107,7 @@ pub fn render_terminal(report: &WorkspaceDriftReport) {
 
 /// Render workspace report in JSON format.
 pub fn render_json(report: &WorkspaceDriftReport) -> Result<String> {
-    let json_report = json!({
+    let mut json_report = json!({
         "total_declared": report.total_declared,
         "total_discovered": report.total_discovered,
         "total_errors": report.total_errors,
@@ -92,6 +134,14 @@ pub fn render_json(report: &WorkspaceDriftReport) -> Result<String> {
         }).collect::<Vec<_>>(),
     });
 
+    // Add dependency analysis if available
+    if let Some(dep_summary) = &report.dependency_summary {
+        json_report["dependency_summary"] = serde_json::to_value(dep_summary)?;
+        json_report["circular_dependencies"] = serde_json::to_value(&report.circular_dependencies)?;
+        json_report["unresolvable_dependencies"] =
+            serde_json::to_value(&report.unresolvable_dependencies)?;
+    }
+
     Ok(serde_json::to_string_pretty(&json_report)?)
 }
 
@@ -101,7 +151,10 @@ pub fn render_markdown(report: &WorkspaceDriftReport) -> String {
 
     md.push_str(&format!(
         "**Summary:** {} total services, {} errors, {} warnings across {} repositories\n\n",
-        report.total_declared, report.total_errors, report.total_warnings, report.repos.len()
+        report.total_declared,
+        report.total_errors,
+        report.total_warnings,
+        report.repos.len()
     ));
 
     for analysis in &report.repos {
@@ -133,6 +186,46 @@ pub fn render_markdown(report: &WorkspaceDriftReport) -> String {
                 if let Some(detail) = &item.detail {
                     md.push_str(&format!("  - Detail: `{}`\n", detail));
                 }
+            }
+            md.push('\n');
+        }
+    }
+
+    // Add dependency analysis if available
+    if let Some(dep_summary) = &report.dependency_summary {
+        md.push_str("## 📊 Dependency Analysis\n\n");
+        md.push_str(&format!(
+            "- **Total Services:** {}\n",
+            dep_summary.total_services
+        ));
+        md.push_str(&format!(
+            "- **Services with Dependencies:** {}\n",
+            dep_summary.services_with_dependencies
+        ));
+        md.push_str(&format!(
+            "- **Total Dependencies:** {}\n",
+            dep_summary.total_dependencies
+        ));
+        md.push_str(&format!(
+            "- **Cross-Repo Dependencies:** {}\n\n",
+            dep_summary.cross_repo_dependencies
+        ));
+
+        if !report.circular_dependencies.is_empty() {
+            md.push_str("### Circular Dependencies ⚠️\n\n");
+            for circular in &report.circular_dependencies {
+                md.push_str(&format!("- {}\n", circular.description));
+            }
+            md.push('\n');
+        }
+
+        if !report.unresolvable_dependencies.is_empty() {
+            md.push_str("### Unresolvable Dependencies ❌\n\n");
+            for unres in &report.unresolvable_dependencies {
+                md.push_str(&format!(
+                    "- `{}` depends on `{}` — {}\n",
+                    unres.service, unres.dependency, unres.reason
+                ));
             }
             md.push('\n');
         }

@@ -5,8 +5,8 @@ use svccat::workspace;
 fn test_workspace_config_loading() {
     let config_path = PathBuf::from("tests/fixtures/workspace/svccat.toml");
 
-    let (workspace_config, workspace_root) = workspace::load_workspace_config(&config_path)
-        .expect("Failed to load workspace config");
+    let (workspace_config, workspace_root) =
+        workspace::load_workspace_config(&config_path).expect("Failed to load workspace config");
 
     // Verify workspace has 2 repos
     assert_eq!(workspace_config.repos.len(), 2);
@@ -14,7 +14,10 @@ fn test_workspace_config_loading() {
     // Verify first repo
     assert_eq!(workspace_config.repos[0].name, "backend");
     assert_eq!(workspace_config.repos[0].path, PathBuf::from("repo1"));
-    assert_eq!(workspace_config.repos[0].manifest, PathBuf::from("services.yaml"));
+    assert_eq!(
+        workspace_config.repos[0].manifest,
+        PathBuf::from("services.yaml")
+    );
     assert!(workspace_config.repos[0].enabled);
 
     // Verify second repo
@@ -30,8 +33,8 @@ fn test_workspace_config_loading() {
 fn test_workspace_analysis() {
     let config_path = PathBuf::from("tests/fixtures/workspace/svccat.toml");
 
-    let (workspace_config, workspace_root) = workspace::load_workspace_config(&config_path)
-        .expect("Failed to load workspace config");
+    let (workspace_config, workspace_root) =
+        workspace::load_workspace_config(&config_path).expect("Failed to load workspace config");
 
     let report = workspace::analyze_workspace(&workspace_config, &workspace_root, &[], 1)
         .expect("Failed to analyze workspace");
@@ -59,14 +62,17 @@ fn test_workspace_analysis() {
 fn test_workspace_drift_detection() {
     let config_path = PathBuf::from("tests/fixtures/workspace/svccat.toml");
 
-    let (workspace_config, workspace_root) = workspace::load_workspace_config(&config_path)
-        .expect("Failed to load workspace config");
+    let (workspace_config, workspace_root) =
+        workspace::load_workspace_config(&config_path).expect("Failed to load workspace config");
 
     let report = workspace::analyze_workspace(&workspace_config, &workspace_root, &[], 1)
         .expect("Failed to analyze workspace");
 
     // Verify no errors (all services are in sync)
-    assert!(!report.has_errors(), "Should have no errors when all services exist");
+    assert!(
+        !report.has_errors(),
+        "Should have no errors when all services exist"
+    );
 
     // Verify the aggregated metrics are correct
     assert_eq!(report.total_declared, 4);

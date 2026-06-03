@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use crate::rules::Rule;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

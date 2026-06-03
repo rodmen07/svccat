@@ -1,9 +1,10 @@
+use crate::deps_graph;
 use crate::discovery;
 use crate::drift;
 use crate::manifest::Manifest;
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use anyhow::{anyhow, Result};
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -67,6 +68,18 @@ pub struct WorkspaceDriftReport {
 
     /// Total warnings across all repos.
     pub total_warnings: usize,
+
+    /// Dependency graph summary and analysis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependency_summary: Option<deps_graph::DependencySummary>,
+
+    /// Circular dependencies detected in the workspace.
+    #[serde(default)]
+    pub circular_dependencies: Vec<deps_graph::CircularDependency>,
+
+    /// Unresolvable dependencies detected in the workspace.
+    #[serde(default)]
+    pub unresolvable_dependencies: Vec<deps_graph::UnresolvableDependency>,
 }
 
 impl WorkspaceDriftReport {
@@ -104,12 +117,17 @@ pub fn load_workspace_config(config_path: &Path) -> Result<(WorkspaceConfig, Pat
         .ok_or_else(|| anyhow!("cannot determine workspace root from config path"))?
         .to_path_buf();
 
-    let content = std::fs::read_to_string(config_path)
-        .map_err(|e| anyhow!("cannot read workspace config {}: {}", config_path.display(), e))?;
+    let content = std::fs::read_to_string(config_path).map_err(|e| {
+        anyhow!(
+            "cannot read workspace config {}: {}",
+            config_path.display(),
+            e
+        )
+    })?;
 
     // Parse TOML and extract workspace section
-    let toml: toml::Value = toml::from_str(&content)
-        .map_err(|e| anyhow!("cannot parse workspace config: {}", e))?;
+    let toml: toml::Value =
+        toml::from_str(&content).map_err(|e| anyhow!("cannot parse workspace config: {}", e))?;
 
     let workspace = toml
         .get("workspace")
@@ -200,7 +218,8 @@ fn analyze_repository(
     })?;
 
     // Discover services
-    let discovered = discovery::discover_services_with_opts(&repo_root, &manifest, extra_ignore, depth);
+    let discovered =
+        discovery::discover_services_with_opts(&repo_root, &manifest, extra_ignore, depth);
 
     // Analyze drift
     let mut drift_report = drift::analyze(&manifest, &discovered, &repo_root);
@@ -225,6 +244,7 @@ pub fn analyze_workspace(
     let mut total_discovered = 0;
     let mut total_errors = 0;
     let mut total_warnings = 0;
+    let mut manifests = Vec::new();
 
     // Analyze each enabled repository
     for repo_config in &config.repos {
@@ -239,11 +259,45 @@ pub fn analyze_workspace(
                 total_discovered += analysis.drift.discovered;
                 total_errors += analysis.drift.error_count();
                 total_warnings += analysis.drift.warning_count();
+
+                // Load manifest for dependency analysis
+                let repo_root = workspace_root.join(&repo_config.path);
+                let manifest_path = repo_root.join(&repo_config.manifest);
+                if let Ok(manifest) = Manifest::load(&manifest_path) {
+                    manifests.push((repo_config.name.clone(), manifest));
+                }
+
                 analyses.push(analysis);
             }
             Err(e) => {
-                eprintln!("❌ Error analyzing repository '{}': {}", repo_config.name, e);
+                eprintln!(
+                    "❌ Error analyzing repository '{}': {}",
+                    repo_config.name, e
+                );
                 return Err(e);
+            }
+        }
+    }
+
+    // Analyze cross-repo dependencies
+    let mut dependency_summary = None;
+    let mut circular_dependencies = Vec::new();
+    let mut unresolvable_dependencies = Vec::new();
+
+    if !manifests.is_empty() {
+        let manifest_refs: Vec<(String, &Manifest)> = manifests
+            .iter()
+            .map(|(name, manifest)| (name.clone(), manifest))
+            .collect();
+
+        match deps_graph::DependencyGraph::build(manifest_refs) {
+            Ok(graph) => {
+                dependency_summary = Some(graph.summary());
+                circular_dependencies = graph.circular_dependencies.clone();
+                unresolvable_dependencies = graph.validate_all_dependencies();
+            }
+            Err(e) => {
+                eprintln!("⚠️  Warning: Failed to analyze dependencies: {}", e);
             }
         }
     }
@@ -254,6 +308,9 @@ pub fn analyze_workspace(
         total_discovered,
         total_errors,
         total_warnings,
+        dependency_summary,
+        circular_dependencies,
+        unresolvable_dependencies,
     })
 }
 

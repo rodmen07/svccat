@@ -806,14 +806,19 @@ fn run() -> Result<i32> {
                     ignore.extend(cli_ignore);
 
                     // Analyze all repositories
-                    let report = workspace::analyze_workspace(&workspace_config, &workspace_root, &ignore, depth)?;
+                    let report = workspace::analyze_workspace(
+                        &workspace_config,
+                        &workspace_root,
+                        &ignore,
+                        depth,
+                    )?;
 
                     // Render output
                     let content = match format {
-                        svccat::cli::OutputFormat::Json => {
-                            output::workspace::render_json(&report)?
+                        svccat::cli::OutputFormat::Json => output::workspace::render_json(&report)?,
+                        svccat::cli::OutputFormat::Markdown => {
+                            output::workspace::render_markdown(&report)
                         }
-                        svccat::cli::OutputFormat::Markdown => output::workspace::render_markdown(&report),
                         _ => {
                             output::workspace::render_terminal(&report);
                             String::new()

@@ -2,9 +2,71 @@ use crate::{discovery, drift, manifest, output};
 use anyhow::Result;
 use colored::Colorize;
 use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Represents changes detected in the manifest between two runs
+#[derive(Debug, Clone, Default)]
+pub struct ManifestChange {
+    /// Services added since last run
+    pub added_services: Vec<String>,
+    /// Services removed since last run
+    pub removed_services: Vec<String>,
+    /// Services with modified fields
+    pub modified_services: Vec<String>,
+    /// Whether the discovery paths changed
+    pub paths_changed: bool,
+    /// Total drift errors before change
+    pub prev_error_count: usize,
+    /// Total drift errors after change
+    pub new_error_count: usize,
+}
+
+/// Maintains state for real-time watch mode
+#[derive(Debug, Clone, Default)]
+struct WatchState {
+    last_services: Vec<manifest::ServiceEntry>,
+    #[allow(dead_code)]
+    last_error_count: usize,
+    last_paths: Vec<PathBuf>,
+}
+
+impl ManifestChange {
+    /// Check if there were any meaningful changes
+    pub fn has_changes(&self) -> bool {
+        !self.added_services.is_empty()
+            || !self.removed_services.is_empty()
+            || !self.modified_services.is_empty()
+            || self.paths_changed
+            || self.prev_error_count != self.new_error_count
+    }
+
+    /// Generate a human-readable summary of changes
+    pub fn summary(&self) -> String {
+        let mut summary = Vec::new();
+
+        if !self.added_services.is_empty() {
+            summary.push(format!("+ {} added", self.added_services.len()));
+        }
+        if !self.removed_services.is_empty() {
+            summary.push(format!("- {} removed", self.removed_services.len()));
+        }
+        if !self.modified_services.is_empty() {
+            summary.push(format!("~ {} modified", self.modified_services.len()));
+        }
+        if self.paths_changed {
+            summary.push("paths changed".to_string());
+        }
+
+        if summary.is_empty() {
+            "drift status changed".to_string()
+        } else {
+            summary.join(", ")
+        }
+    }
+}
 
 /// Run a continuous drift-check loop, re-triggering on file-system events.
 ///
@@ -95,6 +157,13 @@ pub fn run(
     let debounce = Duration::from_millis(500);
     let mut last_trigger = Instant::now() - debounce * 2;
     let mut prev_errors = initial_errors;
+    let mut watch_state = WatchState::default();
+
+    // Load initial state
+    if let Ok(m) = manifest::Manifest::load(&manifest_path) {
+        watch_state.last_services = m.services.clone();
+        watch_state.last_paths = effective_watch_paths(&m, &root);
+    }
 
     for res in rx {
         match res {
@@ -110,10 +179,16 @@ pub fn run(
                 last_trigger = now;
 
                 // Re-register watch paths in case services.yaml changed.
+                let mut paths_changed = false;
                 if let Ok(new_m) = manifest::Manifest::load(&manifest_path) {
-                    for p in effective_watch_paths(&new_m, &root) {
+                    let new_paths = effective_watch_paths(&new_m, &root);
+                    if new_paths != watch_state.last_paths {
+                        paths_changed = true;
+                        watch_state.last_paths = new_paths.clone();
+                    }
+                    for p in &new_paths {
                         if p.exists() {
-                            let _ = watcher.watch(&p, RecursiveMode::Recursive);
+                            let _ = watcher.watch(p, RecursiveMode::Recursive);
                         }
                     }
                 }
@@ -126,6 +201,27 @@ pub fn run(
                     depth,
                     since.as_deref(),
                 );
+
+                // Detect service changes
+                if let Ok(m) = manifest::Manifest::load(&manifest_path) {
+                    let (added, removed, modified) =
+                        detect_changes(&watch_state.last_services, &m.services);
+
+                    let change = ManifestChange {
+                        added_services: added,
+                        removed_services: removed,
+                        modified_services: modified,
+                        paths_changed,
+                        prev_error_count: prev_errors,
+                        new_error_count: new_errors,
+                    };
+
+                    if change.has_changes() {
+                        display_change_summary(&change);
+                    }
+
+                    watch_state.last_services = m.services;
+                }
 
                 if notify && new_errors != prev_errors {
                     let body = if new_errors == 0 {
@@ -145,6 +241,99 @@ pub fn run(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Detect what changed between two manifest states
+fn detect_changes(
+    prev_services: &[manifest::ServiceEntry],
+    new_services: &[manifest::ServiceEntry],
+) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let prev_names: HashSet<_> = prev_services.iter().map(|s| s.name.clone()).collect();
+    let new_names: HashSet<_> = new_services.iter().map(|s| s.name.clone()).collect();
+
+    let added: Vec<String> = new_names.difference(&prev_names).cloned().collect();
+    let removed: Vec<String> = prev_names.difference(&new_names).cloned().collect();
+
+    // Detect modifications by comparing common services
+    let mut modified = Vec::new();
+    for new_svc in new_services {
+        if let Some(prev_svc) = prev_services.iter().find(|s| s.name == new_svc.name) {
+            if !services_equal(prev_svc, new_svc) {
+                modified.push(new_svc.name.clone());
+            }
+        }
+    }
+
+    (added, removed, modified)
+}
+
+/// Compare two services for equality (ignoring derived fields)
+fn services_equal(a: &manifest::ServiceEntry, b: &manifest::ServiceEntry) -> bool {
+    a.name == b.name
+        && a.language == b.language
+        && a.platform == b.platform
+        && a.team == b.team
+        && a.role == b.role
+        && a.url == b.url
+        && a.oncall == b.oncall
+        && a.docs == b.docs
+        && a.ci == b.ci
+        && a.depends_on == b.depends_on
+        && a.tags == b.tags
+}
+
+/// Display a summary of changes in a visually clear format
+fn display_change_summary(change: &ManifestChange) {
+    if change.added_services.is_empty()
+        && change.removed_services.is_empty()
+        && change.modified_services.is_empty()
+        && !change.paths_changed
+    {
+        return; // No service changes, only drift status
+    }
+
+    eprintln!("\n{} Manifest changes detected:", "○".cyan());
+
+    if !change.added_services.is_empty() {
+        eprintln!(
+            "  {} {} service(s): {}",
+            "+".green(),
+            change.added_services.len(),
+            change.added_services.join(", ")
+        );
+    }
+
+    if !change.removed_services.is_empty() {
+        eprintln!(
+            "  {} {} service(s): {}",
+            "-".red(),
+            change.removed_services.len(),
+            change.removed_services.join(", ")
+        );
+    }
+
+    if !change.modified_services.is_empty() {
+        eprintln!(
+            "  {} {} service(s): {}",
+            "~".yellow(),
+            change.modified_services.len(),
+            change.modified_services.join(", ")
+        );
+    }
+
+    if change.paths_changed {
+        eprintln!("  {} Discovery paths changed", "↻".cyan());
+    }
+
+    // Display drift status change
+    if change.prev_error_count != change.new_error_count {
+        let diff = change.new_error_count as i32 - change.prev_error_count as i32;
+        if diff > 0 {
+            eprintln!("  {} {} new drift error(s)", "⚠".yellow(), diff.abs());
+        } else if diff < 0 {
+            eprintln!("  {} {} drift error(s) resolved", "✓".green(), diff.abs());
+        }
+    }
+}
 
 fn run_once(
     manifest_path: &Path,

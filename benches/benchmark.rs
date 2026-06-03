@@ -30,9 +30,8 @@ services:
 
     c.bench_function("load_manifest_medium", |b| {
         b.iter(|| {
-            let manifest_data = black_box(
-                include_str!("../examples/sample-monorepo/services.yaml"),
-            );
+            let manifest_data =
+                black_box(include_str!("../examples/sample-monorepo/services.yaml"));
             let _manifest: Manifest = serde_yaml::from_str(manifest_data).unwrap();
         })
     });
