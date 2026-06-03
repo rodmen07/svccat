@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780464804334,
+  "lastUpdate": 1780465046841,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -119,6 +119,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12058,
             "range": "± 52",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "distinct": true,
+          "id": "9b7c75b0d68fe6575c88971dfe3f1326f9a9cd82",
+          "message": "docs(changelog): cut v0.21.0 (2026-06-03)\n\nRename the Unreleased section to [0.21.0] now that the version is bumped,\nso the changelog is publish-ready.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+          "timestamp": "2026-06-03T00:34:18-05:00",
+          "tree_id": "6c9a06d46480f095d229a0943f12d6ce50a764f0",
+          "url": "https://github.com/rodmen07/svccat/commit/9b7c75b0d68fe6575c88971dfe3f1326f9a9cd82"
+        },
+        "date": 1780465046340,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 11178,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 21944,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 289,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 4770,
+            "range": "± 110",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4473,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 10971,
+            "range": "± 92",
             "unit": "ns/iter"
           }
         ]
