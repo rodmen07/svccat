@@ -11,9 +11,41 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`svccat workspace check`** - Analyze drift across multiple repositories in one pass.
+  Define the repos in a `[workspace]` section of `svccat.toml`. Supports `--filter <repos>`,
+  `--format`, `--fail-on-drift`, `--ignore`, `--depth`, and `--output`, and emits an aggregated
+  report (terminal/JSON/Markdown) with declared services, errors, and warnings per repository.
+
+- **Cross-repo dependency analysis** - New dependency-graph module surfaces `depends_on`
+  relationships that span repositories in a workspace, flagging dangling and circular
+  references across repo boundaries.
+
+- **Composable policy rules** - A custom rule can now extend a `base` rule, so a shared
+  condition is defined once and reused; derived rules inherit the base condition and add their own.
+
+### Changed
+
+- **`svccat watch`** - Now detects and reports services added or removed between runs,
+  not just edits to the manifest file.
+- **`svccat install-hooks`** - The installed pre-commit hook now runs drift analysis natively
+  (structured results with error and warning counts), plus internal uninstall and
+  install-status helpers.
+
+---
+
+## [0.20.0] - 2026-06-01
+
+### Added
+
 - **`svccat audit --cost-estimate`** - Analyze declared platforms and estimate monthly deployment costs.
   Outputs total cost and breakdown by platform. Supports `--format json` for integration with dashboards.
   Includes sensible defaults for common platforms (Cloud Run, Fly.io, GitHub Pages, AWS, etc.).
+
+### Infrastructure
+
+- Performance benchmarking with criterion, plus a GitHub Actions workflow that tracks results over time on the `gh-pages` branch.
+- Code coverage workflow with Codecov integration.
+- Comprehensive security integration tests and a security best-practices guide.
 
 ---
 

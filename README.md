@@ -894,6 +894,33 @@ graph TD
 
 ---
 
+## `svccat workspace`: multi-repo drift
+
+Check drift across several repositories in one pass. List the repos in a
+`[workspace]` section of an `svccat.toml` at the workspace root:
+
+```toml
+# svccat.toml (workspace root)
+[workspace]
+repos = [
+    { name = "backend",  path = "repo1", manifest = "services.yaml", enabled = true },
+    { name = "frontend", path = "repo2", manifest = "services.yaml", enabled = true },
+]
+```
+
+```bash
+svccat workspace check                             # aggregated terminal report
+svccat workspace check --filter backend,frontend   # only the named repos
+svccat workspace check --format markdown           # Markdown summary for PR comments
+svccat workspace check --fail-on-drift             # exit 1 on any drift (CI gate)
+```
+
+The report aggregates declared services, errors, and warnings per repository.
+Cross-repo dependency analysis flags `depends_on` edges that dangle or form
+cycles across repository boundaries.
+
+---
+
 ## Try the sample monorepo
 
 ```bash
