@@ -7,6 +7,29 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`svccat demo`** - Zero-setup walkthrough: generates a throwaway sample monorepo
+  (with deliberate drift) in a temp dir and runs `check`, `graph`, and `stats` against
+  it, then cleans up (`--keep` retains the sample). Useful for first-run onboarding.
+- **`examples/demo.rs`** - Library usage example (`cargo run --example demo`) showing
+  how to load a manifest, discover services, and analyze drift through the crate API.
+
+### Fixed
+
+- **Windows stack overflow** - The CLI now runs on a worker thread with a 16 MB stack.
+  clap's construction of the large `Commands` enum could exceed Windows' default 1 MB
+  main-thread stack (Linux's 8 MB default masked this in CI and tests).
+
+### Changed
+
+- **README** - Condensed by ~75%: per-command deep dives removed in favor of
+  `svccat <command> --help`, with a getting-started flow and a `svccat demo` pointer.
+
+---
+
 ## [0.21.0] - 2026-06-03
 
 ### Added

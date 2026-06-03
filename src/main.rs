@@ -9,18 +9,28 @@ use svccat::cli::{
     SnapshotAction, TagAction, WorkspaceAction,
 };
 use svccat::{
-    audit, ci, config, deps, diff, discovery, drift, fix, hooks, import, init, lint, manifest,
-    output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag, watch,
-    webhook, workspace,
+    audit, ci, config, demo, deps, diff, discovery, drift, fix, hooks, import, init, lint,
+    manifest, output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag,
+    watch, webhook, workspace,
 };
 
 fn main() {
-    match run() {
-        Ok(code) => process::exit(code),
-        Err(e) => {
+    // The `Commands` enum is large, and clap's command-tree construction can
+    // exceed the default 1 MB main-thread stack on Windows (Linux defaults to
+    // 8 MB, which is why CI never tripped it). Run on a thread with a bigger
+    // stack so the CLI behaves identically across platforms.
+    let worker = std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(run)
+        .expect("failed to spawn worker thread");
+
+    match worker.join() {
+        Ok(Ok(code)) => process::exit(code),
+        Ok(Err(e)) => {
             eprintln!("error: {e:#}");
             process::exit(2);
         }
+        Err(_) => process::exit(101), // worker panicked; the default hook already printed it
     }
 }
 
@@ -840,6 +850,8 @@ fn run() -> Result<i32> {
                 }
             }
         }
+
+        Commands::Demo { keep } => demo::run(keep),
 
         Commands::Completions { shell } => {
             let mut cmd = Cli::command();

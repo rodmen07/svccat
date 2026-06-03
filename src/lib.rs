@@ -3,6 +3,7 @@ pub mod ci;
 pub mod cli;
 pub mod config;
 pub mod cost;
+pub mod demo;
 pub mod deps;
 pub mod deps_graph;
 pub mod diff;

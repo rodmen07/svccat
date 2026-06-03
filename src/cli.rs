@@ -552,6 +552,17 @@ pub enum Commands {
         action: WorkspaceAction,
     },
 
+    /// Run a self-contained demo against a temporary sample monorepo
+    ///
+    /// Creates a small sample catalog (with deliberate drift) in a temp directory
+    /// and walks through `check`, `graph`, and `stats` so you can see svccat in
+    /// action with zero setup. Afterwards, run `svccat init` in your own repo.
+    Demo {
+        /// Keep the generated sample directory instead of deleting it
+        #[arg(long)]
+        keep: bool,
+    },
+
     /// Print shell completion script to stdout
     ///
     /// Source the output to enable tab completion, e.g.:
