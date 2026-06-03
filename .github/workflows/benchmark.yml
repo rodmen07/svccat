@@ -14,6 +14,10 @@ jobs:
     name: Benchmark & Track Performance
     runs-on: ubuntu-latest
 
+    # github-action-benchmark pushes tracking data to the gh-pages branch
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4.1.7
 
@@ -24,7 +28,7 @@ jobs:
         uses: Swatinem/rust-cache@v2.7.3
 
       - name: Run benchmarks
-        run: cargo bench --bench benchmark
+        run: cargo bench --bench benchmark -- --output-format bencher | tee output.txt
 
       - name: Check binary size
         run: |
@@ -37,7 +41,7 @@ jobs:
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: 'cargo'
-          output-file-path: target/criterion/output.txt
+          output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
 
