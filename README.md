@@ -199,6 +199,14 @@ on [docs.rs/svccat](https://docs.rs/svccat).
 
 ---
 
+## Support
+
+svccat is free and open source. If it saves you some toil, you can buy me a coffee:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?logo=buymeacoffee&logoColor=white)](https://www.buymeacoffee.com/rodmen07)
+
+---
+
 ## Contributing
 
 Bug reports and pull requests welcome. Please run `cargo clippy -- -D warnings` and
