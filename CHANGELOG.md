@@ -7,6 +7,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.1] - 2026-06-05
+
+### Added
+
+- **`homepage` and `documentation` metadata** in `Cargo.toml` so crates.io shows
+  the Homepage and Documentation links alongside Repository. Metadata-only patch;
+  no code or API changes.
+
+---
+
 ## [1.0.0] - 2026-06-05
 
 First stable release. The public API is now frozen under [semantic
