@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.0] - 2026-06-05
+
+First stable release. The public API is now frozen under [semantic
+versioning](https://semver.org/); see `docs/API_STABILITY.md` for exactly what is
+covered.
+
+There are **no functional or API changes since 0.23.0** - this release only
+promotes the API surface curated in 0.23.0 to a stable `1.x` guarantee.
+
+---
+
 ## [0.23.0] - 2026-06-05
 
 This release prepares the public API for a `1.0.0` freeze. It is the last planned
