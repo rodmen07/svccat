@@ -7,6 +7,39 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.23.0] - 2026-06-05
+
+This release prepares the public API for a `1.0.0` freeze. It is the last planned
+window for breaking library changes before `1.0`.
+
+### Changed
+
+- **Curated public library API.** Only `manifest`, `discovery`, `drift`,
+  `report`, and `config` are now documented as the stable, semver-covered API.
+  The remaining modules are CLI implementation details and are marked
+  `#[doc(hidden)]`; they remain reachable but are no longer part of the public
+  contract. See the new `docs/API_STABILITY.md`.
+- **Core types are now `#[non_exhaustive]`** (`Manifest`, `ServiceEntry`,
+  `DriftItem`, `DriftReport`, `DriftKind`, `Severity`, `DiscoveredService`) so
+  fields and variants can be added in future minor releases without a breaking
+  change. `Manifest` and `ServiceEntry` now derive `Default` for ergonomic
+  programmatic construction.
+  - **Migration:** construct these types via `Default::default()` plus field
+    assignment instead of struct literals, and add a wildcard arm when matching
+    on `DriftKind` or `Severity`.
+- **Replaced the unmaintained `serde_yaml` dependency** with the maintained
+  `serde_yaml_ng` fork. No behavioural change; YAML parsing and serialization
+  are unaffected.
+
+### Added
+
+- **`docs/API_STABILITY.md`** documenting exactly what semver covers for the
+  library, the CLI, and the MSRV.
+- **Crate-level documentation** with a runnable library usage example.
+- **Declared MSRV** of Rust `1.85` via `rust-version` in `Cargo.toml`.
+
+---
+
 ## [0.22.0] - 2026-06-03
 
 ### Added

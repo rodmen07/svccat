@@ -3,21 +3,13 @@
 use svccat::manifest::ServiceEntry;
 
 fn create_service(name: &str) -> ServiceEntry {
-    ServiceEntry {
-        name: name.to_string(),
-        language: Some("Rust".to_string()),
-        platform: Some("Cloud Run".to_string()),
-        url: None,
-        role: Some("Service".to_string()),
-        team: Some("platform".to_string()),
-        oncall: None,
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: vec![],
-        depends_on: vec![],
-    }
+    let mut svc = ServiceEntry::default();
+    svc.name = name.to_string();
+    svc.language = Some("Rust".to_string());
+    svc.platform = Some("Cloud Run".to_string());
+    svc.role = Some("Service".to_string());
+    svc.team = Some("platform".to_string());
+    svc
 }
 
 #[test]

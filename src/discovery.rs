@@ -14,6 +14,7 @@ const MAX_CONSECUTIVE_WILDCARDS: usize = 2;
 // ── Public types ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DiscoveredService {
     /// Directory name — used as the service name when matching.
     pub name: String,

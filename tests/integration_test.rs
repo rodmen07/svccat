@@ -1172,6 +1172,8 @@ services:
                     svccat::drift::DriftKind::MissingReferencedFile => "missing_referenced_file",
                     svccat::drift::DriftKind::DanglingDependency => "dangling_dependency",
                     svccat::drift::DriftKind::CircularDependency => "circular_dependency",
+                    // DriftKind is #[non_exhaustive]; map any future variant generically.
+                    _ => "unknown",
                 };
                 serde_json::json!({ "ruleId": rule_id, "message": { "text": item.message } })
             }).collect::<Vec<_>>()

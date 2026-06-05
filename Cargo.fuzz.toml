@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 libfuzzer-sys = "0.4"
 svccat = { path = ".", features = ["__fuzz_target"] }
-serde_yaml = "0.9"
+serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
 glob = "0.3"
 
 [[bin]]

@@ -7,41 +7,30 @@ fn create_test_service(
     platform: &str,
     depends_on: Vec<&str>,
 ) -> svccat::manifest::ServiceEntry {
-    svccat::manifest::ServiceEntry {
-        name: name.to_string(),
-        language: Some(language.to_string()),
-        platform: Some(platform.to_string()),
-        url: None,
-        role: Some("Service".to_string()),
-        team: Some("platform".to_string()),
-        oncall: None,
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: Vec::new(),
-        depends_on: depends_on.iter().map(|s| s.to_string()).collect(),
-    }
+    let mut svc = svccat::manifest::ServiceEntry::default();
+    svc.name = name.to_string();
+    svc.language = Some(language.to_string());
+    svc.platform = Some(platform.to_string());
+    svc.role = Some("Service".to_string());
+    svc.team = Some("platform".to_string());
+    svc.depends_on = depends_on.iter().map(|s| s.to_string()).collect();
+    svc
 }
 
 fn create_test_manifest(services: Vec<svccat::manifest::ServiceEntry>) -> Manifest {
-    Manifest {
-        version: "1".to_string(),
-        discovery: svccat::manifest::DiscoveryConfig {
-            paths: vec!["services/*".to_string()],
-            markers: vec![
-                "package.json".to_string(),
-                "Cargo.toml".to_string(),
-                "go.mod".to_string(),
-            ],
-            ignore: Vec::new(),
-        },
-        policy: svccat::manifest::PolicyConfig {
-            require_fields: Vec::new(),
-            rules: Vec::new(),
-        },
-        services,
-    }
+    let mut manifest = Manifest::default();
+    manifest.version = "1".to_string();
+    manifest.discovery = svccat::manifest::DiscoveryConfig {
+        paths: vec!["services/*".to_string()],
+        markers: vec![
+            "package.json".to_string(),
+            "Cargo.toml".to_string(),
+            "go.mod".to_string(),
+        ],
+        ignore: Vec::new(),
+    };
+    manifest.services = services;
+    manifest
 }
 
 #[test]

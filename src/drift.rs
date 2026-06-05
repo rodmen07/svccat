@@ -8,6 +8,7 @@ use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DriftKind {
     /// Service is listed in the manifest but its directory is missing from the repo.
     DeclaredMissingFromRepo,
@@ -27,12 +28,14 @@ pub enum DriftKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Severity {
     Error,
     Warning,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DriftItem {
     pub kind: DriftKind,
     pub severity: Severity,
@@ -43,6 +46,7 @@ pub struct DriftItem {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct DriftReport {
     pub manifest: String,
     pub declared: usize,

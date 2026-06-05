@@ -157,21 +157,8 @@ fn test_rule_severity_levels() {
 
     let engine = svccat::rules::RuleEngine::compile(&rules).expect("Failed to compile rules");
 
-    let warn_service = svccat::manifest::ServiceEntry {
-        name: "warn-test".to_string(),
-        language: None,
-        platform: None,
-        role: None,
-        team: None,
-        url: None,
-        oncall: None,
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: Vec::new(),
-        depends_on: Vec::new(),
-    };
+    let mut warn_service = svccat::manifest::ServiceEntry::default();
+    warn_service.name = "warn-test".to_string();
 
     let violations = engine.evaluate(&warn_service);
 
@@ -237,41 +224,17 @@ fn test_platform_in_list_rule() {
     let engine = svccat::rules::RuleEngine::compile(&rules).expect("Failed to compile rules");
 
     // Approved platform
-    let approved_service = svccat::manifest::ServiceEntry {
-        name: "test-service".to_string(),
-        language: None,
-        platform: Some("Cloud Run".to_string()),
-        role: None,
-        team: None,
-        url: None,
-        oncall: None,
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: Vec::new(),
-        depends_on: Vec::new(),
-    };
+    let mut approved_service = svccat::manifest::ServiceEntry::default();
+    approved_service.name = "test-service".to_string();
+    approved_service.platform = Some("Cloud Run".to_string());
 
     let violations = engine.evaluate(&approved_service);
     assert_eq!(violations.len(), 0, "Approved platform should pass");
 
     // Unapproved platform
-    let unapproved_service = svccat::manifest::ServiceEntry {
-        name: "test-service".to_string(),
-        language: None,
-        platform: Some("Lambda".to_string()),
-        role: None,
-        team: None,
-        url: None,
-        oncall: None,
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: Vec::new(),
-        depends_on: Vec::new(),
-    };
+    let mut unapproved_service = svccat::manifest::ServiceEntry::default();
+    unapproved_service.name = "test-service".to_string();
+    unapproved_service.platform = Some("Lambda".to_string());
 
     let violations = engine.evaluate(&unapproved_service);
     assert_eq!(violations.len(), 1, "Unapproved platform should fail");

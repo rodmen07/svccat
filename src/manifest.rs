@@ -19,7 +19,8 @@ const MAX_SERVICE_NAME_LEN: usize = 256;
 
 // ── Manifest ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Manifest {
     #[serde(default = "default_version")]
     pub version: String,
@@ -193,7 +194,8 @@ pub fn default_markers_pub() -> Vec<String> {
 // ── Service entry ─────────────────────────────────────────────────────────────
 
 /// One entry in the `services:` list.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub struct ServiceEntry {
     pub name: String,
 

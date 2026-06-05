@@ -8,21 +8,13 @@ fn create_service(
     team: Option<&str>,
     oncall: Option<&str>,
 ) -> ServiceEntry {
-    ServiceEntry {
-        name: name.to_string(),
-        language: language.map(|s| s.to_string()),
-        platform: platform.map(|s| s.to_string()),
-        url: None,
-        role: None,
-        team: team.map(|s| s.to_string()),
-        oncall: oncall.map(|s| s.to_string()),
-        submodule: None,
-        path: None,
-        docs: None,
-        ci: None,
-        tags: vec![],
-        depends_on: Vec::new(),
-    }
+    let mut svc = ServiceEntry::default();
+    svc.name = name.to_string();
+    svc.language = language.map(|s| s.to_string());
+    svc.platform = platform.map(|s| s.to_string());
+    svc.team = team.map(|s| s.to_string());
+    svc.oncall = oncall.map(|s| s.to_string());
+    svc
 }
 
 #[test]
