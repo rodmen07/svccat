@@ -68,6 +68,8 @@ pub mod hooks;
 #[doc(hidden)]
 pub mod import;
 #[doc(hidden)]
+pub mod infer;
+#[doc(hidden)]
 pub mod init;
 #[doc(hidden)]
 pub mod lint;

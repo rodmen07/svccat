@@ -1,33 +1,8 @@
 use crate::discovery::{discover_services, DiscoveredService};
+use crate::infer::{infer_language, infer_platform};
 use crate::manifest::{DiscoveryConfig, Manifest, DEFAULT_DISCOVERY_PATHS};
 use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
-
-/// Language inferred from the marker files present in a service directory.
-pub(crate) fn infer_language(root: &Path, service_path: &str) -> Option<String> {
-    let dir = root.join(service_path);
-    let candidates: &[(&str, &str)] = &[
-        ("Cargo.toml", "Rust"),
-        ("go.mod", "Go"),
-        ("package.json", "TypeScript"),
-        ("pyproject.toml", "Python"),
-        ("requirements.txt", "Python"),
-        ("pom.xml", "Java"),
-        ("build.gradle", "Java"),
-        ("build.gradle.kts", "Kotlin"),
-        ("CMakeLists.txt", "C++"),
-        ("Directory.Build.props", "C#"),
-        ("Gemfile", "Ruby"),
-        ("mix.exs", "Elixir"),
-        ("pubspec.yaml", "Dart"),
-    ];
-    for (marker, lang) in candidates {
-        if dir.join(marker).exists() {
-            return Some(lang.to_string());
-        }
-    }
-    None
-}
 
 /// Render a human-friendly, annotated YAML scaffold for the discovered services.
 pub fn render_yaml(services: &[DiscoveredService], root: &Path) -> String {
@@ -56,7 +31,12 @@ pub fn render_yaml(services: &[DiscoveredService], root: &Path) -> String {
             out.push_str(&format!("  - name: {}\n", svc.name));
             out.push_str(&format!("    path: {}\n", svc.path));
             out.push_str(&format!("    language: {}\n", lang));
-            out.push_str("    platform: ~  # e.g. gcp-cloud-run, fly.io, vercel, aws-lambda\n");
+            match infer_platform(root, &svc.path) {
+                Some(platform) => out.push_str(&format!("    platform: {}\n", platform)),
+                None => out.push_str(
+                    "    platform: ~  # e.g. gcp-cloud-run, fly.io, vercel, aws-lambda\n",
+                ),
+            }
             out.push_str("    role: ~      # e.g. api, worker, frontend, database\n");
             out.push_str("    url: ~       # e.g. https://my-service.example.com\n");
         }

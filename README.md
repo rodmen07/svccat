@@ -60,7 +60,8 @@ command.
 
 **Set up a manifest**
 
-- `svccat init` scaffolds a `services.yaml` from your repo (`--force` to overwrite)
+- `svccat init` scaffolds a `services.yaml` from your repo (`--force` to overwrite),
+  inferring each service's `language` and `platform` from files it finds on disk
 - `svccat import --from backstage|docker-compose|openapi` seeds it from another source
 - `svccat lint` validates the manifest for structural issues
 - `svccat install-hooks` installs a pre-commit hook (`--hook pre-push` for pre-push)
@@ -80,8 +81,8 @@ Add `--format <fmt>` to change the output, where `<fmt>` is one of `compact`, `c
 
 **Fix drift**
 
-- `svccat fix` adds undeclared services to the manifest (`--prune` removes missing ones,
-  `--dry-run` previews)
+- `svccat fix` adds undeclared services to the manifest, inferring `language` and
+  `platform` for each (`--prune` removes missing ones, `--dry-run` previews)
 
 **Visualize and report**
 

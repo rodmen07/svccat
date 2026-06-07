@@ -1,6 +1,6 @@
 use crate::discovery::discover_services_with_opts;
 use crate::drift::{analyze, DriftKind};
-use crate::init::infer_language;
+use crate::infer::{infer_language, infer_platform};
 use crate::manifest::{Manifest, ServiceEntry};
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -61,22 +61,33 @@ pub fn run(
 
     for svc in &to_add {
         let lang = infer_language(root, &svc.path);
+        let platform = infer_platform(root, &svc.path);
         let lang_str = lang.as_deref().unwrap_or("unknown");
         let label = if dry_run { "would add" } else { "+ add    " };
-        println!(
-            "  {}  {} ({}, {})",
-            label.green(),
-            svc.name.bold(),
-            svc.path,
-            lang_str
-        );
+        match platform.as_deref() {
+            Some(p) => println!(
+                "  {}  {} ({}, {}, {})",
+                label.green(),
+                svc.name.bold(),
+                svc.path,
+                lang_str,
+                p
+            ),
+            None => println!(
+                "  {}  {} ({}, {})",
+                label.green(),
+                svc.name.bold(),
+                svc.path,
+                lang_str
+            ),
+        }
         added.push(svc.name.clone());
         if !dry_run {
             manifest.services.push(ServiceEntry {
                 name: svc.name.clone(),
                 path: Some(svc.path.clone()),
                 language: lang,
-                platform: None,
+                platform,
                 url: None,
                 role: None,
                 team: None,

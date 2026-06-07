@@ -7,6 +7,23 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.0] - 2026-06-07
+
+### Added
+
+- **Metadata auto-inference in `init` and `fix`.** When scaffolding or
+  remediating a manifest, svccat now infers each service's `platform` from
+  deploy descriptors found in its directory (`fly.toml` → `fly.io`,
+  `vercel.json` → `vercel`, `Chart.yaml` → `kubernetes-helm`, a `k8s/` directory
+  → `kubernetes`, and others), in addition to the existing `language` inference.
+  Inference is conservative: a field is only populated on an unambiguous signal,
+  otherwise it stays a placeholder. A bare `Dockerfile` is not treated as a
+  platform signal. This reduces `missing_field` drift in freshly generated
+  manifests. Language inference now also recognises `setup.py` (Python) and
+  `composer.json` (PHP).
+
+---
+
 ## [1.0.1] - 2026-06-05
 
 ### Added

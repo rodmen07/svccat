@@ -413,6 +413,68 @@ fn init_creates_services_yaml_from_discovered_services() {
 }
 
 #[test]
+fn init_infers_platform_from_deploy_descriptor() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/web/Cargo.toml");
+    touch(root, "services/web/fly.toml");
+
+    let output = root.join("services.yaml");
+    svccat::init::run(root, output.clone(), false).unwrap();
+
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(
+        contents.contains("platform: fly.io"),
+        "should infer fly.io platform from fly.toml, got:\n{contents}"
+    );
+}
+
+#[test]
+fn init_leaves_platform_placeholder_without_descriptor() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    // Only a Dockerfile: not a platform signal, so platform stays a placeholder.
+    touch(root, "services/api/Dockerfile");
+
+    let output = root.join("services.yaml");
+    svccat::init::run(root, output.clone(), false).unwrap();
+
+    let contents = fs::read_to_string(&output).unwrap();
+    assert!(
+        contents.contains("platform: ~"),
+        "platform should remain a placeholder, got:\n{contents}"
+    );
+}
+
+#[test]
+fn fix_infers_language_and_platform_for_added_services() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    write_manifest(
+        root,
+        "version: \"1\"\ndiscovery:\n  paths:\n    - services/*\nservices: []\n",
+    );
+
+    touch(root, "services/worker/go.mod");
+    fs::create_dir_all(root.join("services/worker/k8s")).unwrap();
+
+    let manifest_path = root.join("services.yaml");
+    svccat::fix::run(&manifest_path, root, &[], 1, false, false).unwrap();
+
+    let m = svccat::manifest::Manifest::load(&manifest_path).unwrap();
+    let worker = m
+        .services
+        .iter()
+        .find(|s| s.name == "worker")
+        .expect("worker should be added by fix");
+    assert_eq!(worker.language.as_deref(), Some("Go"));
+    assert_eq!(worker.platform.as_deref(), Some("kubernetes"));
+}
+
+#[test]
 fn init_refuses_to_overwrite_without_force() {
     let dir = TempDir::new().unwrap();
     let root = dir.path();
