@@ -7,6 +7,26 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.1] - 2026-06-27
+
+### Added
+
+- Focused output-layer regression tests for:
+  - Slack payload rendering
+  - Teams adaptive-card payload rendering
+  - Datadog event payload rendering
+  - CSV escaping helpers
+  - Mermaid graph helper normalization and escaping
+
+### Changed
+
+- Output renderers now expose internal payload builder helpers used by module
+  tests to reduce regression risk across supported output formats.
+
+### Internal
+
+- Formatting-only cleanup to maintain strict `cargo fmt --check` compliance.
+
 ## [1.1.0] - 2026-06-07
 
 ### Added
