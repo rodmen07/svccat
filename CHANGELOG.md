@@ -9,6 +9,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-06-27
+
 ### Added
 
 - Added a shared-fixture output matrix integration test covering JSON, Slack,
