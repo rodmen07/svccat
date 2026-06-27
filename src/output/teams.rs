@@ -7,12 +7,21 @@ use serde_json::{json, Value};
 /// The output is an Adaptive Card (version 1.4) wrapped in the `attachments`
 /// envelope expected by Teams incoming webhooks and the `chat.postMessage` API.
 pub fn render_check(report: &DriftReport) -> Result<()> {
-    let payload = build_check_payload(report);
-    println!("{}", serde_json::to_string_pretty(&payload)?);
+    println!("{}", render_check_to_string(report)?);
     Ok(())
 }
 
-fn build_check_payload(report: &DriftReport) -> Value {
+/// Build the Teams payload and serialize it to pretty-printed JSON.
+pub fn render_check_to_string(report: &DriftReport) -> Result<String> {
+    let payload = build_check_payload(report);
+    Ok(serde_json::to_string_pretty(&payload)?)
+}
+
+pub(crate) fn build_check_payload(report: &DriftReport) -> Value {
+    build_check_payload_inner(report)
+}
+
+fn build_check_payload_inner(report: &DriftReport) -> Value {
     let errors = report.error_count();
     let warnings = report.warning_count();
 

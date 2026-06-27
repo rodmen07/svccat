@@ -16,12 +16,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///   -H "Content-Type: application/json" -d @-
 /// ```
 pub fn render_check(report: &DriftReport) -> Result<()> {
-    let summary = build_check_payload(report);
-    println!("{}", serde_json::to_string_pretty(&summary)?);
+    println!("{}", render_check_to_string(report)?);
     Ok(())
 }
 
-fn build_check_payload(report: &DriftReport) -> Value {
+/// Build the Datadog payload and serialize it to pretty-printed JSON.
+pub fn render_check_to_string(report: &DriftReport) -> Result<String> {
+    let summary = build_check_payload(report);
+    Ok(serde_json::to_string_pretty(&summary)?)
+}
+
+pub(crate) fn build_check_payload(report: &DriftReport) -> Value {
+    build_check_payload_inner(report)
+}
+
+fn build_check_payload_inner(report: &DriftReport) -> Value {
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

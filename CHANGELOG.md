@@ -9,6 +9,20 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Added a shared-fixture output matrix integration test covering JSON, Slack,
+  Teams, Datadog, and Mermaid output structures.
+
+### Changed
+
+- Added `render_check_to_string` helpers for Slack, Teams, and Datadog outputs
+  to make integration-level payload validation straightforward.
+
+---
+
+## [1.1.2] - 2026-06-27
+
 ### Fixed
 
 - Moved Mermaid module tests to the end of the file so strict clippy CI with

@@ -1975,3 +1975,78 @@ services:
         "expected only new drift testcase"
     );
 }
+
+#[test]
+fn output_matrix_from_shared_drift_fixture_is_structurally_valid() {
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+    touch(root, "services/rogue/go.mod");
+
+    // api is missing role (missing-field), ghost-service is declared but absent
+    // (declared-missing), and rogue is undeclared in repo.
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    platform: Cloud Run
+  - name: ghost-service
+    language: Go
+    role: Worker
+    platform: Cloud Run
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    assert!(!report.drifts.is_empty(), "fixture should contain drift");
+
+    let json_output = svccat::output::json::render_check_to_string(&report, &[]).unwrap();
+    let json_value: serde_json::Value = serde_json::from_str(&json_output).unwrap();
+    assert_eq!(
+      json_value["summary"]["errors"].as_u64().unwrap(),
+      report.error_count() as u64
+    );
+    assert_eq!(
+      json_value["summary"]["warnings"].as_u64().unwrap(),
+        report.warning_count() as u64
+    );
+
+    let slack_output = svccat::output::slack::render_check_to_string(&report).unwrap();
+    let slack_value: serde_json::Value = serde_json::from_str(&slack_output).unwrap();
+    assert!(slack_value["blocks"].is_array());
+    assert!(
+        slack_output.contains("ghost-service") || slack_output.contains("rogue"),
+        "slack payload should include drift services"
+    );
+
+    let teams_output = svccat::output::teams::render_check_to_string(&report).unwrap();
+    let teams_value: serde_json::Value = serde_json::from_str(&teams_output).unwrap();
+    assert!(teams_value["attachments"].is_array());
+    assert!(
+        teams_output.contains("ghost-service") || teams_output.contains("rogue"),
+        "teams payload should include drift services"
+    );
+
+    let datadog_output = svccat::output::datadog::render_check_to_string(&report).unwrap();
+    let datadog_value: serde_json::Value = serde_json::from_str(&datadog_output).unwrap();
+    assert!(datadog_value["events"].is_array());
+    assert_eq!(
+        datadog_value["errors"].as_u64().unwrap(),
+        report.error_count() as u64
+    );
+    assert_eq!(
+        datadog_value["warnings"].as_u64().unwrap(),
+        report.warning_count() as u64
+    );
+
+    let mermaid_graph = svccat::output::mermaid::render_graph_filtered_string(&m, None);
+    assert!(mermaid_graph.contains("graph TD"));
+    assert!(mermaid_graph.contains("api"));
+    assert!(mermaid_graph.contains("ghost-service"));
+}
