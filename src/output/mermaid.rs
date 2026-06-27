@@ -154,34 +154,6 @@ fn build_label(svc: &crate::manifest::ServiceEntry) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn safe_id_normalizes_non_alphanumeric_chars() {
-        assert_eq!(safe_id("api-gateway.v1"), "api_gateway_v1");
-        assert_eq!(safe_id("service/name"), "service_name");
-    }
-
-    #[test]
-    fn dot_escape_escapes_quotes_and_backslashes() {
-        assert_eq!(dot_escape("a\\b"), "a\\\\b");
-        assert_eq!(dot_escape("a\"b"), "a\\\"b");
-    }
-
-    #[test]
-    fn build_label_includes_optional_fields() {
-        let svc = crate::manifest::ServiceEntry {
-            name: "api".to_string(),
-            language: Some("Rust".to_string()),
-            role: Some("Gateway".to_string()),
-            ..Default::default()
-        };
-        assert_eq!(build_label(&svc), "api\\nRust\\nGateway");
-    }
-}
-
 // ── Graphviz DOT renderer ─────────────────────────────────────────────────────
 
 /// Emit a Graphviz DOT digraph of the service dependency graph.
@@ -754,4 +726,32 @@ sim.on("tick", () => {{
         nodes_json = nodes_json,
         links_json = links_json,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safe_id_normalizes_non_alphanumeric_chars() {
+        assert_eq!(safe_id("api-gateway.v1"), "api_gateway_v1");
+        assert_eq!(safe_id("service/name"), "service_name");
+    }
+
+    #[test]
+    fn dot_escape_escapes_quotes_and_backslashes() {
+        assert_eq!(dot_escape("a\\b"), "a\\\\b");
+        assert_eq!(dot_escape("a\"b"), "a\\\"b");
+    }
+
+    #[test]
+    fn build_label_includes_optional_fields() {
+        let svc = crate::manifest::ServiceEntry {
+            name: "api".to_string(),
+            language: Some("Rust".to_string()),
+            role: Some("Gateway".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(build_label(&svc), "api\\nRust\\nGateway");
+    }
 }

@@ -7,6 +7,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- Moved Mermaid module tests to the end of the file so strict clippy CI with
+  `-D warnings` passes (`clippy::items_after_test_module`).
+
+---
+
 ## [1.1.1] - 2026-06-27
 
 ### Added
