@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-06-27
+
+### Added
+
+- Regression coverage for CSV check rendering when no drift exists, ensuring
+  output still emits exactly the header row.
+
 ## [1.1.5] - 2026-06-27
 
 ### Changed

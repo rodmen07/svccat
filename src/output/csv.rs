@@ -101,4 +101,18 @@ mod tests {
         assert!(csv.starts_with("service,severity,kind,message,detail\n"));
         assert!(csv.contains("\"api,svc\",error,declared_missing_from_repo,\"missing \"\"directory\"\"\","));
     }
+
+    #[test]
+    fn render_check_to_string_with_no_drift_keeps_header_only() {
+        let report: DriftReport = serde_json::from_value(serde_json::json!({
+            "manifest": "services.yaml",
+            "declared": 1,
+            "discovered": 1,
+            "drifts": []
+        }))
+        .unwrap();
+
+        let csv = render_check_to_string(&report);
+        assert_eq!(csv, "service,severity,kind,message,detail\n");
+    }
 }
