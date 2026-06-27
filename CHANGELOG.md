@@ -18,6 +18,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added `render_check_to_string` helpers for Slack, Teams, and Datadog outputs
   to make integration-level payload validation straightforward.
+- `svccat check --output <file>` now supports Slack, Teams, and Datadog
+  formats in addition to JSON/Markdown.
 
 ---
 

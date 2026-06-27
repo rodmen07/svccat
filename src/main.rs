@@ -34,6 +34,23 @@ fn main() {
     }
 }
 
+fn render_check_output_to_string(
+    format: &OutputFormat,
+    report: &drift::DriftReport,
+    ping_results: &[ping::PingResult],
+) -> Result<Option<String>> {
+    let maybe_string = match format {
+        OutputFormat::Json => Some(output::json::render_check_to_string(report, ping_results)?),
+        OutputFormat::Markdown => Some(output::markdown::render_check_markdown(report, ping_results)),
+        OutputFormat::Slack => Some(output::slack::render_check_to_string(report)?),
+        OutputFormat::Teams => Some(output::teams::render_check_to_string(report)?),
+        OutputFormat::Datadog => Some(output::datadog::render_check_to_string(report)?),
+        _ => None,
+    };
+
+    Ok(maybe_string)
+}
+
 fn run() -> Result<i32> {
     let cli = Cli::parse();
     let root = cli.root.unwrap_or_else(|| std::path::PathBuf::from("."));
@@ -206,18 +223,8 @@ fn run() -> Result<i32> {
                     return Ok(1);
                 }
             } else {
-                // For Json and Markdown formats, capture to string so we can write to --output.
-                let maybe_string: Option<String> = match &format {
-                    OutputFormat::Json => Some(output::json::render_check_to_string(
-                        &report,
-                        &ping_results,
-                    )?),
-                    OutputFormat::Markdown => Some(output::markdown::render_check_markdown(
-                        &report,
-                        &ping_results,
-                    )),
-                    _ => None,
-                };
+                // For string-renderable formats, capture once so we can write to --output.
+                let maybe_string = render_check_output_to_string(&format, &report, &ping_results)?;
 
                 if let Some(content) = maybe_string {
                     if let Some(ref out_path) = output_path {
@@ -858,5 +865,55 @@ fn run() -> Result<i32> {
             generate(shell, &mut cmd, "svccat", &mut io::stdout());
             Ok(0)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_report() -> drift::DriftReport {
+        serde_json::from_value(serde_json::json!({
+            "manifest": "services.yaml",
+            "declared": 2,
+            "discovered": 2,
+            "drifts": [
+                {
+                    "kind": "declared_missing_from_repo",
+                    "severity": "error",
+                    "service": "api",
+                    "message": "missing service directory",
+                    "detail": null
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn string_output_helper_supports_slack_teams_and_datadog() {
+        let report = sample_report();
+
+        let slack = render_check_output_to_string(&OutputFormat::Slack, &report, &[])
+            .unwrap()
+            .unwrap();
+        assert!(slack.contains("blocks"));
+
+        let teams = render_check_output_to_string(&OutputFormat::Teams, &report, &[])
+            .unwrap()
+            .unwrap();
+        assert!(teams.contains("attachments"));
+
+        let datadog = render_check_output_to_string(&OutputFormat::Datadog, &report, &[])
+            .unwrap()
+            .unwrap();
+        assert!(datadog.contains("events"));
+    }
+
+    #[test]
+    fn string_output_helper_skips_terminal_format() {
+        let report = sample_report();
+        let out = render_check_output_to_string(&OutputFormat::Terminal, &report, &[]).unwrap();
+        assert!(out.is_none());
     }
 }
