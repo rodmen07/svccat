@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-06-27
+
+### Changed
+
+- CSV field escaping now also quotes values containing carriage returns (`\r`),
+  aligning with RFC 4180 newline handling expectations.
+
+### Added
+
+- Regression coverage for carriage-return CSV field quoting.
+
 ## [1.1.4] - 2026-06-27
 
 ### Changed

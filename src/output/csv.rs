@@ -54,7 +54,7 @@ pub fn render_export(manifest: &Manifest) {
 /// Wrap a field value in double-quotes if it contains a comma, double-quote,
 /// or newline, escaping internal double-quotes by doubling them (RFC 4180).
 fn csv_field(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_owned()
@@ -76,6 +76,7 @@ mod tests {
         assert_eq!(csv_field("a,b"), "\"a,b\"");
         assert_eq!(csv_field("a\"b"), "\"a\"\"b\"");
         assert_eq!(csv_field("a\nb"), "\"a\nb\"");
+        assert_eq!(csv_field("a\rb"), "\"a\rb\"");
     }
 
     #[test]
