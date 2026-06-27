@@ -42,6 +42,7 @@ fn render_check_output_to_string(
     let maybe_string = match format {
         OutputFormat::Json => Some(output::json::render_check_to_string(report, ping_results)?),
         OutputFormat::Markdown => Some(output::markdown::render_check_markdown(report, ping_results)),
+        OutputFormat::Csv => Some(output::csv::render_check_to_string(report)),
         OutputFormat::Slack => Some(output::slack::render_check_to_string(report)?),
         OutputFormat::Teams => Some(output::teams::render_check_to_string(report)?),
         OutputFormat::Datadog => Some(output::datadog::render_check_to_string(report)?),
@@ -891,8 +892,14 @@ mod tests {
     }
 
     #[test]
-    fn string_output_helper_supports_slack_teams_and_datadog() {
+    fn string_output_helper_supports_csv_slack_teams_and_datadog() {
         let report = sample_report();
+
+        let csv = render_check_output_to_string(&OutputFormat::Csv, &report, &[])
+            .unwrap()
+            .unwrap();
+        assert!(csv.contains("service,severity,kind,message,detail"));
+        assert!(csv.contains("api,error,declared_missing_from_repo,missing service directory,"));
 
         let slack = render_check_output_to_string(&OutputFormat::Slack, &report, &[])
             .unwrap()

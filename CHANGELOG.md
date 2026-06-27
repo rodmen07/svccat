@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-06-27
+
+### Changed
+
+- `svccat check --output <file>` now supports CSV output by using a shared
+  string renderer for drift rows.
+
+### Added
+
+- Added CSV output string-rendering regression coverage in output and main-path
+  tests to lock down escaping and header/row structure.
+
 ## [1.1.3] - 2026-06-27
 
 ### Added

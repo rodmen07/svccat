@@ -5,7 +5,12 @@ use crate::manifest::Manifest;
 ///
 /// Columns: service, severity, kind, message, detail
 pub fn render_check(report: &DriftReport) {
-    println!("service,severity,kind,message,detail");
+    print!("{}", render_check_to_string(report));
+}
+
+/// Render drift items from a check as CSV and return it as a string.
+pub fn render_check_to_string(report: &DriftReport) -> String {
+    let mut out = String::from("service,severity,kind,message,detail\n");
     for item in &report.drifts {
         let kind = serde_json::to_value(&item.kind)
             .ok()
@@ -15,15 +20,16 @@ pub fn render_check(report: &DriftReport) {
             .ok()
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();
-        println!(
-            "{},{},{},{},{}",
+        out.push_str(&format!(
+            "{},{},{},{},{}\n",
             csv_field(&item.service),
             severity,
             kind,
             csv_field(&item.message),
             csv_field(item.detail.as_deref().unwrap_or(""))
-        );
+        ));
     }
+    out
 }
 
 /// Render the service catalog as CSV.
@@ -57,7 +63,8 @@ fn csv_field(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::csv_field;
+    use super::{csv_field, render_check_to_string};
+    use crate::drift::DriftReport;
 
     #[test]
     fn leaves_plain_values_unquoted() {
@@ -69,5 +76,28 @@ mod tests {
         assert_eq!(csv_field("a,b"), "\"a,b\"");
         assert_eq!(csv_field("a\"b"), "\"a\"\"b\"");
         assert_eq!(csv_field("a\nb"), "\"a\nb\"");
+    }
+
+    #[test]
+    fn render_check_to_string_has_header_and_rows() {
+        let report: DriftReport = serde_json::from_value(serde_json::json!({
+            "manifest": "services.yaml",
+            "declared": 1,
+            "discovered": 0,
+            "drifts": [
+                {
+                    "kind": "declared_missing_from_repo",
+                    "severity": "error",
+                    "service": "api,svc",
+                    "message": "missing \"directory\"",
+                    "detail": null
+                }
+            ]
+        }))
+        .unwrap();
+
+        let csv = render_check_to_string(&report);
+        assert!(csv.starts_with("service,severity,kind,message,detail\n"));
+        assert!(csv.contains("\"api,svc\",error,declared_missing_from_repo,\"missing \"\"directory\"\"\","));
     }
 }
