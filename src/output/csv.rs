@@ -115,4 +115,26 @@ mod tests {
         let csv = render_check_to_string(&report);
         assert_eq!(csv, "service,severity,kind,message,detail\n");
     }
+
+    #[test]
+    fn render_check_to_string_quotes_multiline_detail() {
+        let report: DriftReport = serde_json::from_value(serde_json::json!({
+            "manifest": "services.yaml",
+            "declared": 1,
+            "discovered": 0,
+            "drifts": [
+                {
+                    "kind": "declared_missing_from_repo",
+                    "severity": "error",
+                    "service": "api",
+                    "message": "missing service directory",
+                    "detail": "line one\nline two"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let csv = render_check_to_string(&report);
+        assert!(csv.contains("api,error,declared_missing_from_repo,missing service directory,\"line one\nline two\""));
+    }
 }
