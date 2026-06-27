@@ -54,3 +54,20 @@ fn csv_field(s: &str) -> String {
         s.to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::csv_field;
+
+    #[test]
+    fn leaves_plain_values_unquoted() {
+        assert_eq!(csv_field("service-a"), "service-a");
+    }
+
+    #[test]
+    fn quotes_and_escapes_special_values() {
+        assert_eq!(csv_field("a,b"), "\"a,b\"");
+        assert_eq!(csv_field("a\"b"), "\"a\"\"b\"");
+        assert_eq!(csv_field("a\nb"), "\"a\nb\"");
+    }
+}

@@ -7,6 +7,12 @@ use serde_json::{json, Value};
 /// The output is an Adaptive Card (version 1.4) wrapped in the `attachments`
 /// envelope expected by Teams incoming webhooks and the `chat.postMessage` API.
 pub fn render_check(report: &DriftReport) -> Result<()> {
+    let payload = build_check_payload(report);
+    println!("{}", serde_json::to_string_pretty(&payload)?);
+    Ok(())
+}
+
+fn build_check_payload(report: &DriftReport) -> Value {
     let errors = report.error_count();
     let warnings = report.warning_count();
 
@@ -73,17 +79,14 @@ pub fn render_check(report: &DriftReport) -> Result<()> {
         "body": body
     });
 
-    let payload = json!({
+    json!({
         "type": "message",
         "attachments": [{
             "contentType": "application/vnd.microsoft.card.adaptive",
             "contentUrl": null,
             "content": card
         }]
-    });
-
-    println!("{}", serde_json::to_string_pretty(&payload)?);
-    Ok(())
+    })
 }
 
 fn plural(n: usize) -> &'static str {
@@ -91,5 +94,48 @@ fn plural(n: usize) -> &'static str {
         ""
     } else {
         "s"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::drift::{DriftItem, DriftKind};
+
+    #[test]
+    fn clean_payload_uses_good_color() {
+        let report = DriftReport {
+            manifest: "services.yaml".to_string(),
+            declared: 1,
+            discovered: 1,
+            drifts: vec![],
+        };
+
+        let payload = build_check_payload(&report);
+        let card = &payload["attachments"][0]["content"];
+        let body = card["body"].as_array().unwrap();
+        assert!(body.iter().any(|b| b.to_string().contains("Good")));
+    }
+
+    #[test]
+    fn drift_payload_includes_service_messages() {
+        let report = DriftReport {
+            manifest: "services.yaml".to_string(),
+            declared: 2,
+            discovered: 2,
+            drifts: vec![DriftItem {
+                kind: DriftKind::DeclaredMissingFromRepo,
+                severity: Severity::Error,
+                service: "api".to_string(),
+                message: "missing".to_string(),
+                detail: None,
+            }],
+        };
+
+        let payload = build_check_payload(&report);
+        let text = payload.to_string();
+        assert!(text.contains("api"));
+        assert!(text.contains("missing"));
+        assert!(text.contains("Attention"));
     }
 }

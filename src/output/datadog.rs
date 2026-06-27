@@ -16,6 +16,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///   -H "Content-Type: application/json" -d @-
 /// ```
 pub fn render_check(report: &DriftReport) -> Result<()> {
+    let summary = build_check_payload(report);
+    println!("{}", serde_json::to_string_pretty(&summary)?);
+    Ok(())
+}
+
+fn build_check_payload(report: &DriftReport) -> Value {
     let now_secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -80,15 +86,73 @@ pub fn render_check(report: &DriftReport) -> Result<()> {
             .collect()
     };
 
-    let summary = json!({
+    json!({
         "manifest": report.manifest,
         "declared": report.declared,
         "discovered": report.discovered,
         "errors": errors,
         "warnings": warnings,
         "events": events
-    });
+    })
+}
 
-    println!("{}", serde_json::to_string_pretty(&summary)?);
-    Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::drift::{DriftItem, DriftKind};
+
+    #[test]
+    fn clean_payload_emits_single_success_event() {
+        let report = DriftReport {
+            manifest: "services.yaml".to_string(),
+            declared: 1,
+            discovered: 1,
+            drifts: vec![],
+        };
+
+        let payload = build_check_payload(&report);
+        let events = payload["events"].as_array().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["alert_type"], "success");
+    }
+
+    #[test]
+    fn drift_payload_groups_events_by_service() {
+        let report = DriftReport {
+            manifest: "services.yaml".to_string(),
+            declared: 2,
+            discovered: 2,
+            drifts: vec![
+                DriftItem {
+                    kind: DriftKind::DeclaredMissingFromRepo,
+                    severity: Severity::Error,
+                    service: "api".to_string(),
+                    message: "missing".to_string(),
+                    detail: None,
+                },
+                DriftItem {
+                    kind: DriftKind::MissingField,
+                    severity: Severity::Warning,
+                    service: "api".to_string(),
+                    message: "no platform".to_string(),
+                    detail: Some("platform".to_string()),
+                },
+                DriftItem {
+                    kind: DriftKind::UndeclaredInRepo,
+                    severity: Severity::Warning,
+                    service: "worker".to_string(),
+                    message: "extra".to_string(),
+                    detail: None,
+                },
+            ],
+        };
+
+        let payload = build_check_payload(&report);
+        let events = payload["events"].as_array().unwrap();
+        assert_eq!(events.len(), 2);
+
+        let text = payload.to_string();
+        assert!(text.contains("service:api"));
+        assert!(text.contains("service:worker"));
+    }
 }
