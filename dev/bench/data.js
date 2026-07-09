@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783606180785,
+  "lastUpdate": 1783606702259,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1439,6 +1439,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12082,
             "range": "± 65",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "distinct": true,
+          "id": "d1509df2aa06b4f5684a363e7486bf66db133fd5",
+          "message": "chore(release): 1.4.0 — multi-threaded discovery & backstage export",
+          "timestamp": "2026-07-09T09:15:18-05:00",
+          "tree_id": "0b373e974ea89f3e5c8e5a0a6957f777ccb68933",
+          "url": "https://github.com/rodmen07/svccat/commit/d1509df2aa06b4f5684a363e7486bf66db133fd5"
+        },
+        "date": 1783606701933,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12659,
+            "range": "± 1312",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23713,
+            "range": "± 561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 288,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5148,
+            "range": "± 55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4775,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12318,
+            "range": "± 35",
             "unit": "ns/iter"
           }
         ]
