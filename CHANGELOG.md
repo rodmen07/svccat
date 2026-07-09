@@ -8,6 +8,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ---
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-07-09
+
+### Added
+
+- **Multi-threaded Service Discovery (Phase 2 Performance):** Parallelized pattern discovery via `rayon` parallel iterators in `src/discovery.rs` to accelerate monorepo scans.
+- **Ecosystem Export to Backstage (`--format backstage-yaml`)**: Support exporting services cleanly to Backstage multi-document `catalog-info.yaml` with `--output <file>` option.
+
+### Changed
+
+- `svccat export` now supports the `--output <file>` option across JSON, CSV, Markdown, and Backstage YAML formats.
  
 ## [1.2.0] - 2026-07-09
 

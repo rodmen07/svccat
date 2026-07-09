@@ -36,10 +36,15 @@ pub fn render_check_to_string(report: &DriftReport) -> String {
 ///
 /// Columns: name, language, platform, role, url, team, oncall
 pub fn render_export(manifest: &Manifest) {
-    println!("name,language,platform,role,url,team,oncall");
+    print!("{}", render_export_to_string(manifest));
+}
+
+/// Render the service catalog as CSV and return as a string.
+pub fn render_export_to_string(manifest: &Manifest) -> String {
+    let mut out = String::from("name,language,platform,role,url,team,oncall\n");
     for svc in &manifest.services {
-        println!(
-            "{},{},{},{},{},{},{}",
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
             csv_field(&svc.name),
             csv_field(svc.language.as_deref().unwrap_or("")),
             csv_field(svc.platform.as_deref().unwrap_or("")),
@@ -47,13 +52,14 @@ pub fn render_export(manifest: &Manifest) {
             csv_field(svc.url.as_deref().unwrap_or("")),
             csv_field(svc.team.as_deref().unwrap_or("")),
             csv_field(svc.oncall.as_deref().unwrap_or(""))
-        );
+        ));
     }
+    out
 }
 
 /// Wrap a field value in double-quotes if it contains a comma, double-quote,
 /// or newline, escaping internal double-quotes by doubling them (RFC 4180).
-fn csv_field(s: &str) -> String {
+pub fn csv_field(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {

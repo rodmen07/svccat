@@ -1,3 +1,4 @@
+pub mod backstage;
 pub mod csv;
 pub mod datadog;
 pub mod github_annotation;

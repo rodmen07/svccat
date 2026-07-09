@@ -132,6 +132,10 @@ pub enum Commands {
         /// Example: --since HEAD~1   or   --since main
         #[arg(long, value_name = "GIT_REF")]
         since: Option<String>,
+
+        /// Write output to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
     },
 
     /// Scaffold a services.yaml by auto-discovering services in the repo
@@ -658,6 +662,8 @@ pub enum ExportFormat {
     Markdown,
     /// Comma-separated values: name, language, platform, role, url, team, oncall
     Csv,
+    /// Backstage Component YAML files (multi-document catalog-info.yaml)
+    BackstageYaml,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

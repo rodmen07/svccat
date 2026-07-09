@@ -344,6 +344,7 @@ fn run() -> Result<i32> {
             ignore: cli_ignore,
             depth,
             since: since_ref,
+            output: output_path,
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let mut m = manifest::Manifest::load(&path)?;
@@ -376,9 +377,90 @@ fn run() -> Result<i32> {
             }
 
             match format {
-                ExportFormat::Json => output::json::render_export(&m, &report)?,
-                ExportFormat::Markdown => output::mermaid::render_export_markdown(&m, &report),
-                ExportFormat::Csv => output::csv::render_export(&m),
+                ExportFormat::Json => {
+                    let json = serde_json::to_string_pretty(&serde_json::json!({
+                        "version": m.version,
+                        "manifest": report.manifest,
+                        "summary": {
+                            "declared": report.declared,
+                            "discovered": report.discovered,
+                            "drift_count": report.drifts.len(),
+                            "errors": report.error_count(),
+                            "warnings": report.warning_count(),
+                        },
+                        "services": m.services,
+                        "drift": report.drifts,
+                    }))?;
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, json)?;
+                        eprintln!("wrote JSON export to {}", out_path.display());
+                    } else {
+                        println!("{}", json);
+                    }
+                }
+                ExportFormat::Markdown => {
+                    let mut out = String::new();
+                    out.push_str("## Services\n\n");
+                    out.push_str("| Name | Language | Platform | Role | URL | Team | On-call | Dependencies | Tags |\n");
+                    out.push_str("|------|----------|----------|------|-----|------|---------|--------------|------|\n");
+                    for svc in &m.services {
+                        out.push_str(&format!(
+                            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+                            svc.name,
+                            svc.language.as_deref().unwrap_or("—"),
+                            svc.platform.as_deref().unwrap_or("—"),
+                            svc.role.as_deref().unwrap_or("—"),
+                            svc.url
+                                .as_deref()
+                                .map(|u| format!("[link]({})", u))
+                                .unwrap_or_else(|| "—".to_string()),
+                            svc.team.as_deref().unwrap_or("—"),
+                            svc.oncall.as_deref().unwrap_or("—"),
+                            svc.depends_on.join(", "),
+                            svc.tags.join(", ")
+                        ));
+                    }
+                    if !report.drifts.is_empty() {
+                        out.push_str("\n## Drift Report\n\n");
+                        out.push_str("| Severity | Kind | Service | Message |\n");
+                        out.push_str("|----------|------|---------|---------|\n");
+                        for item in &report.drifts {
+                            let severity = format!("{:?}", item.severity).to_lowercase();
+                            let kind = format!("{:?}", item.kind);
+                            out.push_str(&format!(
+                                "| {} | {} | {} | {} |\n",
+                                severity, kind, item.service, item.message
+                            ));
+                        }
+                    }
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, out)?;
+                        eprintln!("wrote Markdown export to {}", out_path.display());
+                    } else {
+                        print!("{}", out);
+                    }
+                }
+                ExportFormat::Csv => {
+                    let csv = output::csv::render_export_to_string(&m);
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, csv)?;
+                        eprintln!("wrote CSV export to {}", out_path.display());
+                    } else {
+                        print!("{}", csv);
+                    }
+                }
+                ExportFormat::BackstageYaml => {
+                    let yaml = output::backstage::render_export(&m)?;
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, yaml)?;
+                        eprintln!(
+                            "wrote Backstage.io component export to {}",
+                            out_path.display()
+                        );
+                    } else {
+                        print!("{}", yaml);
+                    }
+                }
             }
             Ok(0)
         }

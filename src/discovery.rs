@@ -1,4 +1,5 @@
 use crate::manifest::Manifest;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -114,70 +115,76 @@ pub fn discover_services_with_opts(
         }
     }
 
+    let results: Vec<DiscoveredService> = patterns
+        .par_iter()
+        .flat_map(|pattern| {
+            let mut pattern_discovered = Vec::new();
+            let full_pattern = root.join(pattern);
+            let pattern_str = full_pattern.to_string_lossy();
+
+            let entries = match glob::glob(&pattern_str) {
+                Ok(e) => e,
+                Err(_) => return Vec::new(),
+            };
+
+            for entry in entries.flatten() {
+                // Check if this is a directory (not a symlink to a directory)
+                // Use metadata() which doesn't follow symlinks by default
+                let metadata = match entry.metadata() {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+
+                // Reject symlinks to prevent symlink-based attacks
+                // A symlink to a directory is_dir() == true, but is_symlink() == true
+                if metadata.is_symlink() {
+                    eprintln!(
+                        "warning: skipping symlink '{}' during discovery (potential security risk)",
+                        entry.display()
+                    );
+                    continue;
+                }
+
+                if !metadata.is_dir() {
+                    continue;
+                }
+
+                let rel_path = entry
+                    .strip_prefix(root)
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| entry.to_string_lossy().to_string());
+
+                // Skip directories matching any ignore pattern.
+                if ignore_patterns.iter().any(|p| p.matches(&rel_path)) {
+                    continue;
+                }
+
+                let found_markers = markers_in_dir(&entry, &effective_markers);
+                if found_markers.is_empty() {
+                    continue;
+                }
+
+                let name = entry
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+
+                pattern_discovered.push(DiscoveredService {
+                    name,
+                    path: rel_path,
+                    markers_found: found_markers,
+                });
+            }
+            pattern_discovered
+        })
+        .collect();
+
     let mut discovered: Vec<DiscoveredService> = Vec::new();
     let mut seen_paths: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    for pattern in &patterns {
-        let full_pattern = root.join(pattern);
-        let pattern_str = full_pattern.to_string_lossy();
-
-        let entries = match glob::glob(&pattern_str) {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        for entry in entries.flatten() {
-            // Check if this is a directory (not a symlink to a directory)
-            // Use metadata() which doesn't follow symlinks by default
-            let metadata = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-
-            // Reject symlinks to prevent symlink-based attacks
-            // A symlink to a directory is_dir() == true, but is_symlink() == true
-            if metadata.is_symlink() {
-                eprintln!(
-                    "warning: skipping symlink '{}' during discovery (potential security risk)",
-                    entry.display()
-                );
-                continue;
-            }
-
-            if !metadata.is_dir() {
-                continue;
-            }
-
-            let rel_path = entry
-                .strip_prefix(root)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| entry.to_string_lossy().to_string());
-
-            // Skip directories matching any ignore pattern.
-            if ignore_patterns.iter().any(|p| p.matches(&rel_path)) {
-                continue;
-            }
-
-            let found_markers = markers_in_dir(&entry, &effective_markers);
-            if found_markers.is_empty() {
-                continue;
-            }
-
-            let name = entry
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-
-            // Deduplicate paths (e.g. overlapping glob patterns or depth expansion).
-            if !seen_paths.insert(rel_path.clone()) {
-                continue;
-            }
-
-            discovered.push(DiscoveredService {
-                name,
-                path: rel_path,
-                markers_found: found_markers,
-            });
+    for service in results {
+        if seen_paths.insert(service.path.clone()) {
+            discovered.push(service);
         }
     }
 
