@@ -41,7 +41,10 @@ fn render_check_output_to_string(
 ) -> Result<Option<String>> {
     let maybe_string = match format {
         OutputFormat::Json => Some(output::json::render_check_to_string(report, ping_results)?),
-        OutputFormat::Markdown => Some(output::markdown::render_check_markdown(report, ping_results)),
+        OutputFormat::Markdown => Some(output::markdown::render_check_markdown(
+            report,
+            ping_results,
+        )),
         OutputFormat::Csv => Some(output::csv::render_check_to_string(report)),
         OutputFormat::Slack => Some(output::slack::render_check_to_string(report)?),
         OutputFormat::Teams => Some(output::teams::render_check_to_string(report)?),
