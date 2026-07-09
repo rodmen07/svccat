@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783606702259,
+  "lastUpdate": 1783607132750,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1499,6 +1499,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12318,
             "range": "± 35",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "distinct": true,
+          "id": "1bf3b646e58ed138251111b8e524cc5bffb63a25",
+          "message": "chore(release): 1.4.1 — resolve security dependencies in Cargo.lock",
+          "timestamp": "2026-07-09T09:22:23-05:00",
+          "tree_id": "1f86fae834533f77b0f599a1a3178815ef2fdacd",
+          "url": "https://github.com/rodmen07/svccat/commit/1bf3b646e58ed138251111b8e524cc5bffb63a25"
+        },
+        "date": 1783607131956,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12620,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23410,
+            "range": "± 94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 329,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5396,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5087,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12353,
+            "range": "± 46",
             "unit": "ns/iter"
           }
         ]
