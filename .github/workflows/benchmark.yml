@@ -17,6 +17,8 @@ jobs:
     # github-action-benchmark pushes tracking data to the gh-pages branch
     permissions:
       contents: write
+      pull-requests: write
+      issues: write
 
     steps:
       - uses: actions/checkout@v4.1.7

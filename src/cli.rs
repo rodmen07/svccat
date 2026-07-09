@@ -76,6 +76,10 @@ pub enum Commands {
         #[arg(long, value_name = "FILE")]
         baseline: Option<PathBuf>,
 
+        /// Print a concise summary (declared/discovered/drifts) instead of full output
+        #[arg(long, conflicts_with = "since")]
+        summary: bool,
+
         /// Write output to this file instead of stdout
         #[arg(short, long, value_name = "FILE")]
         output: Option<PathBuf>,

@@ -99,7 +99,9 @@ mod tests {
 
         let csv = render_check_to_string(&report);
         assert!(csv.starts_with("service,severity,kind,message,detail\n"));
-        assert!(csv.contains("\"api,svc\",error,declared_missing_from_repo,\"missing \"\"directory\"\"\","));
+        assert!(csv.contains(
+            "\"api,svc\",error,declared_missing_from_repo,\"missing \"\"directory\"\"\","
+        ));
     }
 
     #[test]
@@ -135,6 +137,8 @@ mod tests {
         .unwrap();
 
         let csv = render_check_to_string(&report);
-        assert!(csv.contains("api,error,declared_missing_from_repo,missing service directory,\"line one\nline two\""));
+        assert!(csv.contains(
+            "api,error,declared_missing_from_repo,missing service directory,\"line one\nline two\""
+        ));
     }
 }

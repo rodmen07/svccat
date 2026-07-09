@@ -2009,11 +2009,11 @@ services:
     let json_output = svccat::output::json::render_check_to_string(&report, &[]).unwrap();
     let json_value: serde_json::Value = serde_json::from_str(&json_output).unwrap();
     assert_eq!(
-      json_value["summary"]["errors"].as_u64().unwrap(),
-      report.error_count() as u64
+        json_value["summary"]["errors"].as_u64().unwrap(),
+        report.error_count() as u64
     );
     assert_eq!(
-      json_value["summary"]["warnings"].as_u64().unwrap(),
+        json_value["summary"]["warnings"].as_u64().unwrap(),
         report.warning_count() as u64
     );
 
