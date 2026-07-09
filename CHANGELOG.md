@@ -23,6 +23,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `svccat check` now exits gracefully (prints a warning) when no manifest is found in the repo root. This makes CI runs that invoke `svccat check` safe for repositories without a `services.yaml` file.
 
+## [1.3.1] - 2026-07-09
+
+### Fixed
+
+- CI: ensure `svccat check` (installed from crates.io) won't fail PR runs when no `services.yaml` is present by exiting gracefully. (Patch release)
+
 
 ## [1.1.7] - 2026-06-27
 
