@@ -19,6 +19,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Minor, backwards-compatible feature release.
 
+### Changed
+
+- `svccat check` now exits gracefully (prints a warning) when no manifest is found in the repo root. This makes CI runs that invoke `svccat check` safe for repositories without a `services.yaml` file.
+
 
 ## [1.1.7] - 2026-06-27
 
