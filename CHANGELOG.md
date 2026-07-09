@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-09
+
+### Fixed
+
+- **Dependencies:** Resolved two vulnerability advisories (`RUSTSEC-2026-0204` in `crossbeam-epoch` / `rayon` and `RUSTSEC-2026-0190` in `anyhow`) by upgrading them inside `Cargo.lock` (Patch release).
+
 ## [1.4.0] - 2026-07-09
 
 ### Added
