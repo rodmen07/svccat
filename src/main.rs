@@ -88,7 +88,10 @@ fn run() -> Result<i32> {
             };
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             if !path.exists() {
-                eprintln!("warning: manifest not found at {} — skipping check", path.display());
+                eprintln!(
+                    "warning: manifest not found at {} — skipping check",
+                    path.display()
+                );
                 return Ok(0);
             }
             let full_m = manifest::Manifest::load(&path)?;
