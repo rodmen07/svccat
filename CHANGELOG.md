@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-09
+
+### Added
+
+- `svccat check --summary` - concise machine-friendly summary of the check results: declared, discovered, total drifts, and error/warning breakdown.
+
+### Notes
+
+- Minor, backwards-compatible feature release.
+
+
 ## [1.1.7] - 2026-06-27
 
 ### Added

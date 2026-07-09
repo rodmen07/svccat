@@ -71,6 +71,7 @@ fn run() -> Result<i32> {
             fail_on_new_drift,
             depth,
             baseline,
+            summary,
             output: output_path,
         } => {
             // When running inside GitHub Actions and no explicit format was chosen,
@@ -165,6 +166,8 @@ fn run() -> Result<i32> {
                 vec![]
             };
 
+            let should_fail = fail_on_drift || cfg.fail_on_drift;
+
             // --since: load the old manifest at the given git ref and diff.
             if let Some(ref git_ref) = since {
                 let old_m = since::load_at_ref(&root, &path, git_ref)?;
@@ -224,6 +227,23 @@ fn run() -> Result<i32> {
                     return Ok(1);
                 }
             } else {
+                if summary {
+                    println!("manifest: {}", report.manifest);
+                    println!("declared: {}", report.declared);
+                    println!("discovered: {}", report.discovered);
+                    println!(
+                        "drifts: {} ({} errors, {} warnings)",
+                        report.drifts.len(),
+                        report.error_count(),
+                        report.warning_count()
+                    );
+                    if should_fail && !report.drifts.is_empty() {
+                        return Ok(1);
+                    } else {
+                        return Ok(0);
+                    }
+                }
+
                 // For string-renderable formats, capture once so we can write to --output.
                 let maybe_string = render_check_output_to_string(&format, &report, &ping_results)?;
 
