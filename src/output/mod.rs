@@ -11,3 +11,4 @@ pub mod slack;
 pub mod teams;
 pub mod terminal;
 pub mod workspace;
+pub mod spdx;

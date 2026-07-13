@@ -664,6 +664,10 @@ pub enum ExportFormat {
     Csv,
     /// Backstage Component YAML files (multi-document catalog-info.yaml)
     BackstageYaml,
+    /// SPDX 2.3 JSON SBOM export
+    SpdxJson,
+    /// SPDX 2.3 XML SBOM export (initially JSON fallback)
+    SpdxXml,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

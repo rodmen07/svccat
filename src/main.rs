@@ -461,6 +461,28 @@ fn run() -> Result<i32> {
                         print!("{}", yaml);
                     }
                 }
+                ExportFormat::SpdxJson => {
+                    let spdx = output::spdx::render_export(&m, &report)?;
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, spdx)?;
+                        eprintln!("wrote SPDX JSON export to {}", out_path.display());
+                    } else {
+                        println!("{}", spdx);
+                    }
+                }
+                ExportFormat::SpdxXml => {
+                    // XML serialization is not yet implemented; provide JSON as a fallback.
+                    let spdx = output::spdx::render_export(&m, &report)?;
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, spdx)?;
+                        eprintln!(
+                            "wrote SPDX XML export (JSON fallback) to {}",
+                            out_path.display()
+                        );
+                    } else {
+                        println!("{}", spdx);
+                    }
+                }
             }
             Ok(0)
         }
