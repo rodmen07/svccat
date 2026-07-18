@@ -462,23 +462,10 @@ fn run() -> Result<i32> {
                     }
                 }
                 ExportFormat::SpdxJson => {
-                    let spdx = output::spdx::render_export(&m, &report)?;
+                    let spdx = output::spdx::render_export(&m)?;
                     if let Some(ref out_path) = output_path {
                         std::fs::write(out_path, spdx)?;
                         eprintln!("wrote SPDX JSON export to {}", out_path.display());
-                    } else {
-                        println!("{}", spdx);
-                    }
-                }
-                ExportFormat::SpdxXml => {
-                    // XML serialization is not yet implemented; provide JSON as a fallback.
-                    let spdx = output::spdx::render_export(&m, &report)?;
-                    if let Some(ref out_path) = output_path {
-                        std::fs::write(out_path, spdx)?;
-                        eprintln!(
-                            "wrote SPDX XML export (JSON fallback) to {}",
-                            out_path.display()
-                        );
                     } else {
                         println!("{}", spdx);
                     }
@@ -668,6 +655,7 @@ fn run() -> Result<i32> {
                 manifest: manifest_path,
                 ignore: cli_ignore,
                 depth,
+                sbom,
             } => {
                 let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
                 let m = manifest::Manifest::load(&path)?;
@@ -677,6 +665,10 @@ fn run() -> Result<i32> {
                 let mut drift_report = drift::analyze(&m, &discovered, &root);
                 drift_report.manifest = path.display().to_string();
                 snapshot::save(&root, &name, &m, &drift_report)?;
+                if sbom {
+                    let p = snapshot::save_sbom(&root, &name, &m)?;
+                    eprintln!("wrote SPDX SBOM to {}", p.display());
+                }
                 Ok(0)
             }
             SnapshotAction::List => {

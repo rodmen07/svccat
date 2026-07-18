@@ -80,6 +80,22 @@ pub fn save(root: &Path, name: &str, manifest: &Manifest, report: &DriftReport) 
     Ok(())
 }
 
+/// Write an SPDX 2.3 JSON SBOM sidecar for a snapshot at
+/// `<root>/.svccat/snapshots/<name>.spdx.json`. Errors if the sidecar
+/// already exists. Does not print; the caller reports the path.
+pub fn save_sbom(root: &Path, name: &str, manifest: &Manifest) -> Result<PathBuf> {
+    let path = snapshots_dir(root).join(format!("{name}.spdx.json"));
+    if path.exists() {
+        bail!(
+            "SBOM sidecar already exists ({}). Delete the snapshot or remove the file first.",
+            path.display()
+        );
+    }
+    let spdx = crate::output::spdx::render_export(manifest)?;
+    std::fs::write(&path, spdx).with_context(|| format!("writing {}", path.display()))?;
+    Ok(path)
+}
+
 /// List all snapshots in `<root>/.svccat/snapshots/`.
 pub fn list(root: &Path) -> Result<Vec<Snapshot>> {
     let dir = snapshots_dir(root);
@@ -119,6 +135,10 @@ pub fn delete(root: &Path, name: &str) -> Result<()> {
         bail!("snapshot '{}' not found", name);
     }
     std::fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
+    let sidecar = snapshots_dir(root).join(format!("{name}.spdx.json"));
+    if sidecar.exists() {
+        let _ = std::fs::remove_file(&sidecar);
+    }
     eprintln!("deleted snapshot '{}'", name);
     Ok(())
 }
@@ -152,5 +172,88 @@ pub fn render_list(snaps: &[Snapshot]) {
     for s in snaps {
         let dt = crate::timefmt::human_utc(s.created_at);
         println!("{:<20}  {:<24}  {}", s.name, dt, s.manifest);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::drift::DriftReport;
+    use crate::manifest::{Manifest, ServiceEntry};
+    use tempfile::TempDir;
+
+    fn sample_manifest() -> Manifest {
+        let mut manifest = Manifest::default();
+        manifest.services.push(ServiceEntry {
+            name: "auth-service".to_string(),
+            team: Some("security".to_string()),
+            ..Default::default()
+        });
+        manifest
+    }
+
+    fn save_sample(root: &Path, name: &str) -> Manifest {
+        let manifest = sample_manifest();
+        let report = DriftReport::default();
+        save(root, name, &manifest, &report).unwrap();
+        manifest
+    }
+
+    #[test]
+    fn save_sbom_writes_spdx_sidecar() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+
+        let path = save_sbom(root, "v1", &manifest).unwrap();
+        assert_eq!(path, snapshots_dir(root).join("v1.spdx.json"));
+        let text = std::fs::read_to_string(&path).unwrap();
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["spdxVersion"], "SPDX-2.3");
+    }
+
+    #[test]
+    fn save_sbom_bails_when_sidecar_exists() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+
+        save_sbom(root, "v1", &manifest).unwrap();
+        let err = save_sbom(root, "v1", &manifest).unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn delete_removes_snapshot_and_sidecar() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        save_sbom(root, "v1", &manifest).unwrap();
+
+        delete(root, "v1").unwrap();
+        assert!(!snapshot_path(root, "v1").exists());
+        assert!(!snapshots_dir(root).join("v1.spdx.json").exists());
+    }
+
+    #[test]
+    fn delete_without_sidecar_still_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        save_sample(root, "v1");
+
+        delete(root, "v1").unwrap();
+        assert!(!snapshot_path(root, "v1").exists());
+    }
+
+    #[test]
+    fn list_skips_sbom_sidecars() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        save_sbom(root, "v1", &manifest).unwrap();
+
+        let snaps = list(root).unwrap();
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].name, "v1");
     }
 }

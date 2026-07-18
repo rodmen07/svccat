@@ -8,7 +8,7 @@ pub mod markdown;
 pub mod mermaid;
 pub mod sarif;
 pub mod slack;
+pub mod spdx;
 pub mod teams;
 pub mod terminal;
 pub mod workspace;
-pub mod spdx;
