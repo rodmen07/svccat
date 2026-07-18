@@ -93,9 +93,19 @@ Add `--format <fmt>` to change the output, where `<fmt>` is one of `compact`, `c
 
 **Snapshots and diffs**
 
-- `svccat export --format json > snap.json` saves a catalog snapshot (`csv` also works)
+- `svccat export --format json > snap.json` saves a catalog snapshot
+  (formats: `json`, `csv`, `markdown`, `backstage-yaml`, `spdx-json`)
 - `svccat diff before.json after.json` compares two snapshots
 - `svccat snapshot save|list|delete|diff <name>` manages named drift snapshots
+
+**SBOM export**
+
+- `svccat export --format spdx-json --output sbom.spdx.json` emits an SPDX 2.3 JSON
+  document: one package per service, `supplier` from `team`, and `DESCRIBES` plus
+  `DEPENDS_ON` relationships from `depends_on`
+- `svccat snapshot save pre-migration --sbom` writes
+  `.svccat/snapshots/pre-migration.spdx.json` beside the snapshot;
+  `snapshot delete` removes both
 
 **Watch and serve**
 

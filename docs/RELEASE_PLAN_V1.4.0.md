@@ -1,3 +1,5 @@
+> **Status (2026-07-18): PARTIALLY DELIVERED, historical record.** Features 1 (backstage-yaml export) and 2 (rayon parallel discovery) shipped in v1.4.0 on 2026-07-09. Features 3 (policy rule schema validation in lint), 4 (workspace HTML visualization), and the fuzz_manifest circular-base-rules expansion did not ship and are carried in [ROADMAP.md](../ROADMAP.md) (v1.6.0 and the Later / candidates section).
+
 # Release Plan: svccat v1.4.0
 
 This plan outlines the objectives, candidate features, backward-compatibility considerations, and implementation milestones for the next minor release, **v1.4.0**.

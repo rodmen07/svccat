@@ -1,4 +1,6 @@
-# Phase 1: Performance Optimizations — v0.20.0
+> **Status (2026-07-18): DELIVERED, historical record only.** Phase 1 work was completed 2026-05-30 and released in v0.20.0 on 2026-06-01, and the Phase 2 follow-up (rayon parallel discovery) shipped in v1.4.0 on 2026-07-09. Current planning lives in [ROADMAP.md](../ROADMAP.md).
+
+# Phase 1: Performance Optimizations - v0.20.0
 
 **Completion Date:** 2026-05-30  
 **Goal:** Establish performance foundation before multi-repo support (Feature #1)
@@ -177,9 +179,9 @@ cargo clippy -- -D warnings
 
 These optimizations establish the foundation for:
 
-1. **Multi-Repo Support** — With 5-10 repos, the optimized loops prevent 5-10x slowdown
-2. **Custom Validation Rules** — Efficient policy evaluation requires fast service lookups
-3. **Advanced Reporting** — Traversing large manifests for analytics
+1. **Multi-Repo Support**: With 5-10 repos, the optimized loops prevent 5-10x slowdown
+2. **Custom Validation Rules**: Efficient policy evaluation requires fast service lookups
+3. **Advanced Reporting**: Traversing large manifests for analytics
 
 ---
 

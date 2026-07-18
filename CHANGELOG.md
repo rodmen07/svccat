@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-18
+
+### Added
+
+- **SPDX 2.3 JSON SBOM export (`--format spdx-json`)**: `svccat export --format spdx-json [--output <file>]` emits a schema-conformant SPDX 2.3 document with ISO 8601 timestamps, a unique `documentNamespace`, sanitized SPDXIDs, NTIA-friendly `supplier` fields, and `DESCRIBES` plus `DEPENDS_ON` relationships derived from the catalog's `depends_on` edges.
+- **Snapshot SBOM sidecar (`snapshot save --sbom`)**: `svccat snapshot save <name> --sbom` also writes an SPDX 2.3 JSON SBOM beside the canonical snapshot at `.svccat/snapshots/<name>.spdx.json`; `svccat snapshot delete <name>` removes the sidecar too.
+
 ## [1.4.1] - 2026-07-09
 
 ### Fixed

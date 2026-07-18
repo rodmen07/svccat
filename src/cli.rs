@@ -378,9 +378,11 @@ pub enum Commands {
     /// `svccat diff` by using the snapshot file path.
     ///
     /// Commands:
-    ///   save <name>    - Save the current catalog as a named snapshot
+    ///   save <name>    - Save the current catalog as a named snapshot (--sbom adds an SPDX sidecar)
     ///   list           - List all saved snapshots
     ///   delete <name>  - Remove a snapshot
+    ///   compare <a> <b> - Compare two named snapshots
+    ///   diff <name>     - Compare a snapshot against the current catalog
     Snapshot {
         #[command(subcommand)]
         action: SnapshotAction,
@@ -664,6 +666,8 @@ pub enum ExportFormat {
     Csv,
     /// Backstage Component YAML files (multi-document catalog-info.yaml)
     BackstageYaml,
+    /// SPDX 2.3 JSON SBOM (software bill of materials)
+    SpdxJson,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
@@ -726,6 +730,10 @@ pub enum SnapshotAction {
         /// Maximum directory depth to scan for services (default: 1)
         #[arg(long, value_name = "N", default_value_t = 1)]
         depth: u32,
+
+        /// Also write an SPDX 2.3 JSON SBOM beside the snapshot (.svccat/snapshots/<name>.spdx.json)
+        #[arg(long)]
+        sbom: bool,
     },
 
     /// List all saved snapshots

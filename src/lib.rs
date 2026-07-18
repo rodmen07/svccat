@@ -98,6 +98,8 @@ pub mod stats;
 #[doc(hidden)]
 pub mod tag;
 #[doc(hidden)]
+pub mod timefmt;
+#[doc(hidden)]
 pub mod urlvalidation;
 #[doc(hidden)]
 pub mod watch;

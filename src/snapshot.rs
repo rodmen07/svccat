@@ -80,6 +80,22 @@ pub fn save(root: &Path, name: &str, manifest: &Manifest, report: &DriftReport) 
     Ok(())
 }
 
+/// Write an SPDX 2.3 JSON SBOM sidecar for a snapshot at
+/// `<root>/.svccat/snapshots/<name>.spdx.json`. Errors if the sidecar
+/// already exists. Does not print; the caller reports the path.
+pub fn save_sbom(root: &Path, name: &str, manifest: &Manifest) -> Result<PathBuf> {
+    let path = snapshots_dir(root).join(format!("{name}.spdx.json"));
+    if path.exists() {
+        bail!(
+            "SBOM sidecar already exists ({}). Delete the snapshot or remove the file first.",
+            path.display()
+        );
+    }
+    let spdx = crate::output::spdx::render_export(manifest)?;
+    std::fs::write(&path, spdx).with_context(|| format!("writing {}", path.display()))?;
+    Ok(path)
+}
+
 /// List all snapshots in `<root>/.svccat/snapshots/`.
 pub fn list(root: &Path) -> Result<Vec<Snapshot>> {
     let dir = snapshots_dir(root);
@@ -119,6 +135,10 @@ pub fn delete(root: &Path, name: &str) -> Result<()> {
         bail!("snapshot '{}' not found", name);
     }
     std::fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
+    let sidecar = snapshots_dir(root).join(format!("{name}.spdx.json"));
+    if sidecar.exists() {
+        let _ = std::fs::remove_file(&sidecar);
+    }
     eprintln!("deleted snapshot '{}'", name);
     Ok(())
 }
@@ -150,52 +170,90 @@ pub fn render_list(snaps: &[Snapshot]) {
     );
     println!("{}", "-".repeat(72).dimmed());
     for s in snaps {
-        let dt = format_ts(s.created_at);
+        let dt = crate::timefmt::human_utc(s.created_at);
         println!("{:<20}  {:<24}  {}", s.name, dt, s.manifest);
     }
 }
 
-fn format_ts(secs: u64) -> String {
-    // Simple UTC formatting without chrono dependency.
-    let s = secs % 60;
-    let m = (secs / 60) % 60;
-    let h = (secs / 3600) % 24;
-    let days = secs / 86400;
-    // Days since Unix epoch -> approximate calendar date.
-    let (y, mo, d) = days_to_ymd(days);
-    format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02} UTC")
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::drift::DriftReport;
+    use crate::manifest::{Manifest, ServiceEntry};
+    use tempfile::TempDir;
 
-fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
-    // Gregorian calendar approximation from day count since 1970-01-01.
-    let mut year = 1970u64;
-    loop {
-        let leap = is_leap(year);
-        let days_in_year = if leap { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
+    fn sample_manifest() -> Manifest {
+        let mut manifest = Manifest::default();
+        manifest.services.push(ServiceEntry {
+            name: "auth-service".to_string(),
+            team: Some("security".to_string()),
+            ..Default::default()
+        });
+        manifest
     }
-    let leap = is_leap(year);
-    let months = if leap {
-        [31u64, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31u64, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u64;
-    for &days_in_month in &months {
-        if days < days_in_month {
-            break;
-        }
-        days -= days_in_month;
-        month += 1;
-    }
-    (year, month, days + 1)
-}
 
-#[allow(clippy::manual_is_multiple_of)]
-fn is_leap(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    fn save_sample(root: &Path, name: &str) -> Manifest {
+        let manifest = sample_manifest();
+        let report = DriftReport::default();
+        save(root, name, &manifest, &report).unwrap();
+        manifest
+    }
+
+    #[test]
+    fn save_sbom_writes_spdx_sidecar() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+
+        let path = save_sbom(root, "v1", &manifest).unwrap();
+        assert_eq!(path, snapshots_dir(root).join("v1.spdx.json"));
+        let text = std::fs::read_to_string(&path).unwrap();
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["spdxVersion"], "SPDX-2.3");
+    }
+
+    #[test]
+    fn save_sbom_bails_when_sidecar_exists() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+
+        save_sbom(root, "v1", &manifest).unwrap();
+        let err = save_sbom(root, "v1", &manifest).unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn delete_removes_snapshot_and_sidecar() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        save_sbom(root, "v1", &manifest).unwrap();
+
+        delete(root, "v1").unwrap();
+        assert!(!snapshot_path(root, "v1").exists());
+        assert!(!snapshots_dir(root).join("v1.spdx.json").exists());
+    }
+
+    #[test]
+    fn delete_without_sidecar_still_succeeds() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        save_sample(root, "v1");
+
+        delete(root, "v1").unwrap();
+        assert!(!snapshot_path(root, "v1").exists());
+    }
+
+    #[test]
+    fn list_skips_sbom_sidecars() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        save_sbom(root, "v1", &manifest).unwrap();
+
+        let snaps = list(root).unwrap();
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].name, "v1");
+    }
 }
