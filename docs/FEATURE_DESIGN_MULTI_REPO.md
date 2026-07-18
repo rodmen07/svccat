@@ -1,3 +1,5 @@
+> **Status (2026-07-18): SUPERSEDED, historical design record only.** Multi-repo workspaces, cross-repo dependencies, and composable rules shipped in v0.21.0 on 2026-06-03. Current planning lives in [ROADMAP.md](../ROADMAP.md).
+
 # Feature Design: Multi-Repo Support (v0.20.0 Candidate)
 
 **Priority:** High (addresses team-scale drift detection)  
