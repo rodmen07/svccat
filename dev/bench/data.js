@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783941081539,
+  "lastUpdate": 1784415188012,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1619,6 +1619,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12403,
             "range": "± 30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "60c56b2fee1130f4e3b5e31aeda635f2051f9d77",
+          "message": "Merge pull request #3 from rodmen07/feat/spdx-sbom\n\nv1.5.0: SPDX 2.3 JSON SBOM export + snapshot --sbom sidecar",
+          "timestamp": "2026-07-18T17:49:46-05:00",
+          "tree_id": "12b19323c472598d93bbc522e3f7766f00be4280",
+          "url": "https://github.com/rodmen07/svccat/commit/60c56b2fee1130f4e3b5e31aeda635f2051f9d77"
+        },
+        "date": 1784415187693,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12479,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23628,
+            "range": "± 165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 313,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5507,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5143,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12203,
+            "range": "± 39",
             "unit": "ns/iter"
           }
         ]
