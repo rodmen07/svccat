@@ -150,52 +150,7 @@ pub fn render_list(snaps: &[Snapshot]) {
     );
     println!("{}", "-".repeat(72).dimmed());
     for s in snaps {
-        let dt = format_ts(s.created_at);
+        let dt = crate::timefmt::human_utc(s.created_at);
         println!("{:<20}  {:<24}  {}", s.name, dt, s.manifest);
     }
-}
-
-fn format_ts(secs: u64) -> String {
-    // Simple UTC formatting without chrono dependency.
-    let s = secs % 60;
-    let m = (secs / 60) % 60;
-    let h = (secs / 3600) % 24;
-    let days = secs / 86400;
-    // Days since Unix epoch -> approximate calendar date.
-    let (y, mo, d) = days_to_ymd(days);
-    format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02} UTC")
-}
-
-fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
-    // Gregorian calendar approximation from day count since 1970-01-01.
-    let mut year = 1970u64;
-    loop {
-        let leap = is_leap(year);
-        let days_in_year = if leap { 366 } else { 365 };
-        if days < days_in_year {
-            break;
-        }
-        days -= days_in_year;
-        year += 1;
-    }
-    let leap = is_leap(year);
-    let months = if leap {
-        [31u64, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31u64, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-    let mut month = 1u64;
-    for &days_in_month in &months {
-        if days < days_in_month {
-            break;
-        }
-        days -= days_in_month;
-        month += 1;
-    }
-    (year, month, days + 1)
-}
-
-#[allow(clippy::manual_is_multiple_of)]
-fn is_leap(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
