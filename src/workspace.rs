@@ -37,6 +37,14 @@ fn default_enabled() -> bool {
 /// Workspace configuration containing multiple repositories.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WorkspaceConfig {
+    /// Optional human-readable name for the workspace.
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// Optional description of the workspace.
+    #[serde(default)]
+    pub description: Option<String>,
+
     /// List of repositories in this workspace.
     pub repos: Vec<RepositoryConfig>,
 }
@@ -54,6 +62,10 @@ pub struct RepositoryAnalysis {
 /// Aggregated workspace drift report combining results from all repos.
 #[derive(Debug, Clone, Serialize)]
 pub struct WorkspaceDriftReport {
+    /// Workspace name from the config, when one is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_name: Option<String>,
+
     /// Analyses for each repository (repo_name, analysis).
     pub repos: Vec<RepositoryAnalysis>,
 
@@ -133,6 +145,16 @@ pub fn load_workspace_config(config_path: &Path) -> Result<(WorkspaceConfig, Pat
         .get("workspace")
         .ok_or_else(|| anyhow!("no [workspace] section in config"))?;
 
+    let name = workspace
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let description = workspace
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
     let repos: Vec<RepositoryConfig> = workspace
         .get("repos")
         .and_then(|r| r.as_array())
@@ -180,7 +202,64 @@ pub fn load_workspace_config(config_path: &Path) -> Result<(WorkspaceConfig, Pat
         return Err(anyhow!("workspace must have at least one repository"));
     }
 
-    Ok((WorkspaceConfig { repos }, workspace_root))
+    Ok((
+        WorkspaceConfig {
+            name,
+            description,
+            repos,
+        },
+        workspace_root,
+    ))
+}
+
+/// Restrict a workspace configuration to the repositories named in a
+/// comma-separated filter, as passed to `workspace check --filter`.
+///
+/// Names are matched exactly after trimming surrounding whitespace, and empty
+/// segments are ignored. Naming a repository that does not exist in the config
+/// is an error, so a typo cannot silently shrink the workspace. Filtering only
+/// selects among configured repos; a repo with `enabled = false` is still
+/// skipped by analysis even when named here.
+pub fn filter_repos(config: &WorkspaceConfig, filter: &str) -> Result<WorkspaceConfig> {
+    let requested: Vec<&str> = filter
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if requested.is_empty() {
+        return Err(anyhow!(
+            "--filter must name at least one repository (comma-separated names)"
+        ));
+    }
+
+    let unknown: Vec<&str> = requested
+        .iter()
+        .copied()
+        .filter(|name| !config.repos.iter().any(|r| r.name == *name))
+        .collect();
+
+    if !unknown.is_empty() {
+        let available: Vec<&str> = config.repos.iter().map(|r| r.name.as_str()).collect();
+        return Err(anyhow!(
+            "unknown repository name(s) in --filter: {} (available: {})",
+            unknown.join(", "),
+            available.join(", ")
+        ));
+    }
+
+    let repos = config
+        .repos
+        .iter()
+        .filter(|r| requested.contains(&r.name.as_str()))
+        .cloned()
+        .collect();
+
+    Ok(WorkspaceConfig {
+        name: config.name.clone(),
+        description: config.description.clone(),
+        repos,
+    })
 }
 
 /// Analyze a single repository.
@@ -303,6 +382,7 @@ pub fn analyze_workspace(
     }
 
     Ok(WorkspaceDriftReport {
+        workspace_name: config.name.clone(),
         repos: analyses,
         total_declared,
         total_discovered,
@@ -332,4 +412,116 @@ pub fn find_workspace_config(root: &Path) -> Option<PathBuf> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn repo(name: &str) -> RepositoryConfig {
+        RepositoryConfig {
+            name: name.to_string(),
+            path: PathBuf::from(name),
+            manifest: PathBuf::from("services.yaml"),
+            enabled: true,
+        }
+    }
+
+    fn sample_config() -> WorkspaceConfig {
+        WorkspaceConfig {
+            name: Some("Platform".to_string()),
+            description: Some("Multi-service platform".to_string()),
+            repos: vec![repo("alpha"), repo("beta")],
+        }
+    }
+
+    fn write_config(dir: &TempDir, content: &str) -> PathBuf {
+        let path = dir.path().join("svccat.toml");
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn load_parses_workspace_name_and_description() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[workspace]
+name = "Platform Engineering"
+description = "Multi-service platform"
+repos = [{ name = "api", path = "api-repo" }]
+"#,
+        );
+
+        let (config, root) = load_workspace_config(&path).unwrap();
+        assert_eq!(config.name.as_deref(), Some("Platform Engineering"));
+        assert_eq!(
+            config.description.as_deref(),
+            Some("Multi-service platform")
+        );
+        assert_eq!(config.repos.len(), 1);
+        assert_eq!(root, dir.path());
+    }
+
+    #[test]
+    fn load_defaults_name_and_description_to_none() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[workspace]
+repos = [{ name = "api", path = "api-repo" }]
+"#,
+        );
+
+        let (config, _) = load_workspace_config(&path).unwrap();
+        assert_eq!(config.name, None);
+        assert_eq!(config.description, None);
+    }
+
+    #[test]
+    fn filter_selects_single_repo() {
+        let filtered = filter_repos(&sample_config(), "beta").unwrap();
+        assert_eq!(filtered.repos.len(), 1);
+        assert_eq!(filtered.repos[0].name, "beta");
+        // Workspace metadata is preserved through filtering.
+        assert_eq!(filtered.name.as_deref(), Some("Platform"));
+    }
+
+    #[test]
+    fn filter_trims_whitespace_and_keeps_config_order() {
+        // Requested in reverse order with stray whitespace; config order wins.
+        let filtered = filter_repos(&sample_config(), " beta , alpha ").unwrap();
+        let names: Vec<&str> = filtered.repos.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+
+    #[test]
+    fn filter_ignores_duplicate_names() {
+        let filtered = filter_repos(&sample_config(), "alpha,alpha").unwrap();
+        assert_eq!(filtered.repos.len(), 1);
+        assert_eq!(filtered.repos[0].name, "alpha");
+    }
+
+    #[test]
+    fn filter_rejects_unknown_repo_names() {
+        let err = filter_repos(&sample_config(), "alpha,nope").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("nope"),
+            "message should name the unknown repo: {msg}"
+        );
+        assert!(
+            msg.contains("alpha") && msg.contains("beta"),
+            "message should list available repos: {msg}"
+        );
+    }
+
+    #[test]
+    fn filter_rejects_empty_filter() {
+        assert!(filter_repos(&sample_config(), "").is_err());
+        assert!(filter_repos(&sample_config(), " , ").is_err());
+    }
 }

@@ -2,6 +2,29 @@
 
 # Feature Design: Multi-Repo Support (v0.20.0 Candidate)
 
+## Implementation slices
+
+Recorded 2026-07-19. Phases 1-4 of this design (configuration and loading,
+multi-repo drift detection, reporting with cross-repo dependency analysis, and the
+CLI integration as `svccat workspace check`) shipped together in v0.21.0 on
+2026-06-03. The slices below cover only the remainder that never shipped, each
+sized for one small PR. ROADMAP.md stays the planning source of truth; slice 3 is
+the `workspace check --format html` candidate already listed there.
+
+- [x] **Slice 1: workspace config completion and repo filtering** (implemented
+  2026-07-19, same commit as this slice list). Parse the `[workspace]` `name` and
+  `description` fields from section 1, carry the workspace name into the
+  aggregated report and all three output formats (section 6's `workspace_name`),
+  and wire the previously parsed-but-ignored `workspace check --filter <repos>`
+  flag into real repo selection with unknown-name validation. Repos with
+  `enabled = false` stay skipped even when named in the filter.
+- [ ] **Slice 2: `[reporting]` config section.** Config-driven defaults from
+  section 1: default output `format`, an `include_cross_repo_deps` toggle for the
+  dependency analysis, and `exclude_patterns` merged into discovery ignore globs.
+- [ ] **Slice 3: `workspace check --format html` interactive visualization.**
+  Aggregated workspace report as a self-contained HTML page reusing the existing
+  D3 graph renderer; tracked as a "Later / candidates" item in ROADMAP.md.
+
 **Priority:** High (addresses team-scale drift detection)  
 **Effort Estimate:** 2-3 weeks  
 **Breaking Change:** No (backward compatible)
