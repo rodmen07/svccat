@@ -934,7 +934,7 @@ fn run() -> Result<i32> {
             match action {
                 WorkspaceAction::Check {
                     config: config_path,
-                    filter: _filter,
+                    filter,
                     format,
                     fail_on_drift,
                     ignore: cli_ignore,
@@ -944,6 +944,12 @@ fn run() -> Result<i32> {
                     // Load workspace configuration
                     let (workspace_config, workspace_root) =
                         workspace::load_workspace_config(&config_path)?;
+
+                    // Restrict to the repos named in --filter, when given.
+                    let workspace_config = match filter.as_deref() {
+                        Some(f) => workspace::filter_repos(&workspace_config, f)?,
+                        None => workspace_config,
+                    };
 
                     // Merge ignore patterns
                     let mut ignore = cfg.ignore.clone();

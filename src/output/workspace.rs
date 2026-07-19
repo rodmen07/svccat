@@ -10,6 +10,11 @@ pub fn render_terminal(report: &WorkspaceDriftReport) {
     println!("╚═══════════════════════════════════════════════════════════════════╝");
     println!();
 
+    if let Some(name) = &report.workspace_name {
+        println!("Workspace: {}", name);
+        println!();
+    }
+
     for (idx, analysis) in report.repos.iter().enumerate() {
         if idx > 0 {
             println!();
@@ -108,6 +113,7 @@ pub fn render_terminal(report: &WorkspaceDriftReport) {
 /// Render workspace report in JSON format.
 pub fn render_json(report: &WorkspaceDriftReport) -> Result<String> {
     let mut json_report = json!({
+        "workspace_name": report.workspace_name,
         "total_declared": report.total_declared,
         "total_discovered": report.total_discovered,
         "total_errors": report.total_errors,
@@ -148,6 +154,10 @@ pub fn render_json(report: &WorkspaceDriftReport) -> Result<String> {
 /// Render workspace report in Markdown format.
 pub fn render_markdown(report: &WorkspaceDriftReport) -> String {
     let mut md = String::from("# Workspace Drift Report\n\n");
+
+    if let Some(name) = &report.workspace_name {
+        md.push_str(&format!("**Workspace:** {}\n\n", name));
+    }
 
     md.push_str(&format!(
         "**Summary:** {} total services, {} errors, {} warnings across {} repositories\n\n",
