@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784415188012,
+  "lastUpdate": 1784483780816,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1679,6 +1679,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12203,
             "range": "± 39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb907d8d7c46fa04fffc153db990c669eefa6059",
+          "message": "feat(multi-repo): workspace config completion and repo filtering (multi-repo slice 1) (#4)\n\nPhases 1-4 of docs/FEATURE_DESIGN_MULTI_REPO.md shipped in v0.21.0, so the\ndesign is now sliced over the unshipped remainder, recorded as a checkbox\nlist at the top of the doc:\n\n  1. Workspace config completion and repo filtering (this commit)\n  2. [reporting] config section (format default, include_cross_repo_deps,\n     exclude_patterns merged into ignore globs)\n  3. workspace check --format html interactive visualization (already a\n     ROADMAP.md Later / candidates item)\n\nSlice 1 delivers:\n- Parse [workspace] name and description from svccat.toml into\n  WorkspaceConfig; both default to None.\n- Carry the workspace name into WorkspaceDriftReport and all three\n  renderers: terminal header line, workspace_name JSON field, markdown\n  Workspace line.\n- Wire the previously parsed-but-ignored workspace check --filter flag:\n  comma-separated repo names, whitespace trimmed, duplicates deduped,\n  unknown names rejected with the list of available repos (exit 2).\n  Filtering selects among configured repos; enabled = false still skips.\n\nTests: 7 new unit tests in src/workspace.rs and 5 new integration tests\nin tests/workspace_integration_tests.rs (202 to 214 passing).\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-19T12:53:10-05:00",
+          "tree_id": "47a7d9a8982bbc0595ab24d66339cd1e7f935506",
+          "url": "https://github.com/rodmen07/svccat/commit/bb907d8d7c46fa04fffc153db990c669eefa6059"
+        },
+        "date": 1784483779997,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 11283,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 22231,
+            "range": "± 165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 282,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 4870,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4497,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 10884,
+            "range": "± 17",
             "unit": "ns/iter"
           }
         ]
