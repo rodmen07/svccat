@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784483780816,
+  "lastUpdate": 1784557207916,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1739,6 +1739,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 10884,
             "range": "± 17",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c4fc702e93dadb26be2dd531e2c874ed3523a96e",
+          "message": "feat(workspace): [reporting] config section with CLI-over-config precedence (multi-repo slice 2) (#5)\n\nAdd the `[reporting]` section to workspace `svccat.toml`, providing\nconfig-driven defaults for `workspace check`:\n\n- `format`: default output format. Precedence is `--format` (CLI) over\n  `[reporting].format` over the hard-coded terminal default. The config\n  value is validated against the same set clap accepts for `--format`, so\n  the flag and the config can never drift apart.\n- `include_cross_repo_deps` (default true): when false, the cross-repo\n  dependency graph is never built. The toggle removes the work rather than\n  hiding output, so it is a genuine cost knob.\n- `exclude_patterns`: merged additively into the existing discovery ignore\n  globs alongside `--ignore` and the manifest's own `discovery.ignore`; no\n  second glob engine.\n\nParsing, validation, precedence, and the glob merge live in a new focused\n`src/reporting.rs` module. Unknown keys inside `[reporting]` are ignored and\nmistyped known keys are rejected, matching how the rest of svccat.toml is\nparsed. `main.rs` gains only thin wiring (the resolver moved out of it).\n\nTests: 17 unit tests in the new module (parsing, per-key precedence,\nglob-merge semantics, value validation), 7 integration tests in a new\n`tests/reporting_config_tests.rs` (exclude flows through real discovery,\ntoggle skips the graph build with `dependency_summary` as the evidence,\nformat resolution end to end), plus loader-integration coverage in\nworkspace.rs.\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T09:17:01-05:00",
+          "tree_id": "53bf2df0bc65050bc220738309c91f4117f9ebbc",
+          "url": "https://github.com/rodmen07/svccat/commit/c4fc702e93dadb26be2dd531e2c874ed3523a96e"
+        },
+        "date": 1784557207037,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12641,
+            "range": "± 458",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23830,
+            "range": "± 138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 311,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5497,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5134,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12585,
+            "range": "± 123",
             "unit": "ns/iter"
           }
         ]
