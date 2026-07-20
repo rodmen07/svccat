@@ -2,6 +2,7 @@ use crate::deps_graph;
 use crate::discovery;
 use crate::drift;
 use crate::manifest::Manifest;
+use crate::reporting::ReportingConfig;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -47,6 +48,12 @@ pub struct WorkspaceConfig {
 
     /// List of repositories in this workspace.
     pub repos: Vec<RepositoryConfig>,
+
+    /// Reporting defaults from the `[reporting]` section: default output
+    /// format, the cross-repo dependency toggle, and discovery exclude globs.
+    /// See [`crate::reporting`] for the precedence rules.
+    #[serde(default)]
+    pub reporting: ReportingConfig,
 }
 
 // ── Analysis Results ───────────────────────────────────────────────────────
@@ -202,11 +209,16 @@ pub fn load_workspace_config(config_path: &Path) -> Result<(WorkspaceConfig, Pat
         return Err(anyhow!("workspace must have at least one repository"));
     }
 
+    // Parse the optional [reporting] defaults. Validation lives in the
+    // `reporting` module so the CLI and the config agree on accepted values.
+    let reporting = crate::reporting::parse(toml.get("reporting"))?;
+
     Ok((
         WorkspaceConfig {
             name,
             description,
             repos,
+            reporting,
         },
         workspace_root,
     ))
@@ -259,6 +271,7 @@ pub fn filter_repos(config: &WorkspaceConfig, filter: &str) -> Result<WorkspaceC
         name: config.name.clone(),
         description: config.description.clone(),
         repos,
+        reporting: config.reporting.clone(),
     })
 }
 
@@ -311,6 +324,66 @@ fn analyze_repository(
     })
 }
 
+/// Outcome of cross-repo dependency analysis, or its absence.
+///
+/// [`CrossRepoAnalysis::default()`] is the "no dependency analysis ran" state:
+/// no summary, no circular or unresolvable dependencies. It is what the toggle
+/// leaves behind when cross-repo analysis is switched off.
+#[derive(Default)]
+struct CrossRepoAnalysis {
+    summary: Option<deps_graph::DependencySummary>,
+    circular: Vec<deps_graph::CircularDependency>,
+    unresolvable: Vec<deps_graph::UnresolvableDependency>,
+}
+
+/// Reload each enabled repo's manifest and run the cross-repo dependency graph.
+///
+/// This is where the `include_cross_repo_deps` toggle earns its keep: the
+/// caller only invokes this function when the toggle is on, so when it is off
+/// the manifest reloads *and* the graph build below never happen. The toggle
+/// removes work rather than hiding output; the alternative (build the graph,
+/// then drop it before rendering) would pay the full cost for nothing, which
+/// defeats the point of a cost knob.
+fn analyze_cross_repo_dependencies(
+    config: &WorkspaceConfig,
+    workspace_root: &Path,
+) -> CrossRepoAnalysis {
+    // The manifests are reloaded here (rather than threaded out of the per-repo
+    // drift pass) so this whole block is self-contained and trivially skippable.
+    let manifests: Vec<(String, Manifest)> = config
+        .repos
+        .iter()
+        .filter(|repo| repo.enabled)
+        .filter_map(|repo| {
+            let manifest_path = workspace_root.join(&repo.path).join(&repo.manifest);
+            Manifest::load(&manifest_path)
+                .ok()
+                .map(|manifest| (repo.name.clone(), manifest))
+        })
+        .collect();
+
+    if manifests.is_empty() {
+        return CrossRepoAnalysis::default();
+    }
+
+    let manifest_refs: Vec<(String, &Manifest)> = manifests
+        .iter()
+        .map(|(name, manifest)| (name.clone(), manifest))
+        .collect();
+
+    match deps_graph::DependencyGraph::build(manifest_refs) {
+        Ok(graph) => CrossRepoAnalysis {
+            summary: Some(graph.summary()),
+            circular: graph.circular_dependencies.clone(),
+            unresolvable: graph.validate_all_dependencies(),
+        },
+        Err(e) => {
+            eprintln!("⚠️  Warning: Failed to analyze dependencies: {}", e);
+            CrossRepoAnalysis::default()
+        }
+    }
+}
+
 /// Load and analyze all repositories in a workspace.
 pub fn analyze_workspace(
     config: &WorkspaceConfig,
@@ -323,29 +396,26 @@ pub fn analyze_workspace(
     let mut total_discovered = 0;
     let mut total_errors = 0;
     let mut total_warnings = 0;
-    let mut manifests = Vec::new();
 
-    // Analyze each enabled repository
+    // Merge the reporting `exclude_patterns` into the discovery ignore globs.
+    // This reuses the existing glob machinery in `discovery`: the merged list
+    // is compiled there alongside each manifest's own `discovery.ignore`, so an
+    // exclude pattern behaves exactly like a `--ignore` flag.
+    let effective_ignore = config.reporting.merged_ignore(extra_ignore);
+
+    // Analyze each enabled repository.
     for repo_config in &config.repos {
         if !repo_config.enabled {
             eprintln!("⏭️  Skipping disabled repository: {}", repo_config.name);
             continue;
         }
 
-        match analyze_repository(repo_config, workspace_root, extra_ignore, depth) {
+        match analyze_repository(repo_config, workspace_root, &effective_ignore, depth) {
             Ok(analysis) => {
                 total_declared += analysis.drift.declared;
                 total_discovered += analysis.drift.discovered;
                 total_errors += analysis.drift.error_count();
                 total_warnings += analysis.drift.warning_count();
-
-                // Load manifest for dependency analysis
-                let repo_root = workspace_root.join(&repo_config.path);
-                let manifest_path = repo_root.join(&repo_config.manifest);
-                if let Ok(manifest) = Manifest::load(&manifest_path) {
-                    manifests.push((repo_config.name.clone(), manifest));
-                }
-
                 analyses.push(analysis);
             }
             Err(e) => {
@@ -358,28 +428,13 @@ pub fn analyze_workspace(
         }
     }
 
-    // Analyze cross-repo dependencies
-    let mut dependency_summary = None;
-    let mut circular_dependencies = Vec::new();
-    let mut unresolvable_dependencies = Vec::new();
-
-    if !manifests.is_empty() {
-        let manifest_refs: Vec<(String, &Manifest)> = manifests
-            .iter()
-            .map(|(name, manifest)| (name.clone(), manifest))
-            .collect();
-
-        match deps_graph::DependencyGraph::build(manifest_refs) {
-            Ok(graph) => {
-                dependency_summary = Some(graph.summary());
-                circular_dependencies = graph.circular_dependencies.clone();
-                unresolvable_dependencies = graph.validate_all_dependencies();
-            }
-            Err(e) => {
-                eprintln!("⚠️  Warning: Failed to analyze dependencies: {}", e);
-            }
-        }
-    }
+    // Cross-repo dependency analysis is only started when the toggle is on, so
+    // switching it off skips the manifest reloads and graph build entirely.
+    let deps = if config.reporting.include_cross_repo_deps {
+        analyze_cross_repo_dependencies(config, workspace_root)
+    } else {
+        CrossRepoAnalysis::default()
+    };
 
     Ok(WorkspaceDriftReport {
         workspace_name: config.name.clone(),
@@ -388,9 +443,9 @@ pub fn analyze_workspace(
         total_discovered,
         total_errors,
         total_warnings,
-        dependency_summary,
-        circular_dependencies,
-        unresolvable_dependencies,
+        dependency_summary: deps.summary,
+        circular_dependencies: deps.circular,
+        unresolvable_dependencies: deps.unresolvable,
     })
 }
 
@@ -417,6 +472,7 @@ pub fn find_workspace_config(root: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::OutputFormat;
     use tempfile::TempDir;
 
     fn repo(name: &str) -> RepositoryConfig {
@@ -433,6 +489,7 @@ mod tests {
             name: Some("Platform".to_string()),
             description: Some("Multi-service platform".to_string()),
             repos: vec![repo("alpha"), repo("beta")],
+            reporting: ReportingConfig::default(),
         }
     }
 
@@ -523,5 +580,81 @@ repos = [{ name = "api", path = "api-repo" }]
     fn filter_rejects_empty_filter() {
         assert!(filter_repos(&sample_config(), "").is_err());
         assert!(filter_repos(&sample_config(), " , ").is_err());
+    }
+
+    // The exhaustive parsing, validation, precedence, and glob-merge tests for
+    // [reporting] live in `crate::reporting`. The tests here only confirm the
+    // section is wired through `load_workspace_config` and survives filtering.
+
+    #[test]
+    fn load_defaults_reporting_when_section_absent() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[workspace]
+repos = [{ name = "api", path = "api-repo" }]
+"#,
+        );
+
+        let (config, _) = load_workspace_config(&path).unwrap();
+        assert_eq!(config.reporting, ReportingConfig::default());
+    }
+
+    #[test]
+    fn load_wires_reporting_section_into_config() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[workspace]
+repos = [{ name = "api", path = "api-repo" }]
+
+[reporting]
+format = "json"
+include_cross_repo_deps = false
+exclude_patterns = ["examples/*", "vendor"]
+"#,
+        );
+
+        let (config, _) = load_workspace_config(&path).unwrap();
+        assert_eq!(config.reporting.format, Some(OutputFormat::Json));
+        assert!(!config.reporting.include_cross_repo_deps);
+        assert_eq!(
+            config.reporting.exclude_patterns,
+            vec!["examples/*".to_string(), "vendor".to_string()]
+        );
+    }
+
+    #[test]
+    fn load_rejects_bad_reporting_value() {
+        // Validation happens during load, so a mistyped format fails the whole
+        // config load rather than silently producing the wrong output later.
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            r#"
+[workspace]
+repos = [{ name = "api", path = "api-repo" }]
+
+[reporting]
+format = "jsonn"
+"#,
+        );
+
+        assert!(load_workspace_config(&path).is_err());
+    }
+
+    #[test]
+    fn filter_repos_preserves_reporting() {
+        let mut config = sample_config();
+        config.reporting = ReportingConfig {
+            format: Some(OutputFormat::Json),
+            include_cross_repo_deps: false,
+            exclude_patterns: vec!["vendor".to_string()],
+        };
+
+        let filtered = filter_repos(&config, "alpha").unwrap();
+        assert_eq!(filtered.reporting, config.reporting);
     }
 }
