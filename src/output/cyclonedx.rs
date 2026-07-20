@@ -136,7 +136,18 @@ fn render_at(manifest: &Manifest, secs: u64, subsec_nanos: u32, pid: u32) -> Res
     let serial_number = format!("urn:uuid:{}", synthetic_uuid(&seed));
 
     let mut used_ids: HashSet<String> = HashSet::new();
+    // First-occurrence-wins lookup for resolving `depends_on` names to a
+    // bom-ref. A manifest is not required to have unique service names (only
+    // the opt-in `svccat lint` flags that), so this map is inherently lossy
+    // when duplicates exist -- an edge that names a duplicated service
+    // resolves to whichever bom-ref was assigned first. That ambiguity is
+    // unavoidable without rejecting the manifest outright, but it must never
+    // corrupt the `dependencies` array itself: each component's OWN entry
+    // is keyed by its position (`bom_refs_by_index`, below), never by a
+    // name-based lookup, so every component gets exactly one dependency-graph
+    // entry with its own unique bom-ref even when names collide.
     let mut bom_ref_by_name: HashMap<String, String> = HashMap::new();
+    let mut bom_refs_by_index: Vec<String> = Vec::with_capacity(manifest.services.len());
     let mut components: Vec<CdxComponent> = Vec::new();
 
     for svc in &manifest.services {
@@ -148,7 +159,10 @@ fn render_at(manifest: &Manifest, secs: u64, subsec_nanos: u32, pid: u32) -> Res
             suffix += 1;
         }
         used_ids.insert(bom_ref.clone());
-        bom_ref_by_name.insert(svc.name.clone(), bom_ref.clone());
+        bom_ref_by_name
+            .entry(svc.name.clone())
+            .or_insert_with(|| bom_ref.clone());
+        bom_refs_by_index.push(bom_ref.clone());
 
         let mut external_references: Vec<CdxExternalReference> = Vec::new();
         if let Some(ref url) = svc.url {
@@ -193,14 +207,26 @@ fn render_at(manifest: &Manifest, secs: u64, subsec_nanos: u32, pid: u32) -> Res
     let dependencies: Vec<CdxDependency> = manifest
         .services
         .iter()
-        .map(|svc| {
-            let bom_ref = bom_ref_by_name.get(&svc.name).cloned().unwrap_or_default();
+        .enumerate()
+        .map(|(i, svc)| {
+            // The component's own ref comes from its position, not a
+            // name-keyed lookup: duplicate service names would otherwise
+            // make every duplicate resolve to the SAME bom-ref (whichever
+            // name-lookup last won), producing byte-identical entries in
+            // `dependencies` and violating the schema's `uniqueItems`
+            // constraint while leaving earlier duplicates with no entry at
+            // all. Indexing into `bom_refs_by_index` guarantees a distinct,
+            // correct ref per component regardless of name collisions.
+            let bom_ref = bom_refs_by_index[i].clone();
             let depends_on: Vec<String> = svc
                 .depends_on
                 .iter()
                 // Unresolved dependency names are skipped: a dangling ref
                 // would fail validation, and `svccat deps` already flags
                 // them (same policy as the SPDX exporter's DEPENDS_ON).
+                // When a dependency name is itself duplicated in the
+                // manifest, this resolves to the first-declared match (see
+                // `bom_ref_by_name` above) rather than corrupting output.
                 .filter_map(|dep| bom_ref_by_name.get(dep).cloned())
                 .collect();
             CdxDependency {
@@ -512,6 +538,51 @@ mod tests {
         // ones included explicitly, per the CycloneDX spec's own
         // recommendation (mirrors SPDX's DESCRIBES-covers-every-package).
         assert_eq!(dependency_refs, component_refs);
+    }
+
+    #[test]
+    fn duplicate_service_names_get_distinct_dependency_entries() {
+        // `Manifest::load` does not reject duplicate service names (only the
+        // separate opt-in `svccat lint` command flags them), so `export`
+        // must stay schema-valid even when a manifest has two entries with
+        // the same name. Regression test for the bom_ref_by_name overwrite
+        // bug: both duplicates used to resolve their OWN `dependencies`
+        // entry to whichever bom-ref was assigned LAST, producing two
+        // byte-identical `{"ref": ...}` objects (violating the schema's
+        // `uniqueItems: true` on `dependencies`) while the first component
+        // was left with no entry at all.
+        let mut manifest = Manifest::default();
+        manifest.services.push(svc("auth-service"));
+        manifest.services.push(svc("auth-service"));
+
+        let v = render_value(&manifest);
+        let component_refs: Vec<String> = v["components"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["bom-ref"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            component_refs,
+            ["component-auth-service", "component-auth-service-2"]
+        );
+
+        let dependency_refs: Vec<String> = v["dependencies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| d["ref"].as_str().unwrap().to_string())
+            .collect();
+
+        // Every component -- including duplicates -- gets its own entry,
+        // and the refs are pairwise distinct (no `uniqueItems` violation).
+        assert_eq!(dependency_refs, component_refs);
+        let unique: HashSet<&String> = dependency_refs.iter().collect();
+        assert_eq!(
+            unique.len(),
+            dependency_refs.len(),
+            "duplicate refs in dependencies: {dependency_refs:?}"
+        );
     }
 
     #[test]
