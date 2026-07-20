@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784581241196,
+  "lastUpdate": 1784582196227,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2159,6 +2159,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 11915,
             "range": "± 102",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "36a58aaaa95f6c81ff1d49cd9c724b8760bec765",
+          "message": "docs(roadmap): move three shipped items out of Later/candidates (#13)\n\nVerified against real git/gh state (gh pr view, git log) before editing:\n\n- Policy rule schema validation folded into `svccat lint` shipped via\n  PR #12 (squash da3d537).\n- `workspace check --format html` interactive visualization shipped via\n  PR #6 (squash 8f625fc), hardened by PR #7 (XSS fix, e97a67b), PR #8\n  (CLI integration tests, 23cccff), and PR #10 (CI now builds/tests this\n  checkout, 8c6dc20).\n- CycloneDX JSON export as a sibling to spdx-json shipped via PR #11\n  (squash 4202db6).\n\nRecorded in History and supersession with their real PR numbers and\nmerge commits, per the document's existing convention for retiring\ncarried-forward items.\n\nThe fourth candidate, SSRF redirect-hardening for --ping, was checked\nagainst src/ping.rs and src/webhook.rs and is genuinely still unshipped:\nboth validate the URL once before the request, but ureq's default\nconfig follows redirects without re-validating the target host per hop.\nLeft in Later/candidates with that finding recorded inline.\n\nDocs-only change; no code, tests, or CI behavior affected.",
+          "timestamp": "2026-07-20T16:13:28-05:00",
+          "tree_id": "0546fe424075635bd110c66f31cb9997fe52002d",
+          "url": "https://github.com/rodmen07/svccat/commit/36a58aaaa95f6c81ff1d49cd9c724b8760bec765"
+        },
+        "date": 1784582195760,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12588,
+            "range": "± 171",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23703,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 300,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5456,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5103,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12323,
+            "range": "± 71",
             "unit": "ns/iter"
           }
         ]
