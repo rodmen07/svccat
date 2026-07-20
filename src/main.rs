@@ -61,6 +61,29 @@ fn render_check_output_to_string(
     Ok(maybe_string)
 }
 
+/// Render the `workspace check` report to a string for formats that produce
+/// one, or `None` for formats (`Terminal`, `Compact`, ...) that print as a
+/// side effect via `output::workspace::render_terminal` instead.
+///
+/// Mirrors [`render_check_output_to_string`]'s shape for the single-repo
+/// `check` command: extracting the format-dispatch match arm into its own
+/// function makes it directly unit-testable, so a regression here (a format
+/// silently falling through to the terminal branch, or dispatching to the
+/// wrong renderer) is caught without needing to spawn the actual binary.
+fn render_workspace_check_output_to_string(
+    format: &OutputFormat,
+    report: &workspace::WorkspaceDriftReport,
+) -> Result<Option<String>> {
+    let maybe_string = match format {
+        OutputFormat::Json => Some(output::workspace::render_json(report)?),
+        OutputFormat::Markdown => Some(output::workspace::render_markdown(report)),
+        OutputFormat::Html => Some(output::workspace_html::render_html(report)),
+        _ => None,
+    };
+
+    Ok(maybe_string)
+}
+
 fn run() -> Result<i32> {
     let cli = Cli::parse();
     let root = cli.root.unwrap_or_else(|| std::path::PathBuf::from("."));
@@ -978,15 +1001,9 @@ fn run() -> Result<i32> {
                     )?;
 
                     // Render output
-                    let content = match format {
-                        svccat::cli::OutputFormat::Json => output::workspace::render_json(&report)?,
-                        svccat::cli::OutputFormat::Markdown => {
-                            output::workspace::render_markdown(&report)
-                        }
-                        svccat::cli::OutputFormat::Html => {
-                            output::workspace_html::render_html(&report)
-                        }
-                        _ => {
+                    let content = match render_workspace_check_output_to_string(&format, &report)? {
+                        Some(s) => s,
+                        None => {
                             output::workspace::render_terminal(&report);
                             String::new()
                         }
@@ -1089,6 +1106,63 @@ mod tests {
         let report = sample_report();
         let out = render_check_output_to_string(&OutputFormat::Terminal, &manifest, &report, &[])
             .unwrap();
+        assert!(out.is_none());
+    }
+
+    fn sample_workspace_report() -> workspace::WorkspaceDriftReport {
+        workspace::WorkspaceDriftReport {
+            workspace_name: Some("Platform".to_string()),
+            repos: Vec::new(),
+            total_declared: 0,
+            total_discovered: 0,
+            total_errors: 0,
+            total_warnings: 0,
+            dependency_summary: None,
+            circular_dependencies: Vec::new(),
+            unresolvable_dependencies: Vec::new(),
+            dependency_graph_nodes: Vec::new(),
+        }
+    }
+
+    // These three tests exercise `workspace check`'s format-dispatch match
+    // arm the same way `string_output_helper_supports_*` above exercises
+    // `check`'s: previously that arm lived only inline inside `run()`
+    // (unreachable from a unit test, since `run()` calls `Cli::parse()`
+    // against real argv) and was proven only indirectly through
+    // `workspace_html.rs`'s own unit tests, so a regression in the dispatch
+    // itself — the wrong format falling through, or `Html` accidentally
+    // routing to the wrong renderer — would have slipped through unnoticed.
+    #[test]
+    fn workspace_output_helper_supports_html() {
+        let report = sample_workspace_report();
+
+        let html = render_workspace_check_output_to_string(&OutputFormat::Html, &report)
+            .unwrap()
+            .unwrap();
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("Platform"));
+    }
+
+    #[test]
+    fn workspace_output_helper_supports_json_and_markdown() {
+        let report = sample_workspace_report();
+
+        let json = render_workspace_check_output_to_string(&OutputFormat::Json, &report)
+            .unwrap()
+            .unwrap();
+        assert!(json.contains("\"workspace_name\""));
+
+        let md = render_workspace_check_output_to_string(&OutputFormat::Markdown, &report)
+            .unwrap()
+            .unwrap();
+        assert!(md.contains("Platform"));
+    }
+
+    #[test]
+    fn workspace_output_helper_skips_terminal_format() {
+        let report = sample_workspace_report();
+        let out =
+            render_workspace_check_output_to_string(&OutputFormat::Terminal, &report).unwrap();
         assert!(out.is_none());
     }
 }

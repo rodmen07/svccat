@@ -1519,6 +1519,47 @@ services:
     assert!(html.contains("Service Catalog Report"));
 }
 
+#[test]
+fn report_html_escapes_single_quotes_in_service_fields() {
+    // Defense-in-depth (LOW finding filed alongside the mermaid.rs XSS fix):
+    // `esc()` previously escaped `&`, `<`, `>`, and `"` but not `'`. No
+    // current call site writes an attribute in single quotes, so this was
+    // unreachable today, but a value containing `'` must still render as
+    // inert text rather than a raw apostrophe.
+    let dir = TempDir::new().unwrap();
+    let root = dir.path();
+
+    touch(root, "services/api/Cargo.toml");
+
+    write_manifest(
+        root,
+        r#"
+discovery:
+  paths: ["services/*"]
+services:
+  - name: api
+    language: Rust
+    role: API
+    platform: Cloud Run
+    team: platform
+    oncall: "O'Brien"
+"#,
+    );
+
+    let (m, d) = load(root);
+    let report = svccat::drift::analyze(&m, &d, root);
+    let html = svccat::report::render_html(&m, &report);
+
+    assert!(
+        html.contains("O&#39;Brien"),
+        "a single quote in an oncall name must be escaped: {html}"
+    );
+    assert!(
+        !html.contains("O'Brien"),
+        "the raw, unescaped apostrophe must not survive: {html}"
+    );
+}
+
 // ── v0.8.0: --since git-ref ───────────────────────────────────────────────────
 
 #[test]
