@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784567328046,
+  "lastUpdate": 1784571169214,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1979,6 +1979,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 9416,
             "range": "± 12",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8c6dc20c71934732bc1753907e32284a4d428b83",
+          "message": "ci(gap): build and test this checkout, not just the published crate (#10)\n\n* ci(gap): build and test THIS checkout, not just the published crate\n\nVerify Registry Deployment (9-way OS x toolchain) and the drift-check\njob in svccat-pr.yml both `cargo install svccat` from crates.io, so\nneither ever compiles or tests a PR's own diff. Only coverage.yml\n(ubuntu/nightly) touched a PR's real code, so 12 of the 13 required\nchecks would pass identically even if new code were broken.\n\nAdd a new \"Build & Test (This Checkout)\" job to ci.yml: one runner per\nOS (ubuntu/windows/macos) on stable, running `cargo build --all-features`\nthen `cargo test --all-features` against the actual checkout, cached\nwith Swatinem/rust-cache (this repo's existing convention). Scoped to\nstable-per-OS rather than a second 9-way matrix: coverage.yml already\ncovers ubuntu/nightly against real code, so this closes the two OSes\n(windows, macos) that had zero real-code coverage, without doubling\nthis workflow's billed runner-minutes.\n\nThe existing \"Verify Registry Deployment\" job is untouched: it answers\na real, different question (does the published release still install\nand run on this OS/toolchain) and keeps doing exactly that.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>\n\n* fix(ci): build svccat-pr.yml's drift check from this checkout, not crates.io\n\nAdversarial review on PR #10 found that svccat-pr.yml still ran\n`cargo install svccat --locked`, which always fetches the last-published\ncrates.io binary and never this checkout's own code. So any PR that\nbreaks compilation or regresses check/drift-detection logic would still\nshow a green required \"Service catalog drift check\" status (demonstrated\nconcretely in scratch PR #9, run 29763368089, with a deliberately broken\nsrc/main.rs).\n\nFix: `cargo install --path . --locked --force` builds and installs the\nPR's own binary instead.\n\n---------\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T13:09:27-05:00",
+          "tree_id": "8a8961844acd2084959919838b5552d78bc27ddc",
+          "url": "https://github.com/rodmen07/svccat/commit/8c6dc20c71934732bc1753907e32284a4d428b83"
+        },
+        "date": 1784571168294,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12553,
+            "range": "± 83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23542,
+            "range": "± 84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 320,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5462,
+            "range": "± 154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5169,
+            "range": "± 216",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12268,
+            "range": "± 123",
             "unit": "ns/iter"
           }
         ]
