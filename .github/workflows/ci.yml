@@ -38,3 +38,45 @@ jobs:
       # 4. Optional: Run your verification test suite against the installed binary
       - name: Verify CLI Execution
         run: svccat --version
+
+  build-and-test:
+    name: Build & Test (This Checkout)
+    # Distinct from "Verify Registry Deployment" above. That job answers "does
+    # the already-published crates.io release still install and run on this
+    # OS/toolchain?" — a valid smoke test, left unchanged. This job answers a
+    # different question: "does THIS PR's own code compile and pass its tests?"
+    # which the registry job structurally cannot, since `cargo install
+    # svccat` always fetches the published release, never this checkout.
+    #
+    # Scope: one runner per OS on stable only (not the full 3x3 matrix above).
+    # `coverage.yml` already builds and tests this checkout on ubuntu/nightly,
+    # so stable-per-OS here adds the two OSes with zero real-code coverage
+    # today (windows, macos) plus an ubuntu/stable leg, without doubling this
+    # job count to a second 9-way matrix. beta/nightly stay exclusively on the
+    # registry smoke test above; if that channel coverage is ever wanted for
+    # this checkout too, that is a follow-up, not folded in here.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2.7.3
+
+      # Full build, not just `cargo check`: this repo's real defects to date
+      # (PR #6/#7 XSS, PR #8 silent stdout regression) were caught by tests,
+      # not by the compiler, so `cargo test` is the tier that actually gates.
+      - name: Build this checkout (all features)
+        run: cargo build --all-features --verbose
+
+      - name: Test this checkout (all features)
+        run: cargo test --all-features --verbose
