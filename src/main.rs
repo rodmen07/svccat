@@ -15,6 +15,10 @@ use svccat::{
 };
 
 fn main() {
+    // SCRATCH-PROOF: deliberate compile error to verify the new CI job
+    // actually catches a broken checkout. Reverted before merge.
+    let _deliberately_broken: i32 = "this is not an integer, and will not compile";
+
     // The `Commands` enum is large, and clap's command-tree construction can
     // exceed the default 1 MB main-thread stack on Windows (Linux defaults to
     // 8 MB, which is why CI never tripped it). Run on a thread with a bigger
