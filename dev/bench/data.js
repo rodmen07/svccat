@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784557207916,
+  "lastUpdate": 1784561987712,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1799,6 +1799,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12585,
             "range": "± 123",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8f625fcdc6d97a6c042600bac4aa2edfaa147994",
+          "message": "feat(workspace): add HTML output format to workspace check (multi-repo slice 3) (#6)\n\n* feat(workspace): add HTML output format to workspace check (multi-repo slice 3)\n\nAdd `workspace check --format html`: a self-contained HTML report covering\nevery repo's summary and drift table plus a cross-repo dependency graph,\ncompleting the FEATURE_DESIGN_MULTI_REPO.md implementation slices and the\nROADMAP.md \"Later / candidates\" item of the same name.\n\n- `Html` joins the shared `OutputFormat` enum used by both `check` and\n  `workspace check`, so it slots into the precedence machinery slice 2\n  established (`--format` over `[reporting].format` over the terminal\n  default) instead of a parallel path. Since the enum is shared, `check\n  --format html` also gets a renderer: it reuses the existing single-repo\n  `report::render_html` rather than standing up a second HTML renderer for\n  the same (Manifest, DriftReport) pair.\n- New `src/output/workspace_html.rs` renders the multi-repo report: per-repo\n  summary/drift tables, a dependency-analysis section, and (when cross-repo\n  dependency analysis is on) a D3.js v7 force-directed graph reusing the same\n  layout/interaction model as `svccat graph --format html`\n  (`output::mermaid::render_html_graph`), restyled into a bounded panel and\n  coloured by repo instead of platform.\n- `workspace::analyze_workspace` now retains the built dependency graph's\n  nodes (`WorkspaceDriftReport::dependency_graph_nodes`) alongside the\n  existing summary/circular/unresolvable fields, so the HTML renderer draws\n  the real topology without reloading every manifest and rebuilding the graph\n  a second time.\n- Two escaping mechanisms, matching the two trust boundaries repo-sourced\n  text crosses: plain HTML text/attributes (repo, service, team names, drift\n  messages) go through `report::esc` (now `pub(crate)`, shared with the\n  single-repo report via an extracted `REPORT_STYLE` constant); the graph's\n  node/link data is embedded inside a `<script>` element instead, where\n  HTML-escaping alone doesn't stop a value containing a literal `</script>`\n  from closing the element early. That data is routed through the new\n  `src/output/json_script.rs` helper, which JSON-encodes and then neutralizes\n  `<`, `>`, `&` to their `\\uXXXX` forms — safe in both a `JSON.parse` data\n  island and an inlined JS literal, and provably inert since those characters\n  never appear in JSON's own structural syntax.\n\nTests: 242 to 253 (11 new: 6 in workspace_html.rs incl. two proving a\n`<script>`-shaped repo/service name renders as inert text in both the plain\nHTML and the graph's `<script>` data island; 4 in json_script.rs proving the\nescape is reversible and neutralizes a script-breakout payload; 1 in main.rs\ncovering `check --format html`). Manually verified end to end against a\ncrafted workspace with a `</script><script>alert(...)</script>`-named\nservice and a cross-repo dependency: renders as inert `&lt;/script&gt;...`\ntext in drift tables and `</script>...` in the graph JSON, with the\ncross-repo edge correctly resolved.\n\nNo version bump: slices 2 and 3 accumulate into the next minor per the\nexisting convention (CHANGELOG.md, Cargo.toml untouched).\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>\n\n* fix(workspace-html): escape D3 tooltip innerHTML and dedupe graph renderer\n\nAdversarial review of the workspace check --format html PR found the D3\ndependency-graph tooltip writing untrusted repo/service names straight into\nElement.innerHTML via a template literal. json_script::embed and esc()\ncorrectly protect the JSON data island and the plain HTML tables, but\nJSON.parse reverses that encoding on the client before the tooltip handler\nruns, so a service named <img src=x onerror=alert(1)> executes on hover.\n\nThe same bug already existed in mermaid.rs::render_html_graph, which this\nreport's docs claimed to reuse but didn't: it was a second, independently\nmaintained ~70-line D3 script with its own copy of the same tooltip sink and\ndrifted layout constants.\n\n- Add src/output/d3_force_graph.rs: the single D3 force-graph script shared\n  by both renderers. An escHtml() JS helper is the one place tooltip fields\n  reach innerHTML, applied by render_script() itself so a call site can't\n  opt out. Per-call-site differences (panel size, colour field, tooltip\n  content, layout constants) are named, documented D3GraphConfig fields\n  instead of copy-pasted magic numbers.\n- workspace_html.rs::render_graph_panel and mermaid.rs::render_html_graph\n  now both build their <script> body via d3_force_graph::render_script.\n- New tests assert every configured tooltip field is escHtml-wrapped on the\n  tip.innerHTML assignment line, covering both the mechanism and a call site\n  adding fields it forgets to escape.\n\nVerified: cargo fmt --check, cargo clippy --all-targets --all-features\n-- -D warnings, cargo test --all-features all green (114 lib tests + full\nintegration suite, including the PR's existing malicious-name tests).\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T10:36:42-05:00",
+          "tree_id": "fc78eafdc959bdbfdef6750bef989e3f26f8f0a1",
+          "url": "https://github.com/rodmen07/svccat/commit/8f625fcdc6d97a6c042600bac4aa2edfaa147994"
+        },
+        "date": 1784561987380,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12663,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23518,
+            "range": "± 1440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 267,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5244,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4814,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12269,
+            "range": "± 26",
             "unit": "ns/iter"
           }
         ]
