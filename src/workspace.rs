@@ -99,6 +99,14 @@ pub struct WorkspaceDriftReport {
     /// Unresolvable dependencies detected in the workspace.
     #[serde(default)]
     pub unresolvable_dependencies: Vec<deps_graph::UnresolvableDependency>,
+
+    /// The built cross-repo dependency graph's nodes, kept alongside the
+    /// summary so renderers (the HTML report's D3 graph) can draw the actual
+    /// topology without reloading every manifest and rebuilding the graph a
+    /// second time. Empty when `include_cross_repo_deps` is off, matching
+    /// [`Self::dependency_summary`]'s "no summary" state.
+    #[serde(default)]
+    pub dependency_graph_nodes: Vec<deps_graph::GraphNode>,
 }
 
 impl WorkspaceDriftReport {
@@ -334,6 +342,7 @@ struct CrossRepoAnalysis {
     summary: Option<deps_graph::DependencySummary>,
     circular: Vec<deps_graph::CircularDependency>,
     unresolvable: Vec<deps_graph::UnresolvableDependency>,
+    nodes: Vec<deps_graph::GraphNode>,
 }
 
 /// Reload each enabled repo's manifest and run the cross-repo dependency graph.
@@ -376,6 +385,7 @@ fn analyze_cross_repo_dependencies(
             summary: Some(graph.summary()),
             circular: graph.circular_dependencies.clone(),
             unresolvable: graph.validate_all_dependencies(),
+            nodes: graph.nodes.values().cloned().collect(),
         },
         Err(e) => {
             eprintln!("⚠️  Warning: Failed to analyze dependencies: {}", e);
@@ -446,6 +456,7 @@ pub fn analyze_workspace(
         dependency_summary: deps.summary,
         circular_dependencies: deps.circular,
         unresolvable_dependencies: deps.unresolvable,
+        dependency_graph_nodes: deps.nodes,
     })
 }
 
