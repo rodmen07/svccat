@@ -1,6 +1,6 @@
 # svccat roadmap
 
-Last updated: 2026-07-18. This file is the single source of planning truth for svccat.
+Last updated: 2026-07-20. This file is the single source of planning truth for svccat.
 Older planning docs under `docs/` carry status banners pointing here and are kept as
 historical records only.
 
@@ -162,14 +162,18 @@ Done when: no stale direct-dependency majors remain (or a skip decision is recor
 Unshipped ideas on record. Pull forward only if the user chooses feature work over
 pure maintenance.
 
-- Policy rule schema validation folded into `svccat lint` (carried from
-  docs/RELEASE_PLAN_V1.4.0.md item 3).
-- `workspace check --format html` interactive visualization reusing the existing D3
-  graph HTML renderer (carried from docs/RELEASE_PLAN_V1.4.0.md item 4).
-- CycloneDX JSON export as a sibling to `spdx-json` (a new ExportFormat value is
-  additive and allowed under the 1.x freeze).
 - SSRF redirect-hardening verification pass for `--ping` (carried from the
-  RELEASE_PLAN_V1.4.0 security gates).
+  RELEASE_PLAN_V1.4.0 security gates). Re-verified still unshipped 2026-07-20:
+  `src/ping.rs` and `src/webhook.rs` both call `urlvalidation::validate_url` once,
+  before the request, but the actual HTTP call goes through `ureq`'s default
+  config, which follows redirects (up to its default cap) without re-validating
+  the target host on each hop. A `--ping` target that 30x-redirects to a private
+  or loopback address is not currently caught. No redirect-hop guard exists in
+  either module yet.
+
+Three items previously listed here (policy rule schema validation, the
+`workspace check --format html` visualization, and CycloneDX JSON export) have
+shipped; see History and supersession below for their PRs and merge commits.
 
 ## Blocked and user-only summary
 
@@ -188,9 +192,19 @@ pure maintenance.
   superseded: the repo shipped v1.1.0 through v1.4.1 during 2026-06 and 2026-07 and
   has v1.5.0 in flight. Current direction is stable 1.x with small weekly minors,
   not a frozen crate.
-- docs/RELEASE_PLAN_V1.4.0.md: features 1 and 2 shipped in v1.4.0 on 2026-07-09;
-  features 3 and 4 plus the fuzz_manifest circular-base-rules expansion never
-  shipped and are carried above (v1.6.0 and Later / candidates).
+- docs/RELEASE_PLAN_V1.4.0.md: features 1 and 2 shipped in v1.4.0 on 2026-07-09.
+  Feature 3 (policy rule schema validation folded into `svccat lint`) shipped
+  2026-07-20 via PR #12 (squash commit `da3d537`). Feature 4 (`workspace check
+  --format html` interactive visualization reusing the existing D3 graph HTML
+  renderer) shipped 2026-07-20 via PR #6 (squash commit `8f625fc`), hardened by
+  PR #7 (DOM-based XSS fix in the shared HTML/mermaid renderer, commit
+  `e97a67b`), PR #8 (binary-level CLI integration tests via assert_cmd, commit
+  `23cccff`), and PR #10 (CI now builds and tests this checkout instead of only
+  the published crate, commit `8c6dc20`). The fuzz_manifest circular-base-rules
+  expansion remains unshipped and stays carried in v1.6.0.
+- CycloneDX JSON export as a sibling to `spdx-json` (previously listed under
+  Later / candidates, not carried from any prior planning doc) shipped
+  2026-07-20 via PR #11 (squash commit `4202db6825a6c18c66be7ecdcd70f45036e70dcc`).
 - docs/FEATURE_DESIGN_MULTI_REPO.md: shipped in v0.21.0 on 2026-06-03; historical
   design record only.
 - docs/PERFORMANCE_OPTIMIZATIONS_PHASE1.md: Phase 1 work was completed 2026-05-30
