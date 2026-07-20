@@ -40,8 +40,15 @@ url         = "2"
 rayon       = "1"
 
 [dev-dependencies]
+# Spawns the actual compiled `svccat` binary for binary-level integration
+# tests (see tests/cli_binary_tests.rs), rather than calling internal render
+# functions directly. `cargo_bin` resolves the freshly-built binary path
+# regardless of OS or target triple, which is what makes it work unmodified
+# across the CI matrix (ubuntu/windows/macos).
+assert_cmd = "2"
 clap_complete = "4"
 criterion = "0.5"
+predicates = "3"
 tempfile = "3"
 
 [[bench]]
