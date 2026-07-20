@@ -18,9 +18,14 @@ the `workspace check --format html` candidate already listed there.
   and wire the previously parsed-but-ignored `workspace check --filter <repos>`
   flag into real repo selection with unknown-name validation. Repos with
   `enabled = false` stay skipped even when named in the filter.
-- [ ] **Slice 2: `[reporting]` config section.** Config-driven defaults from
-  section 1: default output `format`, an `include_cross_repo_deps` toggle for the
-  dependency analysis, and `exclude_patterns` merged into discovery ignore globs.
+- [x] **Slice 2: `[reporting]` config section** (implemented 2026-07-20).
+  Config-driven defaults from section 1: default output `format`, an
+  `include_cross_repo_deps` toggle for the dependency analysis, and
+  `exclude_patterns` merged into discovery ignore globs. Parsing and precedence
+  live in the new `src/reporting.rs` module; `--format` overrides
+  `[reporting].format` overrides the terminal default; `exclude_patterns` merges
+  additively into the existing discovery ignore globs; and the toggle skips the
+  cross-repo dependency graph build entirely rather than hiding its output.
 - [ ] **Slice 3: `workspace check --format html` interactive visualization.**
   Aggregated workspace report as a self-contained HTML page reusing the existing
   D3 graph renderer; tracked as a "Later / candidates" item in ROADMAP.md.

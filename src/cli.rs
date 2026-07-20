@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use clap_complete::Shell;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -596,9 +597,9 @@ pub enum WorkspaceAction {
         #[arg(long, value_name = "REPOS")]
         filter: Option<String>,
 
-        /// Output format
-        #[arg(short, long, value_enum, default_value_t = OutputFormat::Terminal)]
-        format: OutputFormat,
+        /// Output format (overrides `[reporting].format`; defaults to terminal)
+        #[arg(short, long, value_enum)]
+        format: Option<OutputFormat>,
 
         /// Exit with code 1 when drift is detected (useful in CI)
         #[arg(long)]
@@ -618,7 +619,14 @@ pub enum WorkspaceAction {
     },
 }
 
-#[derive(Debug, Clone, ValueEnum, PartialEq)]
+/// Output formats accepted by `--format`.
+///
+/// The serde impls exist so a format can be stored in a parsed config (see
+/// [`crate::reporting::ReportingConfig`]). `kebab-case` matches the value names
+/// clap derives, so `--format github-annotation` and `format =
+/// "github-annotation"` in `svccat.toml` name the same variant.
+#[derive(Debug, Clone, ValueEnum, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum OutputFormat {
     Terminal,
     /// One line per service: status icon, name, and drift summary

@@ -10,8 +10,8 @@ use svccat::cli::{
 };
 use svccat::{
     audit, ci, config, demo, deps, diff, discovery, drift, fix, hooks, import, init, lint,
-    manifest, output, ping, policy, report, scorecard, search, serve, since, snapshot, stats, tag,
-    watch, webhook, workspace,
+    manifest, output, ping, policy, report, reporting, scorecard, search, serve, since, snapshot,
+    stats, tag, watch, webhook, workspace,
 };
 
 fn main() {
@@ -951,7 +951,12 @@ fn run() -> Result<i32> {
                         None => workspace_config,
                     };
 
-                    // Merge ignore patterns
+                    // Resolve output format: --format wins over [reporting].format
+                    // wins over the terminal default.
+                    let format = reporting::resolve_format(format, &workspace_config.reporting);
+
+                    // Merge ignore patterns. The reporting `exclude_patterns` are
+                    // merged into discovery inside analyze_workspace.
                     let mut ignore = cfg.ignore.clone();
                     ignore.extend(cli_ignore);
 

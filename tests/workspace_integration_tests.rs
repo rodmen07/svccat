@@ -99,6 +99,7 @@ fn test_workspace_disabled_repo() {
                 enabled: false, // This repo should be skipped
             },
         ],
+        reporting: Default::default(),
     };
 
     let workspace_root = PathBuf::from("tests/fixtures/workspace");
@@ -226,6 +227,7 @@ fn test_workspace_filter_does_not_override_disabled() {
                 enabled: false,
             },
         ],
+        reporting: Default::default(),
     };
 
     let filtered = svccat::workspace::filter_repos(&config, "backend,disabled")
