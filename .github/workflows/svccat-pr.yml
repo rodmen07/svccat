@@ -25,8 +25,14 @@ jobs:
       - name: Cache Cargo registry
         uses: Swatinem/rust-cache@v2.7.3
 
-      - name: Install svccat
-        run: cargo install svccat --locked
+      # Build and install THIS checkout's binary, not the last-published
+      # crates.io release. `cargo install svccat` (no --path) always fetches
+      # the published crate, so a PR that breaks compilation or regresses
+      # check/drift-detection logic would still install the old binary and
+      # this job would report a false SUCCESS (see scratch PR #9, run
+      # 29763368089: a deliberately broken src/main.rs still passed here).
+      - name: Install svccat (from this checkout)
+        run: cargo install --path . --locked --force
 
       # ── Annotate the PR diff with inline error/warning annotations ───────────
       - name: Annotate new drift (inline PR annotations)
