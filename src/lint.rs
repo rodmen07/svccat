@@ -1,4 +1,5 @@
 use crate::manifest::Manifest;
+use crate::rule_schema;
 use colored::Colorize;
 use std::collections::HashMap;
 
@@ -200,6 +201,13 @@ pub fn run(manifest: &Manifest) -> LintResult {
             });
         }
     }
+
+    // 11. Policy rule schema validation (`policy.rules`). Delegated to a
+    // focused module: the checks involved (rule id uniqueness, `base`
+    // inheritance cycle detection) are non-trivial and are documented in
+    // detail there, including why a cyclic `base` chain must be caught here
+    // rather than left to the rule-compilation engine downstream.
+    issues.extend(rule_schema::validate(&manifest.policy.rules));
 
     LintResult { issues }
 }

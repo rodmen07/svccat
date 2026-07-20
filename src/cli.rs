@@ -248,7 +248,10 @@ pub enum Commands {
     /// Validate the manifest for structural issues
     ///
     /// Checks for duplicate service names, blank names, self-referential
-    /// depends_on entries, duplicate depends_on entries, and unknown manifest versions.
+    /// depends_on entries, duplicate depends_on entries, unknown manifest
+    /// versions, and — for the inline `policy.rules` list — blank or
+    /// duplicate rule ids, dangling or cyclic `base` references, invalid
+    /// severity values, and unparsable rule expressions.
     Lint {
         /// Path to the manifest file (auto-detected if omitted)
         #[arg(short, long)]
