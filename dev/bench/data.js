@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784571169214,
+  "lastUpdate": 1784577802900,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2039,6 +2039,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12268,
             "range": "± 123",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4202db6825a6c18c66be7ecdcd70f45036e70dcc",
+          "message": "feat(export): CycloneDX 1.7 JSON SBOM export as a sibling of spdx-json (#11)\n\n* feat(export): add CycloneDX 1.7 JSON SBOM export as a sibling of spdx-json\n\n`svccat export --format cyclonedx-json` renders the service catalog as a\nCycloneDX 1.7 JSON software bill of materials, following the exact same\narchitectural pattern as the existing SPDX 2.3 exporter:\n\n- Same trigger mechanism: a new `ExportFormat::CyclonedxJson` value on the\n  existing `export --format` flag, not a new subcommand or flag shape.\n- Same data source: `Manifest`/`ServiceEntry`, the identical in-memory model\n  every other svccat renderer reads. No parallel manifest-loading path.\n- Same determinism seam: a `render_at(manifest, secs, subsec_nanos, pid)`\n  inner function with a `render_export` wall-clock wrapper, mirroring\n  `spdx::render_at`/`render_export` so tests can pin output exactly.\n\nCycloneDX-specific shape: `bomFormat`/`specVersion`/`serialNumber` (a\n`urn:uuid:` v4 UUID synthesized deterministically from the same\nversion/time/pid seed SPDX's `documentNamespace` uses, no new `uuid` or\n`rand` dependency), `metadata.timestamp`/`metadata.tools.components`, one\n`application` component per service with `purl`, and a `dependencies` graph\nentry for every component (including dependency-free ones, per the spec's\nown recommendation) built from `depends_on` edges. `platform` has no\nfirst-class CycloneDX field, so it goes into `properties` (CycloneDX's own\nextension slot) instead of SPDX's `OTHER` external-ref stretch.\n\nSchema version: 1.7 is the newest full CycloneDX schema (released\n2026-02-25; 1.7.1 is an errata-only patch of the same schema). Verified\nindependently, not just eyeballed: fetched the real\n`CycloneDX/specification` bom-1.7.schema.json and validated three generated\nsamples (a multi-service catalog with dependencies, an empty catalog, and a\nservice name with Unicode/emoji characters) against it with a standalone\n`jsonschema`-crate validator, including resolving the schema's external\n`jsf-0.82.schema.json` vocabulary reference over HTTP — all three came back\nschema-valid.\n\nTests mirror `output::spdx`'s rigor (11 unit tests, up from SPDX's 8):\ndocument shape, camelCase key casing, bom-ref sanitization and collision\nhandling, serial-number determinism/uniqueness/urn-validity, dependency\ngraph completeness, empty-catalog arrays-present, unresolved depends_on\nskipping, component field mapping, purl percent-encoding (including\nmulti-byte UTF-8), and a dedicated Unicode/emoji service-name edge case.\nPlus a `tests/cyclonedx_export_tests.rs` integration file mirroring\n`tests/spdx_export_tests.rs`'s discovered-manifest and CLI-surface coverage.\nFixed a real bug found while adding these: a carried-over test asserted the\nUUID version/variant nibbles at hardcoded string indices that were off by 4;\ncorrected with a documented layout derivation instead of magic numbers.\n\nNew code lives in its own module (`src/output/cyclonedx.rs`) and its own\ntest file rather than growing `src/main.rs` or `tests/integration_test.rs`,\nboth already-flagged code-health hotspots. No new runtime dependency:\nserde_json (already a dependency) is sufficient.\n\nTests: 270 -> 284.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>\n\n* fix(export): stop duplicate service names from corrupting CycloneDX dependencies\n\nbom_ref_by_name was keyed by svc.name and overwritten on every insert, so a\nmanifest with two services sharing a name collapsed both of their\ndependencies-array entries onto whichever bom-ref was assigned last. That\nproduced two byte-identical {\"ref\": ...} objects (violating the schema's\nuniqueItems constraint on `dependencies`) while the first duplicate's\ncomponent was left with no dependency-graph entry at all, contradicting the\nmodule's own \"entry for every component\" invariant.\n\nEach component's own dependencies entry is now taken from a positional\nbom_refs_by_index vector built alongside the components loop, so it is\nalways the bom-ref actually assigned to that specific service, never a\nname-keyed lookup. depends_on edges still resolve dependency names via the\nname-keyed map, now first-occurrence-wins instead of last-write-wins, which\nis the best achievable resolution for a name that identifies more than one\nservice without rejecting the manifest outright (Manifest::load does not\nrequire unique names; only the opt-in `svccat lint` flags that).\n\nAdds a regression test with two same-named services asserting the\ndependencies array has one entry per component with pairwise-distinct refs.\n\n---------\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T15:00:10-05:00",
+          "tree_id": "999cade24f3c108ecfe6419a3d64286269e89605",
+          "url": "https://github.com/rodmen07/svccat/commit/4202db6825a6c18c66be7ecdcd70f45036e70dcc"
+        },
+        "date": 1784577802028,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12338,
+            "range": "± 618",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 22894,
+            "range": "± 219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 266,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5128,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4714,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 11931,
+            "range": "± 30",
             "unit": "ns/iter"
           }
         ]
