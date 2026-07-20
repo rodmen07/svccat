@@ -88,6 +88,8 @@ pub mod rule_schema;
 #[doc(hidden)]
 pub mod rules;
 #[doc(hidden)]
+pub mod safe_http;
+#[doc(hidden)]
 pub mod scorecard;
 #[doc(hidden)]
 pub mod search;

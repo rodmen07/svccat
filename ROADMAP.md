@@ -162,18 +162,10 @@ Done when: no stale direct-dependency majors remain (or a skip decision is recor
 Unshipped ideas on record. Pull forward only if the user chooses feature work over
 pure maintenance.
 
-- SSRF redirect-hardening verification pass for `--ping` (carried from the
-  RELEASE_PLAN_V1.4.0 security gates). Re-verified still unshipped 2026-07-20:
-  `src/ping.rs` and `src/webhook.rs` both call `urlvalidation::validate_url` once,
-  before the request, but the actual HTTP call goes through `ureq`'s default
-  config, which follows redirects (up to its default cap) without re-validating
-  the target host on each hop. A `--ping` target that 30x-redirects to a private
-  or loopback address is not currently caught. No redirect-hop guard exists in
-  either module yet.
-
-Three items previously listed here (policy rule schema validation, the
-`workspace check --format html` visualization, and CycloneDX JSON export) have
-shipped; see History and supersession below for their PRs and merge commits.
+None currently open. Four items previously listed here (policy rule schema
+validation, the `workspace check --format html` visualization, CycloneDX JSON
+export, and SSRF redirect-hardening for `--ping`/webhooks) have shipped; see
+History and supersession below for their PRs and merge commits.
 
 ## Blocked and user-only summary
 

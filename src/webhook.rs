@@ -1,6 +1,6 @@
 use crate::ci::CiReport;
 use crate::drift::DriftReport;
-use crate::urlvalidation;
+use crate::safe_http;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use std::path::Path;
@@ -167,16 +167,20 @@ pub fn fire_from_ci(root: &Path, cfg: &WebhookConfig, report: &CiReport) -> Resu
 // ── HTTP POST ──────────────────────────────────────────────────────────────────
 
 fn post(url: &str, payload: &WebhookPayload) -> Result<()> {
-    // Validate webhook URL to prevent SSRF attacks.
-    // Webhooks should use HTTPS (with localhost exception for development).
-    urlvalidation::validate_url(url, true).context("webhook URL validation failed")?;
-
     let body = serde_json::to_string(payload).context("serialising webhook payload")?;
-    ureq::post(url)
-        .set("Content-Type", "application/json")
-        .set("User-Agent", concat!("svccat/", env!("CARGO_PKG_VERSION")))
-        .send_string(&body)
-        .with_context(|| format!("webhook POST to {url} failed"))?;
+
+    // Validates the webhook URL to prevent SSRF attacks (webhooks must use
+    // HTTPS, with a localhost exception for development) and, critically,
+    // re-validates every hop of any HTTP redirect chain the same way before
+    // following it, so a validated URL cannot 302 its way to a private or
+    // internal address (see `crate::safe_http`).
+    safe_http::post_json(
+        url,
+        true,
+        &body,
+        concat!("svccat/", env!("CARGO_PKG_VERSION")),
+    )
+    .with_context(|| format!("webhook POST to {url} failed"))?;
     eprintln!("webhook fired -> {url}");
     Ok(())
 }
