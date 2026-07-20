@@ -502,6 +502,15 @@ fn run() -> Result<i32> {
                         println!("{}", spdx);
                     }
                 }
+                ExportFormat::CyclonedxJson => {
+                    let cyclonedx = output::cyclonedx::render_export(&m)?;
+                    if let Some(ref out_path) = output_path {
+                        std::fs::write(out_path, cyclonedx)?;
+                        eprintln!("wrote CycloneDX JSON export to {}", out_path.display());
+                    } else {
+                        println!("{}", cyclonedx);
+                    }
+                }
             }
             Ok(0)
         }

@@ -678,6 +678,8 @@ pub enum ExportFormat {
     BackstageYaml,
     /// SPDX 2.3 JSON SBOM (software bill of materials)
     SpdxJson,
+    /// CycloneDX 1.7 JSON SBOM (software bill of materials)
+    CyclonedxJson,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

@@ -1,5 +1,6 @@
 pub mod backstage;
 pub mod csv;
+pub mod cyclonedx;
 pub mod d3_force_graph;
 pub mod datadog;
 pub mod github_annotation;
