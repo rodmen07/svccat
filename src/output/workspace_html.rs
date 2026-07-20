@@ -19,16 +19,21 @@
 //!   [`crate::output::json_script::embed`] instead — see that module's docs
 //!   for why plain `serde_json::to_string` is not sufficient on its own.
 //!
-//! The dependency graph itself reuses the same D3.js v7 force-directed layout
-//! (nodes, links, drag, tooltip-on-hover) as `svccat graph --format html`
-//! (`crate::output::mermaid::render_html_graph`), restyled to sit inside a
-//! bounded panel within this report rather than fill the whole page, and
-//! colouring nodes by repo instead of by platform (workspace `GraphNode`s
-//! don't carry per-service platform/language metadata the way a single
-//! repo's `Manifest` does).
+//! The dependency graph itself shares its D3.js v7 force-directed mechanics
+//! (nodes, links, drag, tick handler, tooltip-on-hover) with
+//! `svccat graph --format html` (`crate::output::mermaid::render_html_graph`)
+//! via [`crate::output::d3_force_graph`], restyled to sit inside a bounded
+//! panel within this report rather than fill the whole page, and colouring
+//! nodes by repo instead of by platform (workspace `GraphNode`s don't carry
+//! per-service platform/language metadata the way a single repo's
+//! `Manifest` does). See that module's docs for why the tooltip is the one
+//! place untrusted node data must be re-escaped before it reaches
+//! `innerHTML`, even though it already passed through the JSON-safe
+//! [`json_script::embed`] on the way to the client.
 
 use crate::deps_graph::GraphNode;
 use crate::drift::Severity;
+use crate::output::d3_force_graph::{self, D3GraphConfig, TooltipField};
 use crate::output::json_script;
 use crate::report::{esc, push_tr, REPORT_STYLE};
 use crate::workspace::WorkspaceDriftReport;
@@ -266,11 +271,49 @@ fn build_d3_graph(nodes: &[GraphNode]) -> D3Graph<'_> {
 
 /// Render the bounded D3 force-directed graph panel, or nothing if the graph
 /// data fails to serialize (defensive; every field here is a plain String).
+///
+/// Node radius, link distance, charge strength, and collide radius are
+/// intentionally smaller than `mermaid::render_html_graph`'s full-page
+/// graph: this panel is bounded to 480px tall rather than filling the
+/// viewport, so a tighter layout avoids nodes crowding the edges. The
+/// mechanics that must stay identical between the two renderers (drag
+/// physics, the arrow marker, the tick handler, and the tooltip's
+/// HTML-escaping) live in [`crate::output::d3_force_graph`] instead of being
+/// copied here.
 fn render_graph_panel(nodes: &[GraphNode]) -> String {
     let graph = build_d3_graph(nodes);
     let Ok(graph_json) = json_script::embed(&graph) else {
         return String::new();
     };
+
+    let script = d3_force_graph::render_script(&D3GraphConfig {
+        svg_selector: "#workspace-graph",
+        tooltip_id: "graph-tooltip",
+        arrow_id: "wg-arrow",
+        width_expr: "panel.clientWidth || 800",
+        height_expr: "480",
+        color_field: "repo",
+        node_radius: 14,
+        text_dy: 26,
+        link_distance: 110,
+        charge_strength: -260,
+        collide_radius: 36,
+        tooltip_header_expr: "d.id",
+        tooltip_fields: &[
+            TooltipField {
+                label: "repo",
+                value_expr: "d.repo",
+            },
+            TooltipField {
+                label: "dependencies",
+                value_expr: "d.dependencies",
+            },
+            TooltipField {
+                label: "dependents",
+                value_expr: "d.dependents",
+            },
+        ],
+    });
 
     format!(
         r##"<div id="graph-panel">
@@ -283,67 +326,9 @@ fn render_graph_panel(nodes: &[GraphNode]) -> String {
 const graphData = JSON.parse(document.getElementById("workspace-graph-data").textContent);
 const nodes = graphData.nodes;
 const links = graphData.links;
-
-const repos = [...new Set(nodes.map(d => d.repo))];
-const colour = d3.scaleOrdinal(d3.schemeTableau10).domain(repos);
-
 const panel = document.getElementById("graph-panel");
-const svg = d3.select("#workspace-graph");
-const width = panel.clientWidth || 800;
-const height = 480;
-svg.attr("viewBox", [0, 0, width, height]);
 
-svg.append("defs").append("marker")
-  .attr("id", "wg-arrow")
-  .attr("viewBox", "0 -5 10 10")
-  .attr("refX", 22).attr("refY", 0)
-  .attr("markerWidth", 6).attr("markerHeight", 6)
-  .attr("orient", "auto")
-  .append("path").attr("fill", "#aaa").attr("d", "M0,-5L10,0L0,5");
-
-const sim = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).id(d => d.id).distance(110))
-  .force("charge", d3.forceManyBody().strength(-260))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .force("collide", d3.forceCollide(36));
-
-const link = svg.append("g")
-  .selectAll("line")
-  .data(links).join("line")
-  .attr("class", "link")
-  .attr("marker-end", "url(#wg-arrow)");
-
-const node = svg.append("g")
-  .selectAll("g")
-  .data(nodes).join("g")
-  .attr("class", "node")
-  .call(d3.drag()
-    .on("start", (e, d) => {{ if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }})
-    .on("drag",  (e, d) => {{ d.fx = e.x; d.fy = e.y; }})
-    .on("end",   (e, d) => {{ if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }}));
-
-node.append("circle")
-  .attr("r", 14)
-  .attr("fill", d => colour(d.repo));
-
-node.append("text")
-  .attr("dy", 26).attr("text-anchor", "middle")
-  .text(d => d.service);
-
-const tip = document.getElementById("graph-tooltip");
-node.on("mouseover", (e, d) => {{
-  tip.style.display = "block";
-  tip.innerHTML = `<b>${{d.id}}</b><br>repo: ${{d.repo}}<br>dependencies: ${{d.dependencies}}<br>dependents: ${{d.dependents}}`;
-}}).on("mousemove", e => {{
-  tip.style.left = (e.pageX + 12) + "px";
-  tip.style.top  = (e.pageY - 28) + "px";
-}}).on("mouseout", () => {{ tip.style.display = "none"; }});
-
-sim.on("tick", () => {{
-  link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-  node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
-}});
+{script}
 </script>
 "##
     )
