@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784565378456,
+  "lastUpdate": 1784567328046,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1919,6 +1919,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12557,
             "range": "± 44",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "23cccff6e1a9b260b526c2b0ccac524d5ba77f65",
+          "message": "test(cli): add binary-level integration tests via assert_cmd (#8)\n\nTwo adversarial security reviews (PR #6, PR #7) both flagged the same\ngap: this codebase had zero tests that spawn the actual compiled\nsvccat binary. Every existing test for the CLI's format-dispatch\nmatch arms (workspace check --format json/markdown/html, graph\n--format) calls the extracted render functions directly in-process,\nwhich main.rs's own doc comments admit exist specifically to avoid\nspawning the binary. That leaves a real regression in the wiring\nitself (a match arm falling through to the wrong branch, a rendered\nstring never reaching stdout) able to compile clean and pass every\nexisting test.\n\nAdds assert_cmd + predicates as dev-dependencies (the conventional\npair for this in the Rust CLI ecosystem) and tests/cli_binary_tests.rs\nwith real binary-level coverage for:\n- workspace check --format html/json/markdown (the command both\n  reviews specifically worried about), reusing the existing\n  tests/fixtures/workspace fixture rather than a parallel scheme\n- workspace check's default terminal format, proving the None-arm\n  fallback actually prints instead of silently discarding\n- svccat graph --format html (the sibling command with today's XSS\n  fix), including a binary-level run of the exact script-breakout\n  payload mermaid.rs's unit test already covers in-process, now\n  proven through real CLI parsing + disk I/O + stdout\n- an unknown-subcommand exit-code sanity check\n\nVerified these tests catch what unit tests can't: temporarily\ndisabling the workspace-check stdout print in main.rs failed 3 of\nthe new binary tests while all 6 existing main.rs unit tests (which\ncall the render function directly) stayed green.\n\nTests 262 -> 270. fmt/clippy/test --all-features all clean.\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T12:06:01-05:00",
+          "tree_id": "ff089c9acd13420c7c1c6748e3c970113ac55406",
+          "url": "https://github.com/rodmen07/svccat/commit/23cccff6e1a9b260b526c2b0ccac524d5ba77f65"
+        },
+        "date": 1784567327113,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 9781,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 18541,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 205,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 4003,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 3735,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 9416,
+            "range": "± 12",
             "unit": "ns/iter"
           }
         ]
