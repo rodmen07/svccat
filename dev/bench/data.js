@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784577802900,
+  "lastUpdate": 1784581241196,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2099,6 +2099,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 11931,
             "range": "± 30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "da3d537b7b7dd2d00a1e46b0314f57291132f928",
+          "message": "feat(lint): validate inline policy rule schema before it reaches the compiler (#12)\n\nsvccat lint never looked at manifest.policy.rules at all, so a malformed\npolicy rule (duplicate id, dangling `base`, bad severity, unparsable\nexpression) was silently accepted by lint and only surfaced later as a\nswallowed eprintln! warning inside `svccat check`/`workspace check` -\nthe command still exits 0 and every policy rule is disabled for that run.\n\nWorse: a `base` chain that forms a cycle (a rule naming itself, or two\nrules naming each other) isn't merely unvalidated, it crashes the whole\nprocess. RuleEngine::compile's inheritance resolver recurses through the\nbase chain with no cycle guard; verified directly with a throwaway repro\nthat a single self-referencing rule passed to RuleEngine::compile\nterminates the process with STATUS_STACK_OVERFLOW (0xc00000fd on\nWindows) instead of returning an Err.\n\nNew focused module src/rule_schema.rs runs cheap structural checks first\n(blank/duplicate rule ids, dangling base references, and - the check with\nno prior coverage anywhere - base-chain cycle detection via an iterative\nwalk, since the existing resolver's recursion is exactly what a cycle\ninput must never reach) and only delegates to the existing\nRuleEngine::compile for its semantic checks (severity enum, expression\nsyntax) once the structure is confirmed safe to resolve. rules.rs's own\nerror messages are also tightened to name the offending rule id, since\nneither the severity nor the expression-parse error case did before.\n\nTests 285 to 301 (all green before and after, verified by stashing this\nchange and re-running the full suite): 9 unit tests in\nsrc/rule_schema.rs covering each check in isolation, plus 7 binary-level\ntests in the new tests/policy_rule_schema_tests.rs spawning the real\nsvccat lint binary end to end (valid rules pass, duplicate ids/dangling\nbase/self-cycle/mutual-cycle/bad severity all fail with a specific\nmessage naming the offending rule, no-policy-block stays clean).\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T15:57:29-05:00",
+          "tree_id": "d2f37995b4afe09ed61ca1dfd1204b8e02f47d1c",
+          "url": "https://github.com/rodmen07/svccat/commit/da3d537b7b7dd2d00a1e46b0314f57291132f928"
+        },
+        "date": 1784581240904,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12634,
+            "range": "± 143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23966,
+            "range": "± 120",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 313,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5605,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5284,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 11915,
+            "range": "± 102",
             "unit": "ns/iter"
           }
         ]
