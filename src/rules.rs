@@ -73,12 +73,14 @@ impl RuleEngine {
                 "warning" => Severity::Warning,
                 s => {
                     return Err(anyhow!(
-                        "Invalid severity level: {} (must be 'error' or 'warning')",
+                        "policy rule '{}' has invalid severity '{}' (must be 'error' or 'warning')",
+                        resolved.id,
                         s
                     ))
                 }
             };
-            let expr = parse_expression(&resolved.expression)?;
+            let expr = parse_expression(&resolved.expression)
+                .map_err(|e| anyhow!("policy rule '{}': {}", resolved.id, e))?;
             compiled.push(CompiledRule {
                 id: resolved.id,
                 description: resolved.description,

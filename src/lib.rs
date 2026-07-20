@@ -84,6 +84,8 @@ pub mod policy;
 #[doc(hidden)]
 pub mod reporting;
 #[doc(hidden)]
+pub mod rule_schema;
+#[doc(hidden)]
 pub mod rules;
 #[doc(hidden)]
 pub mod scorecard;
