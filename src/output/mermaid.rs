@@ -1,6 +1,7 @@
 use crate::drift::DriftReport;
 use crate::manifest::Manifest;
 use crate::output::d3_force_graph::{self, D3GraphConfig, TooltipField};
+use crate::output::json_script;
 use std::collections::BTreeMap;
 
 pub fn render_graph(manifest: &Manifest) {
@@ -557,19 +558,82 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
 
 // ── HTML interactive graph ─────────────────────────────────────────────────────
 
+/// A D3 node for the single-repo graph: one entry per in-scope service,
+/// carrying the fields the tooltip and colour scale read.
+#[derive(serde::Serialize)]
+struct D3Node<'a> {
+    id: &'a str,
+    platform: &'a str,
+    team: &'a str,
+    language: &'a str,
+}
+
+#[derive(serde::Serialize)]
+struct D3Link<'a> {
+    source: &'a str,
+    target: &'a str,
+}
+
+#[derive(serde::Serialize)]
+struct D3Graph<'a> {
+    nodes: Vec<D3Node<'a>>,
+    links: Vec<D3Link<'a>>,
+}
+
+/// Build the D3 node/link arrays from the in-scope services.
+fn build_d3_graph<'a>(
+    manifest: &'a Manifest,
+    in_scope: &std::collections::HashSet<&str>,
+) -> D3Graph<'a> {
+    let nodes = manifest
+        .services
+        .iter()
+        .filter(|s| in_scope.contains(s.name.as_str()))
+        .map(|svc| D3Node {
+            id: svc.name.as_str(),
+            platform: svc.platform.as_deref().unwrap_or("unknown"),
+            team: svc.team.as_deref().unwrap_or(""),
+            language: svc.language.as_deref().unwrap_or(""),
+        })
+        .collect();
+
+    let mut links = Vec::new();
+    for svc in manifest
+        .services
+        .iter()
+        .filter(|s| in_scope.contains(s.name.as_str()))
+    {
+        for dep in &svc.depends_on {
+            links.push(D3Link {
+                source: svc.name.as_str(),
+                target: dep.as_str(),
+            });
+        }
+    }
+
+    D3Graph { nodes, links }
+}
+
 /// Render a self-contained HTML file with a D3.js v7 force-directed dependency graph.
 ///
 /// Nodes are coloured by platform; edges represent `depends_on` links.
 /// The HTML file has no external CDN dependencies: D3 is embedded via a CDN
 /// `<script>` tag so the file requires an internet connection to render.
 ///
-/// The D3 mechanics (drag physics, arrow marker, tick handler, and the
-/// tooltip's HTML-escaping of untrusted service names) are shared with
-/// `workspace_html::render_graph_panel` via
-/// [`crate::output::d3_force_graph`] — see that module's docs.
+/// Two escaping mechanisms are load-bearing here, the same split
+/// `workspace_html.rs` documents for its own report:
+///
+/// - The D3 mechanics (drag physics, arrow marker, tick handler, and the
+///   tooltip's HTML-escaping of untrusted service names) are shared with
+///   `workspace_html::render_graph_panel` via [`crate::output::d3_force_graph`]
+///   — see that module's docs.
+/// - The node/link data itself is embedded inside a `<script>` element, a
+///   different trust boundary: HTML-escaping alone does not stop a value
+///   containing a literal `</script>` sequence from closing the element
+///   early. That data is routed through [`crate::output::json_script::embed`]
+///   instead — see that module's docs for why plain `serde_json::to_string`
+///   (or, worse, raw `{:?}` Debug-format interpolation) is not sufficient.
 pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
-    use std::fmt::Write;
-
     let in_scope: std::collections::HashSet<&str> = manifest
         .services
         .iter()
@@ -584,45 +648,9 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
         .map(|s| s.name.as_str())
         .collect();
 
-    // Build JSON node and link arrays for D3.
-    let mut nodes_json = String::from("[\n");
-    for svc in manifest
-        .services
-        .iter()
-        .filter(|s| in_scope.contains(s.name.as_str()))
-    {
-        let platform = svc.platform.as_deref().unwrap_or("unknown");
-        let team_str = svc.team.as_deref().unwrap_or("");
-        let lang_str = svc.language.as_deref().unwrap_or("");
-        writeln!(
-            nodes_json,
-            "  {{\"id\":{id:?},\"platform\":{plat:?},\"team\":{team:?},\"language\":{lang:?}}},",
-            id = svc.name,
-            plat = platform,
-            team = team_str,
-            lang = lang_str,
-        )
-        .unwrap();
-    }
-    nodes_json.push(']');
-
-    let mut links_json = String::from("[\n");
-    for svc in manifest
-        .services
-        .iter()
-        .filter(|s| in_scope.contains(s.name.as_str()))
-    {
-        for dep in &svc.depends_on {
-            writeln!(
-                links_json,
-                "  {{\"source\":{src:?},\"target\":{tgt:?}}},",
-                src = svc.name,
-                tgt = dep,
-            )
-            .unwrap();
-        }
-    }
-    links_json.push(']');
+    let graph = build_d3_graph(manifest, &in_scope);
+    let graph_json =
+        json_script::embed(&graph).expect("D3Node/D3Link are plain strings and always serialize");
 
     let title = format!(
         "svccat graph - {} service(s)",
@@ -688,9 +716,11 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
 <h1>{title}</h1>
 <div id="tooltip"></div>
 <svg id="graph"></svg>
+<script type="application/json" id="graph-data">{graph_json}</script>
 <script>
-const nodes = {nodes_json};
-const links = {links_json};
+const graphData = JSON.parse(document.getElementById("graph-data").textContent);
+const nodes = graphData.nodes;
+const links = graphData.links;
 
 {script}
 </script>
@@ -698,8 +728,7 @@ const links = {links_json};
 </html>
 "##,
         title = title,
-        nodes_json = nodes_json,
-        links_json = links_json,
+        graph_json = graph_json,
         script = script,
     )
 }
@@ -729,5 +758,91 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(build_label(&svc), "api\\nRust\\nGateway");
+    }
+
+    #[test]
+    fn malicious_service_name_in_graph_data_cannot_close_the_script_tag() {
+        // Same vulnerability class PR #6 (commit 07b0485) fixed in
+        // workspace_html.rs's D3 data island, and which json_script.rs's own
+        // `script_breakout_attempt_is_neutralized` test proves the `embed`
+        // helper neutralizes: this renderer used to build
+        // nodes_json/links_json via raw `{:?}` Debug-format string
+        // interpolation, which does NOT escape `<`, `>`, or `&`. A service,
+        // team, platform, or language name containing a literal `</script>`
+        // would close the surrounding `<script>` element early and inject
+        // live markup into `svccat graph --format html` output.
+        let manifest = Manifest {
+            services: vec![crate::manifest::ServiceEntry {
+                name: "</script><script>alert(1)</script>".to_string(),
+                platform: Some("</script><script>alert(2)</script>".to_string()),
+                team: Some("</script><script>alert(3)</script>".to_string()),
+                language: Some("</script><script>alert(4)</script>".to_string()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let html = render_html_graph(&manifest, None);
+
+        // The raw, unescaped payload (as `{:?}` Debug-format interpolation
+        // would have produced pre-fix) must not appear anywhere: that is
+        // exactly the literal script-close/open sequence that terminates
+        // the JSON `<script>` element early and starts a new, live one.
+        assert!(
+            !html
+                .to_lowercase()
+                .contains("</script><script>alert"),
+            "a raw, unescaped payload must not survive as a literal script-close/open sequence: {html}"
+        );
+
+        // The escaped `<`/`>` form is present in the JSON data island for
+        // every field, proving each survived intact but inert (mirrors
+        // json_script.rs's script_breakout_attempt_is_neutralized and
+        // workspace_html.rs's
+        // malicious_service_name_in_graph_data_cannot_close_the_script_tag).
+        for n in 1..=4 {
+            assert!(
+                html.contains(&format!("\\u003cscript\\u003ealert({n})")),
+                "escaped payload {n} must survive intact in the JSON island: {html}"
+            );
+        }
+
+        // The dependency graph's own D3 script now reads nodes/links from a
+        // parsed JSON island rather than a raw string interpolation.
+        assert!(html.contains(r#"id="graph-data">"#));
+        assert!(html.contains(r#"JSON.parse(document.getElementById("graph-data").textContent)"#));
+    }
+
+    #[test]
+    fn graph_data_json_island_round_trips_through_json_parse() {
+        // Proves the new embed-based data path actually carries real node
+        // and link data end to end, not just that it is "reachable" — the
+        // escaping fix must not silently drop or corrupt legitimate data.
+        let manifest = Manifest {
+            services: vec![
+                crate::manifest::ServiceEntry {
+                    name: "api".to_string(),
+                    platform: Some("Cloud Run".to_string()),
+                    depends_on: vec!["db".to_string()],
+                    ..Default::default()
+                },
+                crate::manifest::ServiceEntry {
+                    name: "db".to_string(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let html = render_html_graph(&manifest, None);
+        let marker = r#"id="graph-data">"#;
+        let start = html.find(marker).unwrap() + marker.len();
+        let end = start + html[start..].find("</script>").unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&html[start..end]).unwrap();
+
+        assert_eq!(parsed["nodes"][0]["id"], "api");
+        assert_eq!(parsed["nodes"][0]["platform"], "Cloud Run");
+        assert_eq!(parsed["links"][0]["source"], "api");
+        assert_eq!(parsed["links"][0]["target"], "db");
     }
 }
