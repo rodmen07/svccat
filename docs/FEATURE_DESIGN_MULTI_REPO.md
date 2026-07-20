@@ -26,9 +26,19 @@ the `workspace check --format html` candidate already listed there.
   `[reporting].format` overrides the terminal default; `exclude_patterns` merges
   additively into the existing discovery ignore globs; and the toggle skips the
   cross-repo dependency graph build entirely rather than hiding its output.
-- [ ] **Slice 3: `workspace check --format html` interactive visualization.**
-  Aggregated workspace report as a self-contained HTML page reusing the existing
-  D3 graph renderer; tracked as a "Later / candidates" item in ROADMAP.md.
+- [x] **Slice 3: `workspace check --format html` interactive visualization**
+  (implemented 2026-07-20). `Html` joins the shared `OutputFormat` enum (same
+  precedence machinery slice 2 introduced: `--format` over `[reporting].format`
+  over the terminal default), rendered by the new `src/output/workspace_html.rs`
+  module. The page carries the per-repo summary and drift tables plus a
+  cross-repo dependency graph using the same D3.js v7 force-directed layout as
+  `svccat graph --format html`, restyled into a bounded panel and coloured by
+  repo. Every repo/service-sourced string is escaped for its embedding context:
+  HTML text/attributes reuse `crate::report::esc`, and the graph's node/link
+  data — embedded inside a `<script>` element — goes through the new
+  `src/output/json_script.rs` helper instead, since HTML-escaping alone does
+  not stop a value containing a literal `</script>` from closing that element
+  early.
 
 **Priority:** High (addresses team-scale drift detection)  
 **Effort Estimate:** 2-3 weeks  

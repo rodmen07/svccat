@@ -158,6 +158,25 @@ pub fn render_markdown(manifest: &Manifest, report: &DriftReport) -> String {
 
 // ── HTML renderer ─────────────────────────────────────────────────────────────
 
+/// Base stylesheet shared by every self-contained HTML report svccat emits
+/// (the single-repo report here, and the multi-repo workspace report in
+/// [`crate::output::workspace_html`]). Kept as one constant so the two reports
+/// read as one visual family instead of drifting apart independently.
+pub(crate) const REPORT_STYLE: &str = r#"
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #24292e; line-height: 1.5; }
+  h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 10px; }
+  h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 6px; margin-top: 2em; }
+  h3 { color: #586069; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 1.5em; }
+  th { background: #f6f8fa; font-weight: 600; }
+  th, td { border: 1px solid #d1d5da; padding: 8px 14px; text-align: left; }
+  tr:nth-child(even) td { background: #fafbfc; }
+  ul { padding-left: 1.8em; }
+  li { margin-bottom: 4px; }
+  strong { font-weight: 600; }
+"#;
+
 pub fn render_html(manifest: &Manifest, report: &DriftReport) -> String {
     let mut body = String::new();
 
@@ -292,18 +311,7 @@ pub fn render_html(manifest: &Manifest, report: &DriftReport) -> String {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service Catalog Report</title>
 <style>
-  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-         max-width: 1100px; margin: 40px auto; padding: 0 20px; color: #24292e; line-height: 1.5; }}
-  h1 {{ border-bottom: 2px solid #e1e4e8; padding-bottom: 10px; }}
-  h2 {{ border-bottom: 1px solid #e1e4e8; padding-bottom: 6px; margin-top: 2em; }}
-  h3 {{ color: #586069; margin-top: 1.5em; }}
-  table {{ border-collapse: collapse; width: 100%; margin-bottom: 1.5em; }}
-  th {{ background: #f6f8fa; font-weight: 600; }}
-  th, td {{ border: 1px solid #d1d5da; padding: 8px 14px; text-align: left; }}
-  tr:nth-child(even) td {{ background: #fafbfc; }}
-  ul {{ padding-left: 1.8em; }}
-  li {{ margin-bottom: 4px; }}
-  strong {{ font-weight: 600; }}
+{REPORT_STYLE}
 </style>
 </head>
 <body>
@@ -313,11 +321,22 @@ pub fn render_html(manifest: &Manifest, report: &DriftReport) -> String {
     )
 }
 
-fn push_tr(buf: &mut String, label: &str, value: &str) {
+pub(crate) fn push_tr(buf: &mut String, label: &str, value: &str) {
     writeln!(buf, "<tr><td>{}</td><td>{}</td></tr>", label, value).unwrap();
 }
 
-fn esc(s: &str) -> String {
+/// HTML-escape a string for safe embedding in HTML text content or a
+/// double-quoted attribute value.
+///
+/// This is the escaping mechanism for every repo-sourced string (service,
+/// team, and repo names; drift messages) that lands in an HTML report:
+/// [`render_html`] here and [`crate::output::workspace_html::render_html`]
+/// both route every such string through this function before writing it into
+/// the document. It is a manual implementation (no external crate) matching
+/// the four characters meaningful to an HTML parser in text/attribute
+/// position; embedding untrusted data inside a `<script>` element instead
+/// needs different handling — see [`crate::output::json_script`].
+pub(crate) fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

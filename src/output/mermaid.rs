@@ -1,5 +1,6 @@
 use crate::drift::DriftReport;
 use crate::manifest::Manifest;
+use crate::output::d3_force_graph::{self, D3GraphConfig, TooltipField};
 use std::collections::BTreeMap;
 
 pub fn render_graph(manifest: &Manifest) {
@@ -561,6 +562,11 @@ pub fn render_plantuml_string(manifest: &Manifest, team: Option<&str>) -> String
 /// Nodes are coloured by platform; edges represent `depends_on` links.
 /// The HTML file has no external CDN dependencies: D3 is embedded via a CDN
 /// `<script>` tag so the file requires an internet connection to render.
+///
+/// The D3 mechanics (drag physics, arrow marker, tick handler, and the
+/// tooltip's HTML-escaping of untrusted service names) are shared with
+/// `workspace_html::render_graph_panel` via
+/// [`crate::output::d3_force_graph`] — see that module's docs.
 pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
     use std::fmt::Write;
 
@@ -627,6 +633,35 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
             .count()
     );
 
+    let script = d3_force_graph::render_script(&D3GraphConfig {
+        svg_selector: "#graph",
+        tooltip_id: "tooltip",
+        arrow_id: "arrow",
+        width_expr: "window.innerWidth",
+        height_expr: "window.innerHeight - 60",
+        color_field: "platform",
+        node_radius: 16,
+        text_dy: 28,
+        link_distance: 120,
+        charge_strength: -300,
+        collide_radius: 40,
+        tooltip_header_expr: "d.id",
+        tooltip_fields: &[
+            TooltipField {
+                label: "platform",
+                value_expr: "d.platform",
+            },
+            TooltipField {
+                label: "team",
+                value_expr: "d.team || \"-\"",
+            },
+            TooltipField {
+                label: "lang",
+                value_expr: "d.language || \"-\"",
+            },
+        ],
+    });
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -657,67 +692,7 @@ pub fn render_html_graph(manifest: &Manifest, team: Option<&str>) -> String {
 const nodes = {nodes_json};
 const links = {links_json};
 
-// Assign a stable colour per platform using D3 ordinal scale.
-const platforms = [...new Set(nodes.map(d => d.platform))];
-const colour = d3.scaleOrdinal(d3.schemeTableau10).domain(platforms);
-
-const svg = d3.select("#graph");
-const width = window.innerWidth;
-const height = window.innerHeight - 60;
-svg.attr("viewBox", [0, 0, width, height]);
-
-// Arrow marker
-svg.append("defs").append("marker")
-  .attr("id", "arrow")
-  .attr("viewBox", "0 -5 10 10")
-  .attr("refX", 22).attr("refY", 0)
-  .attr("markerWidth", 6).attr("markerHeight", 6)
-  .attr("orient", "auto")
-  .append("path").attr("fill", "#aaa").attr("d", "M0,-5L10,0L0,5");
-
-const sim = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).id(d => d.id).distance(120))
-  .force("charge", d3.forceManyBody().strength(-300))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .force("collide", d3.forceCollide(40));
-
-const link = svg.append("g")
-  .selectAll("line")
-  .data(links).join("line")
-  .attr("class", "link")
-  .attr("marker-end", "url(#arrow)");
-
-const node = svg.append("g")
-  .selectAll("g")
-  .data(nodes).join("g")
-  .attr("class", "node")
-  .call(d3.drag()
-    .on("start", (e, d) => {{ if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }})
-    .on("drag",  (e, d) => {{ d.fx = e.x; d.fy = e.y; }})
-    .on("end",   (e, d) => {{ if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }}));
-
-node.append("circle")
-  .attr("r", 16)
-  .attr("fill", d => colour(d.platform));
-
-node.append("text")
-  .attr("dy", 28).attr("text-anchor", "middle")
-  .text(d => d.id);
-
-const tip = document.getElementById("tooltip");
-node.on("mouseover", (e, d) => {{
-  tip.style.display = "block";
-  tip.innerHTML = `<b>${{d.id}}</b><br>platform: ${{d.platform}}<br>team: ${{d.team || "-"}}<br>lang: ${{d.language || "-"}}`;
-}}).on("mousemove", e => {{
-  tip.style.left = (e.pageX + 12) + "px";
-  tip.style.top  = (e.pageY - 28) + "px";
-}}).on("mouseout", () => {{ tip.style.display = "none"; }});
-
-sim.on("tick", () => {{
-  link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-  node.attr("transform", d => `translate(${{d.x}},${{d.y}})`);
-}});
+{script}
 </script>
 </body>
 </html>
@@ -725,6 +700,7 @@ sim.on("tick", () => {{
         title = title,
         nodes_json = nodes_json,
         links_json = links_json,
+        script = script,
     )
 }
 

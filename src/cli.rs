@@ -644,6 +644,8 @@ pub enum OutputFormat {
     Teams,
     /// Datadog Events API JSON payload
     Datadog,
+    /// Self-contained HTML report with an embedded D3.js dependency graph
+    Html,
 }
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]

@@ -1,8 +1,10 @@
 pub mod backstage;
 pub mod csv;
+pub mod d3_force_graph;
 pub mod datadog;
 pub mod github_annotation;
 pub mod json;
+pub mod json_script;
 pub mod junit;
 pub mod markdown;
 pub mod mermaid;
@@ -12,3 +14,4 @@ pub mod spdx;
 pub mod teams;
 pub mod terminal;
 pub mod workspace;
+pub mod workspace_html;

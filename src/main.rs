@@ -36,6 +36,7 @@ fn main() {
 
 fn render_check_output_to_string(
     format: &OutputFormat,
+    manifest: &manifest::Manifest,
     report: &drift::DriftReport,
     ping_results: &[ping::PingResult],
 ) -> Result<Option<String>> {
@@ -49,6 +50,11 @@ fn render_check_output_to_string(
         OutputFormat::Slack => Some(output::slack::render_check_to_string(report)?),
         OutputFormat::Teams => Some(output::teams::render_check_to_string(report)?),
         OutputFormat::Datadog => Some(output::datadog::render_check_to_string(report)?),
+        // Same self-contained HTML report `svccat report --format html`
+        // already produces for a single repo: `check` computes the same
+        // (Manifest, DriftReport) pair, so there is no reason for a second
+        // HTML renderer here.
+        OutputFormat::Html => Some(report::render_html(manifest, report)),
         _ => None,
     };
 
@@ -255,7 +261,8 @@ fn run() -> Result<i32> {
                 }
 
                 // For string-renderable formats, capture once so we can write to --output.
-                let maybe_string = render_check_output_to_string(&format, &report, &ping_results)?;
+                let maybe_string =
+                    render_check_output_to_string(&format, &m, &report, &ping_results)?;
 
                 if let Some(content) = maybe_string {
                     if let Some(ref out_path) = output_path {
@@ -282,7 +289,9 @@ fn run() -> Result<i32> {
                         OutputFormat::Teams => output::teams::render_check(&report)?,
                         OutputFormat::Datadog => output::datadog::render_check(&report)?,
                         // Already handled above:
-                        OutputFormat::Json | OutputFormat::Markdown => unreachable!(),
+                        OutputFormat::Json | OutputFormat::Markdown | OutputFormat::Html => {
+                            unreachable!()
+                        }
                     }
                 }
             }
@@ -974,6 +983,9 @@ fn run() -> Result<i32> {
                         svccat::cli::OutputFormat::Markdown => {
                             output::workspace::render_markdown(&report)
                         }
+                        svccat::cli::OutputFormat::Html => {
+                            output::workspace_html::render_html(&report)
+                        }
                         _ => {
                             output::workspace::render_terminal(&report);
                             String::new()
@@ -1030,34 +1042,53 @@ mod tests {
 
     #[test]
     fn string_output_helper_supports_csv_slack_teams_and_datadog() {
+        let manifest = manifest::Manifest::default();
         let report = sample_report();
 
-        let csv = render_check_output_to_string(&OutputFormat::Csv, &report, &[])
+        let csv = render_check_output_to_string(&OutputFormat::Csv, &manifest, &report, &[])
             .unwrap()
             .unwrap();
         assert!(csv.contains("service,severity,kind,message,detail"));
         assert!(csv.contains("api,error,declared_missing_from_repo,missing service directory,"));
 
-        let slack = render_check_output_to_string(&OutputFormat::Slack, &report, &[])
+        let slack = render_check_output_to_string(&OutputFormat::Slack, &manifest, &report, &[])
             .unwrap()
             .unwrap();
         assert!(slack.contains("blocks"));
 
-        let teams = render_check_output_to_string(&OutputFormat::Teams, &report, &[])
+        let teams = render_check_output_to_string(&OutputFormat::Teams, &manifest, &report, &[])
             .unwrap()
             .unwrap();
         assert!(teams.contains("attachments"));
 
-        let datadog = render_check_output_to_string(&OutputFormat::Datadog, &report, &[])
-            .unwrap()
-            .unwrap();
+        let datadog =
+            render_check_output_to_string(&OutputFormat::Datadog, &manifest, &report, &[])
+                .unwrap()
+                .unwrap();
         assert!(datadog.contains("events"));
     }
 
     #[test]
-    fn string_output_helper_skips_terminal_format() {
+    fn string_output_helper_supports_html() {
+        // `check --format html` reuses the same self-contained HTML report as
+        // `svccat report --format html` (crate::report::render_html) rather
+        // than a second renderer.
+        let manifest = manifest::Manifest::default();
         let report = sample_report();
-        let out = render_check_output_to_string(&OutputFormat::Terminal, &report, &[]).unwrap();
+
+        let html = render_check_output_to_string(&OutputFormat::Html, &manifest, &report, &[])
+            .unwrap()
+            .unwrap();
+        assert!(html.contains("<!DOCTYPE html>"));
+        assert!(html.contains("Service Catalog Report"));
+    }
+
+    #[test]
+    fn string_output_helper_skips_terminal_format() {
+        let manifest = manifest::Manifest::default();
+        let report = sample_report();
+        let out = render_check_output_to_string(&OutputFormat::Terminal, &manifest, &report, &[])
+            .unwrap();
         assert!(out.is_none());
     }
 }
