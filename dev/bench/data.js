@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784561987712,
+  "lastUpdate": 1784565378456,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -1859,6 +1859,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12269,
             "range": "± 26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e97a67be926b603010e2045f8abf02721e8ee26f",
+          "message": "fix(security): close DOM-based XSS in mermaid.rs graph --format html (#7)\n\n`src/output/mermaid.rs::render_html_graph` (svccat graph --format html)\nbuilt its nodes_json/links_json by interpolating raw Rust `{:?}`\nDebug-format strings, which does not escape `<`, `>`, or `&`. A\nservice/team/platform/language name containing a literal `</script>`\nclosed the surrounding <script> element early and injected live markup\n- the same vulnerability class PR #6 (commit 07b0485) fixed in\nworkspace_html.rs's D3 data island, left unpatched here because that PR\nunified the two renderers' D3 *script* (drag/tick/tooltip, already\nrouted through the shared d3_force_graph.rs since that PR) but not\ntheir *data-embedding* path.\n\nFix: build the node/link data as a typed, Serialize-derived D3Graph and\nembed it via the existing json_script::embed (JSON-encode, then\n`\\uXXXX`-escape `<`/`>`/`&`), the same mechanism workspace_html.rs\nalready uses. The JSON now lives in a `<script type=\"application/json\">`\ndata island, parsed via JSON.parse client-side, matching\nworkspace_html.rs's own pattern exactly.\n\nRegression test mermaid.rs::tests::malicious_service_name_in_graph_data_cannot_close_the_script_tag\nmirrors json_script.rs's script_breakout_attempt_is_neutralized and\nworkspace_html.rs's malicious_service_name_in_graph_data_cannot_close_the_script_tag\nat the same rigor; verified it fails against the pre-fix code (raw\npayload survives unescaped) before applying the fix, and passes after.\ngraph_data_json_island_round_trips_through_json_parse proves the new\ndata path still carries real data, not just that it's unreachable.\n\nAlso bundles the two LOW findings filed alongside this one in the same\nreview pass, both trivial:\n- report.rs::esc() now escapes `'` to `&#39;` (defense-in-depth; no\n  call site currently writes single-quoted attributes, verified by\n  grep). Regression test in integration_test.rs proven to fail\n  pre-fix.\n- main.rs: extracted the inline `workspace check` format-dispatch match\n  arm into render_workspace_check_output_to_string, mirroring\n  render_check_output_to_string's existing shape, and added three unit\n  tests (html/json+markdown/terminal-skip) mirroring the existing\n  string_output_helper_supports_* tests. Previously this dispatch arm\n  was only exercised indirectly through workspace_html.rs's own unit\n  tests; a regression in the match arm itself (wrong format falling\n  through, Html routed to the wrong renderer) would have slipped\n  through undetected.\n\nNo version bump: continues the slices 2-3 accumulation convention\n(this DevSecOps fix targets a defect in already-released 1.5.0\nbehavior rather than gating a new feature, so it rides along rather\nthan forcing an off-cycle patch release).\n\nTests: 256 -> 262 (all --all-features suites, lib + bin + every\nintegration file + doctest), 0 failed.\n\nCode health: main.rs 1094 -> 1168 lines, tests/integration_test.rs\n2052 -> 2093 lines. Both were already over the 1000-line hard\nthreshold before this change (preflight C10, filed 2026-07-20).\nGrowth wasn't avoidable by extraction here: main.rs's format-dispatch\nhelpers and their tests are private to the `svccat` binary target, so\nonly an in-file unit test can reach them (tests/integration_test.rs\ncompiles as a separate crate that only sees the `svccat` *library*'s\npub API); the integration_test.rs addition is one black-box test\nfollowing the file's existing report_html_contains_html_structure\nprecedent exactly. No refactor attempted here - that's a separate,\ntrigger-based increment per the code-health bar, not bundled into a\nsecurity fix.\n\nLessons applied: L-001 (behavior-difference test proven at\nsrc/output/mermaid.rs::tests::malicious_service_name_in_graph_data_cannot_close_the_script_tag\nand src/report.rs's esc() fix via\ntests/integration_test.rs::report_html_escapes_single_quotes_in_service_fields\n- both verified failing pre-fix and passing post-fix by temporarily\nreverting each fix and re-running the test).\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-20T11:33:16-05:00",
+          "tree_id": "9015392c9ce7c0583b1956c4755ca2e358989f57",
+          "url": "https://github.com/rodmen07/svccat/commit/e97a67be926b603010e2045f8abf02721e8ee26f"
+        },
+        "date": 1784565378181,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12389,
+            "range": "± 157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23794,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 315,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5417,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5036,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12557,
+            "range": "± 44",
             "unit": "ns/iter"
           }
         ]
