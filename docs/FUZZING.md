@@ -2,6 +2,21 @@
 
 This document describes how to set up and run fuzz testing for svccat to find edge cases and potential panics.
 
+**Status (2026-07-20): this infrastructure is real and wired into CI.** Earlier
+revisions of this document described a `cargo fuzz init` setup that had not
+actually been done — `fuzz/Cargo.toml` did not exist (a `Cargo.fuzz.toml` sat
+at the repo root instead, a path `cargo fuzz` never looks at, and it also
+referenced a Cargo feature, `__fuzz_target`, that did not exist in
+`Cargo.toml`), and `.github/workflows/fuzzing.yml`'s run step was a
+placeholder (`echo "Executing ..."` with the real invocation commented out)
+behind a matrix of engines (`libfuzzer`/`afl`/`honggfuzz`) none of which were
+ever actually invoked. The workflow reported green on every run regardless,
+because nothing in it could fail. Both gaps are now fixed: `fuzz/Cargo.toml`
+exists at the path cargo-fuzz expects, and the CI job in "Fuzz Targets" and
+"CI Integration" below runs for real. If you are reading a future revision of
+this file and it drifts from `fuzz/Cargo.toml` or `fuzzing.yml` again, trust
+those files, not this prose.
+
 ## Overview
 
 Fuzzing tests svccat's parsers and validators with randomly generated inputs to:
@@ -14,79 +29,56 @@ Fuzzing tests svccat's parsers and validators with randomly generated inputs to:
 
 ### Prerequisites
 
-Install `cargo-fuzz`:
+Install `cargo-fuzz` (needs a nightly toolchain for libFuzzer instrumentation):
 
 ```bash
+rustup toolchain install nightly
 cargo install cargo-fuzz
 ```
 
-### Create Fuzz Targets
+### Fuzzing Infrastructure
 
-Initialize the fuzzing infrastructure:
-
-```bash
-cargo fuzz init
-```
-
-This creates a `fuzz/` directory with fuzz target templates.
+Already set up in this repo: `fuzz/Cargo.toml` (a standalone, workspace-detached
+crate depending on `svccat` via `path = ".."`) plus the target binaries below in
+`fuzz/fuzz_targets/`. Nothing further to initialize; running
+`cargo +nightly fuzz run <target>` from the repo root just works.
 
 ## Fuzz Targets
 
-Create targeted fuzz tests for key components:
-
-### 1. Manifest YAML Parsing
+### 1. Manifest YAML parsing + inline policy rule compilation
 
 **File:** `fuzz/fuzz_targets/fuzz_manifest.rs`
 
-```rust
-#![no_main]
-use libfuzzer_sys::fuzz_target;
-use svccat::manifest::Manifest;
+Parses arbitrary bytes as a `Manifest` (the same `serde_yaml`/`Deserialize`
+path `Manifest::load` uses), and — when parsing succeeds — feeds the parsed
+`policy.rules` straight into `RuleEngine::compile`, exactly as `svccat
+check`/`workspace check` do via `src/drift.rs`. This second step is
+deliberate, not incidental: `RuleEngine::resolve_rule` (`src/rules.rs`)
+recurses over each rule's `base` chain with **no cycle guard**, so a
+self- or mutually-referential `base` stack-overflows the process instead of
+returning an `Err`. `svccat lint` gained a pre-compile cycle check
+(`src/rule_schema.rs`) for this exact bug, but `check`/`workspace check` call
+`RuleEngine::compile` directly and are not covered by that guard — so this
+remains a real, reachable crash from an untrusted manifest file, and fuzzing
+the parse-then-compile pipeline together is what lets this target find that
+whole bug class automatically rather than only fuzzing YAML shape.
 
-fuzz_target!(|data: &[u8]| {
-    if let Ok(text) = std::str::from_utf8(data) {
-        let _ = serde_yaml::from_str::<Manifest>(text);
-    }
-});
-```
-
-Tests manifest loading with arbitrary YAML input.
-
-### 2. URL Validation
+### 2. URL validation
 
 **File:** `fuzz/fuzz_targets/fuzz_url.rs`
 
-```rust
-#![no_main]
-use libfuzzer_sys::fuzz_target;
+Feeds arbitrary strings into `svccat::urlvalidation::validate_url` (both the
+`allow_localhost=false` and `=true` modes), the trust-boundary check used
+before `--ping`/webhook requests go out (see `src/safe_http.rs` for the
+redirect-hardening layered on top of this).
 
-fuzz_target!(|data: &[u8]| {
-    if let Ok(url) = std::str::from_utf8(data) {
-        let _ = svccat::urlvalidation::validate_url(url, false);
-        let _ = svccat::urlvalidation::validate_url(url, true);
-    }
-});
-```
-
-Tests URL validation with arbitrary string input.
-
-### 3. Glob Pattern Processing
+### 3. Glob pattern processing
 
 **File:** `fuzz/fuzz_targets/fuzz_glob.rs`
 
-```rust
-#![no_main]
-use libfuzzer_sys::fuzz_target;
-
-fuzz_target!(|data: &[u8]| {
-    if let Ok(pattern) = std::str::from_utf8(data) {
-        // Test glob compilation with arbitrary patterns
-        let _ = glob::Pattern::new(pattern);
-    }
-});
-```
-
-Tests glob pattern parsing with arbitrary input.
+Feeds arbitrary strings into `glob::Pattern::new`, the same pattern-compile
+call `src/discovery.rs` makes for every `discovery.ignore` / `--ignore`
+pattern read from a manifest or CLI flag.
 
 ## Running Fuzzing
 
@@ -158,35 +150,25 @@ If fuzzing detects memory leaks or resource exhaustion:
 
 ## CI Integration
 
-Add fuzzing to GitHub Actions for continuous fuzz testing:
-
-```yaml
-name: Continuous Fuzzing
-
-on:
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
-
-jobs:
-  fuzz:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4.1.7
-      - uses: dtolnay/rust-toolchain@nightly
-      - name: Run fuzzers
-        run: |
-          cargo install cargo-fuzz
-          for target in fuzz/fuzz_targets/*.rs; do
-            name=$(basename "$target" .rs)
-            cargo fuzz run "$name" -- -max_total_time=600
-          done
-```
+`.github/workflows/fuzzing.yml` ("Continuous Fuzzing") runs this for real, on
+`push` to `main`, once a day (`0 0 * * *`), and on manual
+`workflow_dispatch`. It does **not** run on `pull_request` — fuzzing is a
+push/schedule/manual concern, not a per-PR gate, so it never adds time to a
+merge. It matrices the three real targets above, one job per target, each
+running `cargo fuzz run <target> -- -max_total_time=120` (a 120-second
+libFuzzer budget — enough to catch cheap, shallow crashes like the
+unguarded recursive `base` chain above on every push and once a day, without
+turning this into a multi-hour runner) against a nightly toolchain, and
+uploads the crashing input as a build artifact on failure so it can be
+downloaded and reproduced locally. Read the actual workflow file for the
+current exact steps; it is the source of truth, not this paragraph.
 
 ## What Gets Fuzzed
 
-### ✅ Current Coverage
+### ✅ Current Coverage (and actually running in CI, not just described here)
 
 - [x] Manifest YAML parsing
+- [x] Inline policy rule compilation (`policy.rules` / `RuleEngine::compile`, including the `base`-chain cycle crash)
 - [x] URL validation
 - [x] Glob pattern compilation
 
@@ -194,7 +176,8 @@ jobs:
 
 - [ ] Git reference validation (unit tests currently cover this)
 - [ ] Path validation (unit tests currently cover this)
-- [ ] Dependency graph cycle detection
+- [ ] Dependency graph cycle detection (`src/deps_graph.rs` — a different cycle-detection surface than the policy-rule `base` chain above)
+- [ ] A dedicated `fuzz_policy` target with structured (`arbitrary`-derived) `Rule`/`Vec<Rule>` generation and seed corpora, rather than reaching `RuleEngine::compile` only indirectly through YAML manifest text (tracked in the crate's roadmap as a follow-up, alongside seed corpora for the three existing targets)
 
 ## Best Practices
 
@@ -246,4 +229,6 @@ cargo fuzz run fuzz_manifest -- -rss_limit_mb=512  # 512 MB limit
 
 ---
 
-**Last Updated:** May 28, 2026 (v0.19.0)
+**Last Updated:** July 20, 2026 — `fuzz/Cargo.toml` and the CI workflow now
+actually run cargo-fuzz; earlier revisions of this document described
+infrastructure that did not exist yet.

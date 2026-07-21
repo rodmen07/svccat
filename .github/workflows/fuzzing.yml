@@ -1,4 +1,4 @@
-name: Automated Fuzz Testing
+name: Continuous Fuzzing
 
 on:
   push:
@@ -6,36 +6,63 @@ on:
   schedule:
     # Run once every 24 hours automatically to verify against regression
     - cron: '0 0 * * *'
+  workflow_dispatch: {}
 
 jobs:
   fuzz:
-    name: Structural Fuzz Campaign
+    name: Fuzz (${{ matrix.target }})
     runs-on: ubuntu-latest
-    
-    # Run 3 parallel jobs with distinct engine permutations
+
+    # One real cargo-fuzz target per job, run for real. This workflow does
+    # NOT run on pull_request (fuzzing is a push/schedule/manual concern, not
+    # a per-PR gate — see ci.yml's build-and-test job and svccat-pr.yml for
+    # what actually gates a PR), so a multi-minute budget per target here
+    # does not slow down anyone's merge.
     strategy:
       fail-fast: false
       matrix:
-        fuzz_engine: [libfuzzer, afl, honggfuzz]
+        target: [fuzz_manifest, fuzz_url, fuzz_glob]
 
     steps:
       # 1. Pull project specifications
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # 2. Spin up the nightly compiler (required for most Rust fuzz setups)
+      # 2. cargo-fuzz's libFuzzer instrumentation requires the nightly compiler.
       - name: Install Nightly Rust Toolchain
         uses: dtolnay/rust-toolchain@nightly
 
-      # 3. FORCE NETWORK DOWNLOAD FROM REGISTRY
-      # Bypasses local workspace builds and downloads 'svccat' from Crates.io
-      - name: Fetch Executable Under Test
-        run: cargo install svccat --force --no-track
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2.7.3
+        with:
+          workspaces: |
+            . -> target
+            fuzz -> fuzz/target
 
-      # 4. Initialize and run your fuzz matrix target 
-      - name: Run Fuzz Vector
-        run: |
-          echo "Executing ${{ matrix.fuzz_engine }} permutation target..."
-          # Insert your cargo-fuzz or specific fuzz execution harness below:
-          # svccat --parse-input ./fuzz/artifacts/
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
 
+      # 3. Actually build and run the named fuzz target against THIS
+      # checkout's code (fuzz/Cargo.toml depends on svccat via `path = ".."`,
+      # so this always fuzzes the code in the PR/commit being tested, never
+      # a published crates.io release).
+      #
+      # Budget: 120 seconds of libFuzzer time per target. This is a CI-sane
+      # bound for a background/regression job, not a serious continuous
+      # fuzzing campaign — it is enough to catch cheap, shallow crashes
+      # (e.g. an unguarded recursive `base` chain in the policy rule
+      # compiler) on every push to main and once a day, without turning this
+      # job into a multi-hour runner. Extending the budget or adding a
+      # persisted corpus is a follow-up, not this change.
+      - name: Run cargo fuzz (${{ matrix.target }})
+        run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=120
+
+      # 4. Preserve the crashing input so it can be downloaded and
+      # reproduced locally with `cargo fuzz run <target> <artifact>`.
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
