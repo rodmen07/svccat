@@ -1,5 +1,5 @@
 use crate::manifest::Manifest;
-use crate::urlvalidation;
+use crate::safe_http::{self, SafeHttpError};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -32,28 +32,33 @@ impl PingResult {
 /// URLs are validated to prevent SSRF attacks:
 /// - Private/internal IP addresses are rejected
 /// - URLs must have http:// or https:// scheme
+/// - Every hop of an HTTP redirect chain is re-validated the same way before
+///   it is followed, so a validated public URL cannot 302 its way to a
+///   private/internal address (see [`crate::safe_http`]).
 pub fn ping_services(manifest: &Manifest) -> Vec<PingResult> {
     manifest
         .services
         .iter()
         .filter_map(|svc| svc.url.as_deref().map(|url| (svc, url.to_string())))
         .map(|(svc, url)| {
-            // Validate URL to prevent SSRF attacks (allow http for this context)
-            let ping = if let Err(e) = urlvalidation::validate_url(&url, false) {
-                PingStatus::Invalid {
-                    reason: e.to_string(),
-                }
-            } else {
-                match ureq::get(&url).timeout(Duration::from_secs(5)).call() {
-                    Ok(resp) => PingStatus::Reachable {
-                        code: resp.status(),
-                    },
+            let ping = match safe_http::get(&url, false, Duration::from_secs(5)) {
+                Ok(resp) => PingStatus::Reachable {
+                    code: resp.status(),
+                },
+                Err(SafeHttpError::Request(e)) => match *e {
                     // 4xx/5xx: got a response, service is up
-                    Err(ureq::Error::Status(code, _)) => PingStatus::Reachable { code },
-                    Err(e) => PingStatus::Unreachable {
-                        reason: e.to_string(),
+                    ureq::Error::Status(code, _) => PingStatus::Reachable { code },
+                    other => PingStatus::Unreachable {
+                        reason: other.to_string(),
                     },
-                }
+                },
+                // Initial URL, or a redirect target, failed SSRF validation.
+                Err(SafeHttpError::Blocked(e)) => PingStatus::Invalid {
+                    reason: e.to_string(),
+                },
+                Err(e) => PingStatus::Unreachable {
+                    reason: e.to_string(),
+                },
             };
             PingResult {
                 service: svc.name.clone(),

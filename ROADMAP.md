@@ -162,18 +162,10 @@ Done when: no stale direct-dependency majors remain (or a skip decision is recor
 Unshipped ideas on record. Pull forward only if the user chooses feature work over
 pure maintenance.
 
-- SSRF redirect-hardening verification pass for `--ping` (carried from the
-  RELEASE_PLAN_V1.4.0 security gates). Re-verified still unshipped 2026-07-20:
-  `src/ping.rs` and `src/webhook.rs` both call `urlvalidation::validate_url` once,
-  before the request, but the actual HTTP call goes through `ureq`'s default
-  config, which follows redirects (up to its default cap) without re-validating
-  the target host on each hop. A `--ping` target that 30x-redirects to a private
-  or loopback address is not currently caught. No redirect-hop guard exists in
-  either module yet.
-
-Three items previously listed here (policy rule schema validation, the
-`workspace check --format html` visualization, and CycloneDX JSON export) have
-shipped; see History and supersession below for their PRs and merge commits.
+None currently open. Four items previously listed here (policy rule schema
+validation, the `workspace check --format html` visualization, CycloneDX JSON
+export, and SSRF redirect-hardening for `--ping`/webhooks) have shipped; see
+History and supersession below for their PRs and merge commits.
 
 ## Blocked and user-only summary
 
@@ -205,6 +197,12 @@ shipped; see History and supersession below for their PRs and merge commits.
 - CycloneDX JSON export as a sibling to `spdx-json` (previously listed under
   Later / candidates, not carried from any prior planning doc) shipped
   2026-07-20 via PR #11 (squash commit `4202db6825a6c18c66be7ecdcd70f45036e70dcc`).
+- SSRF redirect-hardening for `--ping`/webhooks (carried from the
+  RELEASE_PLAN_V1.4.0 security gates, previously listed under Later /
+  candidates): fix opened 2026-07-20 as PR #14 (new `src/safe_http.rs`
+  disables `ureq`'s automatic redirect-following and re-validates every
+  redirect target with `urlvalidation::validate_url` before following it).
+  This line will be updated with the merge commit once the PR lands.
 - docs/FEATURE_DESIGN_MULTI_REPO.md: shipped in v0.21.0 on 2026-06-03; historical
   design record only.
 - docs/PERFORMANCE_OPTIMIZATIONS_PHASE1.md: Phase 1 work was completed 2026-05-30
