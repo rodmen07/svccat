@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784659489541,
+  "lastUpdate": 1784660786130,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2279,6 +2279,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12278,
             "range": "± 118",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "32f2bca9191c10effffdaccafe4854bd4e123efd",
+          "message": "fix(rules): base-chain cycle crashed `svccat check` with a stack overflow (#16)\n\n`RuleEngine::resolve_rule` recursed over each rule's `base` chain with no\ncycle guard and no depth limit. A manifest whose rule names itself as its\nown base, or two rules naming each other, recursed until the stack was\nexhausted — a process abort (STATUS_STACK_OVERFLOW / SIGSEGV), not a\ncatchable `Err`.\n\nIt was reachable from untrusted input. `src/drift.rs` calls\n`RuleEngine::compile` directly, which is the `svccat check` and\n`svccat workspace check` path, while the cycle guard that already existed\n(`validate_no_base_cycles` in `src/rule_schema.rs`) is only invoked from\n`src/lint.rs`. So `lint` was protected and `check` was not, on a\npublished crate, against a manifest the user did not author.\n\n`resolve_rule` now threads the chain of ids currently being resolved and\nreturns a normal error naming the cycle. Behavior for acyclic input is\nunchanged.\n\nFive regression tests, all of which abort the test process with\nSTATUS_STACK_OVERFLOW when the guard is disabled: self-referential base,\nmutual pair, three-hop cycle, plus two that stop the fix from\nover-correcting — an acyclic a->b->c chain must still compile, and a\ndangling base must still report \"not found\" rather than being\nmisreported as a cycle.\n\nFound by the fuzz-harness rework (#15), which widened fuzz_manifest from\nparsing YAML to parse-then-compile, matching how `check` actually uses\nthe pipeline.\n\nCo-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-21T14:03:18-05:00",
+          "tree_id": "3ca1e320a5440153c56ba2bb20009f8353140b13",
+          "url": "https://github.com/rodmen07/svccat/commit/32f2bca9191c10effffdaccafe4854bd4e123efd"
+        },
+        "date": 1784660785841,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12723,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23139,
+            "range": "± 543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 266,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5173,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4826,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12152,
+            "range": "± 27",
             "unit": "ns/iter"
           }
         ]
