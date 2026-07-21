@@ -91,18 +91,44 @@ impl RuleEngine {
         Ok(RuleEngine { rules: compiled })
     }
 
-    /// Resolve a rule by following its inheritance chain
+    /// Resolve a rule by following its inheritance chain.
+    ///
+    /// A `base` chain that loops back on itself (a rule naming itself, or two
+    /// rules naming each other) used to recurse until the stack was exhausted,
+    /// aborting the process instead of returning an `Err`. `svccat lint` was
+    /// protected because it runs `rule_schema::validate` first, but
+    /// `svccat check` and `workspace check` reach this function directly via
+    /// `crate::drift`, so a manifest the user did not author could crash the
+    /// CLI. The `chain` parameter carries the ids already being resolved and
+    /// turns that crash into a normal error.
     fn resolve_rule(
         rule: &Rule,
         rule_map: &std::collections::HashMap<String, Rule>,
     ) -> Result<Rule> {
+        Self::resolve_rule_chained(rule, rule_map, &mut Vec::new())
+    }
+
+    fn resolve_rule_chained(
+        rule: &Rule,
+        rule_map: &std::collections::HashMap<String, Rule>,
+        chain: &mut Vec<String>,
+    ) -> Result<Rule> {
+        if chain.iter().any(|seen| seen == &rule.id) {
+            return Err(anyhow!(
+                "policy rule base chain forms a cycle: {} -> {}",
+                chain.join(" -> "),
+                rule.id
+            ));
+        }
+        chain.push(rule.id.clone());
+
         if let Some(base_id) = &rule.base {
             let base_rule = rule_map.get(base_id).ok_or_else(|| {
                 anyhow!("Base rule '{}' not found for rule '{}'", base_id, rule.id)
             })?;
 
             // Recursively resolve base rule to handle chains
-            let mut resolved_base = Self::resolve_rule(base_rule, rule_map)?;
+            let mut resolved_base = Self::resolve_rule_chained(base_rule, rule_map, chain)?;
 
             // Override base with current rule's fields (if they differ from defaults)
             if !rule.description.is_empty() && rule.description != base_rule.description {
@@ -647,5 +673,106 @@ mod tests {
 
         let result = RuleEngine::compile(&[rule]);
         assert!(result.is_err(), "Should reject invalid expression");
+    }
+
+    // --- base-chain cycle regression tests -----------------------------------
+    //
+    // `resolve_rule` used to recurse over `base` with no cycle guard, so these
+    // manifests aborted the process with a stack overflow instead of returning
+    // an `Err`. `svccat lint` was protected by `rule_schema::validate`, but
+    // `svccat check` / `workspace check` call `RuleEngine::compile` directly
+    // (see `src/drift.rs`), so this was reachable from an untrusted manifest.
+    //
+    // These assert the Err, not merely "did not crash": a test that only
+    // checked for absence of a panic would pass against a build that hung.
+
+    fn cyclic_rule(id: &str, base: Option<&str>) -> Rule {
+        Rule {
+            id: id.to_string(),
+            description: format!("{id} description"),
+            expression: "name matches ^api-".to_string(),
+            severity: "error".to_string(),
+            base: base.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn compile_rejects_self_referential_base() {
+        let rules = vec![cyclic_rule("a", Some("a"))];
+
+        let err = RuleEngine::compile(&rules)
+            .expect_err("a rule naming itself as base must be an error, not a stack overflow");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("cycle"),
+            "error should name the cycle, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn compile_rejects_mutually_referential_bases() {
+        let rules = vec![cyclic_rule("a", Some("b")), cyclic_rule("b", Some("a"))];
+
+        let err = RuleEngine::compile(&rules)
+            .expect_err("a mutual base cycle must be an error, not a stack overflow");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("cycle"),
+            "error should name the cycle, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn compile_rejects_longer_base_cycle() {
+        // Three-hop cycle: the guard must track the whole chain, not just the
+        // immediately previous id.
+        let rules = vec![
+            cyclic_rule("a", Some("b")),
+            cyclic_rule("b", Some("c")),
+            cyclic_rule("c", Some("a")),
+        ];
+
+        let err = RuleEngine::compile(&rules).expect_err("a 3-hop base cycle must be an error");
+
+        assert!(
+            err.to_string().contains("cycle"),
+            "error should name the cycle, got: {err}"
+        );
+    }
+
+    #[test]
+    fn compile_still_accepts_a_legitimate_base_chain() {
+        // The guard must not reject valid inheritance: a -> b -> c, acyclic.
+        // Without this, "reject everything" would pass the three tests above.
+        let rules = vec![
+            cyclic_rule("c", None),
+            cyclic_rule("b", Some("c")),
+            cyclic_rule("a", Some("b")),
+        ];
+
+        let engine = RuleEngine::compile(&rules)
+            .expect("an acyclic base chain must still compile after the cycle guard");
+        assert_eq!(engine.rules.len(), 3, "all three rules should compile");
+    }
+
+    #[test]
+    fn compile_still_reports_a_missing_base_distinctly() {
+        // A dangling base is a different error from a cycle; the guard must not
+        // collapse the two.
+        let rules = vec![cyclic_rule("a", Some("does-not-exist"))];
+
+        let err = RuleEngine::compile(&rules).expect_err("a missing base must still be an error");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("not found"),
+            "missing base should report 'not found', got: {msg}"
+        );
+        assert!(
+            !msg.contains("cycle"),
+            "missing base must not be reported as a cycle, got: {msg}"
+        );
     }
 }
