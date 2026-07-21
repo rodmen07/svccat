@@ -1,0 +1,44 @@
+[package]
+name = "svccat-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# Same renamed alias svccat itself uses (serde_yaml_ng is the maintained
+# drop-in fork of the deprecated dtolnay serde_yaml); the fuzz targets
+# deserialize into svccat's own types, so this must track the same package.
+serde_yaml = { package = "serde_yaml_ng", version = "0.10" }
+glob = "0.3"
+
+[dependencies.svccat]
+path = ".."
+
+# Prevent this crate from being folded into any parent workspace's
+# dependency resolution (standard cargo-fuzz template convention).
+[workspace]
+
+[[bin]]
+name = "fuzz_manifest"
+path = "fuzz_targets/fuzz_manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_url"
+path = "fuzz_targets/fuzz_url.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_glob"
+path = "fuzz_targets/fuzz_glob.rs"
+test = false
+doc = false
+bench = false
