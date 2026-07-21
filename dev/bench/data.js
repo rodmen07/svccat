@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784582196227,
+  "lastUpdate": 1784659489541,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2219,6 +2219,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12323,
             "range": "± 71",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f84016164bb0fc7a8afcc84ae47e905bf806af15",
+          "message": "fuzz: make the fuzzing harness real (it could never have built) (#15)\n\nThe previous setup could not have worked:\n\n- `Cargo.fuzz.toml` at the repo root is not a layout cargo-fuzz uses; it\n  expects `fuzz/Cargo.toml`. Nothing consumed the file.\n- It declared `svccat = { path = \".\", features = [\"__fuzz_target\"] }`, but\n  svccat's Cargo.toml has no `[features]` section at all and\n  `__fuzz_target` appears nowhere in the source, so resolution would have\n  failed on an unknown feature regardless.\n- The workflow matrixed over `[libfuzzer, afl, honggfuzz]` engines rather\n  than over actual fuzz targets.\n\nReplaced with the standard cargo-fuzz layout: `fuzz/Cargo.toml` (with the\n`[workspace]` stanza that keeps it out of the parent workspace), a\ncommitted `fuzz/Cargo.lock`, `fuzz/.gitignore` for target/corpus/\nartifacts/coverage, and a workflow matrixing over the three real targets\n(fuzz_manifest, fuzz_url, fuzz_glob). Fuzzing stays on push/schedule/\ndispatch and is deliberately not a per-PR gate.\n\nfuzz_manifest now drives parse-then-compile, mirroring how `svccat check`\nactually uses the pipeline via src/drift.rs, instead of only fuzzing YAML\nshape. That widening is what makes the target able to reach\nRuleEngine::compile's inheritance resolver.\n\nCo-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-21T13:41:42-05:00",
+          "tree_id": "aa512c60c6353c7bf05b8d6060e900eac7b08cfe",
+          "url": "https://github.com/rodmen07/svccat/commit/f84016164bb0fc7a8afcc84ae47e905bf806af15"
+        },
+        "date": 1784659489216,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12574,
+            "range": "± 277",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23411,
+            "range": "± 82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 288,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5137,
+            "range": "± 60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4793,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12278,
+            "range": "± 118",
             "unit": "ns/iter"
           }
         ]
