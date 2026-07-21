@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784660786130,
+  "lastUpdate": 1784661274082,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2339,6 +2339,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12152,
             "range": "± 27",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c9250004c419b0a4d5b1438dcdad1acffc62c386",
+          "message": "fix(security): close SSRF-via-redirect gap in --ping and webhooks (#14)\n\n* fix(security): close SSRF-via-redirect gap in --ping and webhooks\n\nureq (used for both --ping and webhook POSTs) follows HTTP redirects\nautomatically by default (AgentBuilder::redirects defaults to 5), but\nurlvalidation::validate_url was only ever called once, against the\ninitial destination URL, before the first request went out. A server\nthat responded to an initially-valid, public-looking URL with a 3xx\nredirect to a private/internal address (the cloud metadata endpoint\n169.254.169.254, an internal service on 127.0.0.1, or any RFC 1918\nrange) would have that redirect followed with no re-validation of the\nnew target.\n\nFix: new src/safe_http.rs disables ureq's automatic redirect-following\nentirely (AgentBuilder::redirects(0), confirmed from ureq 2.12.1's\nsource: with redirects(0) a 3xx response is returned to the caller\ninstead of being followed) and instead follows redirects manually,\nre-running validate_url against every Location header target before\nit is ever requested, bounded to 5 hops (matching ureq's own default\nredirect cap, so legitimate chains behave unchanged). Both call sites\nthat validate-then-fetch over HTTP (ping.rs, webhook.rs) now go\nthrough this shared module; grepped all of src/ to confirm there is\nno third call site.\n\nProof: tests/redirect_ssrf_tests.rs spins up real local HTTP servers\n(same hand-rolled TcpListener style as src/serve.rs) proving a\nredirect to a private IP literal is refused and the forbidden target\nnever receives a connection at all, plus a companion test proving a\nlegitimate localhost-to-localhost redirect chain still succeeds.\nsrc/safe_http.rs also carries fast unit tests on the pure per-hop\nvalidation logic. Tests 300 to 306 (verified by stashing this diff\nand rerunning the full suite on the unmodified tree: 300 passed, then\npopping and rerunning: 306 passed).\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>\n\n* docs(roadmap): record SSRF redirect-hardening fix as PR #14\n\nFollow-up to the fix commit: cites the actual PR number now that gh pr\ncreate has returned it. Will be updated with the merge commit once the\nPR lands, matching this file's existing History and supersession\nconvention for other shipped items.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-21T14:11:12-05:00",
+          "tree_id": "54cbd9ea64de0af7140a45c82b4a0a232ee33733",
+          "url": "https://github.com/rodmen07/svccat/commit/c9250004c419b0a4d5b1438dcdad1acffc62c386"
+        },
+        "date": 1784661273149,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12665,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23783,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 316,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5467,
+            "range": "± 107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5155,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12462,
+            "range": "± 226",
             "unit": "ns/iter"
           }
         ]
