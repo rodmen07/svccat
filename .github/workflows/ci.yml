@@ -80,3 +80,29 @@ jobs:
 
       - name: Test this checkout (all features)
         run: cargo test --all-features --verbose
+
+  audit:
+    name: Security audit
+    # svccat is published to crates.io, so a vulnerable transitive dependency
+    # is a supply-chain concern for downstream users. This job scans the
+    # committed Cargo.lock — the exact pinned versions that ship — on every PR.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Run security audit
+        # --deny warnings promotes unsound/unmaintained/yanked advisories to
+        # failures instead of letting them accumulate silently (cargo audit
+        # exits 0 on those by default). Clean at time of adding (213 deps, no
+        # findings); the gate exists so a future advisory fails CI rather than
+        # riding along invisibly.
+        run: cargo audit --deny warnings
