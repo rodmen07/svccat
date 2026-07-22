@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784661274082,
+  "lastUpdate": 1784682299576,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2399,6 +2399,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12462,
             "range": "± 226",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1a7d9a3955594a00b652bcc2bdab88a4c68fc805",
+          "message": "ci(security): add cargo-audit gate (#17)\n\nsvccat (published to crates.io) had no dependency-vulnerability scanning in CI.\nNew `Security audit` job runs `cargo audit --deny warnings` against the\ncommitted Cargo.lock (the exact pinned versions that ship) on every PR, via\ntaiki-e/install-action@cargo-audit (already this org's install action in\nslokit/axum-api-kit); contents:read least-privilege.\n\nClean at time of adding (213 deps, zero findings), so no lockfile change is\nneeded — the gate exists so a future advisory fails CI instead of riding\nalong invisibly. Third and final PR of the cross-crate audit-gate sweep\n(slokit, axum-api-kit already landed).\n\nGate proven live (L-001): `cargo audit --deny warnings` on the real lockfile\nexits 0; on a copy with idna hand-forced to a vulnerable 0.5.0 it exits 1\nflagging RUSTSEC-2024-0421.\n\nCo-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-21T20:01:47-05:00",
+          "tree_id": "f2a82f856992e07fba25644c85390edeaffe4fb2",
+          "url": "https://github.com/rodmen07/svccat/commit/1a7d9a3955594a00b652bcc2bdab88a4c68fc805"
+        },
+        "date": 1784682299289,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12789,
+            "range": "± 230",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24457,
+            "range": "± 443",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 322,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5478,
+            "range": "± 76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5163,
+            "range": "± 60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12196,
+            "range": "± 157",
             "unit": "ns/iter"
           }
         ]
