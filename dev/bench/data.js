@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784682299576,
+  "lastUpdate": 1784876532483,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2459,6 +2459,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12196,
             "range": "± 157",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6a7accca2dbdfcf544d2ff4c0a612be4f785331f",
+          "message": "docs(roadmap): reconcile ROADMAP with real state (v1.5.0 shipped, fuzzing real) (#18)\n\nProduct truth-audit (role=Product). Preflight C2 flagged svccat's ROADMAP as\ncarrying stale BLOCKED markers premised on v1.5.0 being unreleased; every claim\nbelow was re-verified against real git/gh/crates.io state before editing.\n\nCorrections:\n- Current state: latest published is v1.5.0 (was: v1.4.1). crates.io\n  newest_version = 1.5.0 (verified via API); tag v1.5.0 = merge commit 60c56b2.\n  Removed the \"in flight, unreleased feat/spdx-sbom\" paragraph (that branch\n  merged as PR #3 and was deleted). Added the features accumulated unreleased on\n  main since v1.5.0 (PRs #6/#11/#12/#14/#15/#16/#17).\n- Fuzzing is no longer a stub (was the 2026-07-18 caveat): PR #15 created\n  fuzz/Cargo.toml, made the 3 targets build, and made the run step real\n  (Continuous Fuzzing). fuzz_policy target + corpora remain (v1.6.0 PR2).\n- Lifted the file-edit gate on CHANGELOG.md/Cargo.toml/Cargo.lock (premised on\n  the unpushed v1.5.0 release-prep commit, which is now published).\n- Unblocked v1.5.1, v1.7.0, v1.8.0 (all cited the same resolved v1.5.0 premise).\n- Reconciled the release-authority line to the standing Merges-and-releases\n  delegation; secret/token writes stay USER-ONLY.\n- History: recorded PR #14 (SSRF) merge commit c925000; updated the\n  fuzz_manifest circular-base line (shipped PR #15, crash fixed PR #16).\n\nDocs-only, single file.\n\nCo-authored-by: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-24T01:59:05-05:00",
+          "tree_id": "828e0453e24535d40a2674a7b9402a570f5e63a7",
+          "url": "https://github.com/rodmen07/svccat/commit/6a7accca2dbdfcf544d2ff4c0a612be4f785331f"
+        },
+        "date": 1784876531658,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12602,
+            "range": "± 317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24120,
+            "range": "± 137",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 313,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5501,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5118,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12909,
+            "range": "± 87",
             "unit": "ns/iter"
           }
         ]
