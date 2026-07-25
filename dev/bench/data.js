@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784876532483,
+  "lastUpdate": 1784967001695,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2519,6 +2519,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12909,
             "range": "± 87",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f1a3e084870b32d4a895f8786b9019e442890e1a",
+          "message": "test(fuzz): committed seed/regression corpus + CI-gated replay for the 3 fuzz targets (#19)\n\nThe Continuous Fuzzing workflow (fuzzing.yml) only runs on push/schedule/\ndispatch, never on pull_request, so nothing on a PR proves that inputs a past\nfuzz run already found interesting -- crash reproducers in particular -- stay\nhandled gracefully by the current code between the daily runs.\n\nCommit a seed corpus under fuzz/corpus_seeds/<target>/ for fuzz_manifest,\nfuzz_url and fuzz_glob (valid inputs, adversarial inputs, and the PR #16\nbase-cycle crash reproducers), and add tests/fuzz_corpus_replay.rs which\nreplays every seed through the exact library entry point its target calls:\nasserts no process abort, pins the base-cycle seeds to a graceful Err (the\nregression fixed in PR #16), and pins private/loopback URL rejection. These\nfiles double as libFuzzer seed inputs for a `cargo fuzz run`.\n\nAdvances svccat v1.6.0 PR2 (seed-corpora slice). glob + serde_yaml_ng added to\ndev-dependencies (already normal deps, pinned identically) so the replay\nhelpers mirror the fuzz targets verbatim.\n\nCo-authored-by: Claude Opus 4.8 <noreply@anthropic.com>",
+          "timestamp": "2026-07-25T03:07:05-05:00",
+          "tree_id": "076377da0bc853fbb21acb9d6926f7be82c8c77c",
+          "url": "https://github.com/rodmen07/svccat/commit/f1a3e084870b32d4a895f8786b9019e442890e1a"
+        },
+        "date": 1784967000649,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 9594,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 18206,
+            "range": "± 179",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 201,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 4015,
+            "range": "± 116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 3810,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 9324,
+            "range": "± 16",
             "unit": "ns/iter"
           }
         ]
