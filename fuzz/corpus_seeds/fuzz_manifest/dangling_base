@@ -1,0 +1,14 @@
+version: "1"
+
+policy:
+  rules:
+    - id: orphan
+      base: does_not_exist
+      description: "References a base rule that is not defined"
+      expression: "team exists"
+      severity: error
+
+services:
+  - name: service-api
+    language: Rust
+    platform: Cloud Run

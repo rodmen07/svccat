@@ -1,0 +1,13 @@
+version: "1"
+
+policy:
+  rules:
+    - id: "naming_ünïçødé"
+      description: "日本語 and emoji 🚀 in fields"
+      expression: "name exists"
+      severity: error
+
+services:
+  - name: "sérvice-åpi"
+    language: Rust
+    platform: Cloud Run

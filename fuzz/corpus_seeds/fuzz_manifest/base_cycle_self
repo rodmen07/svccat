@@ -1,0 +1,14 @@
+version: "1"
+
+policy:
+  rules:
+    - id: self_ref
+      base: self_ref
+      description: "Refers to itself as its own base"
+      expression: "team exists"
+      severity: error
+
+services:
+  - name: service-api
+    language: Rust
+    platform: Cloud Run
