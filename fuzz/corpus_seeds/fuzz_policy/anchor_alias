@@ -1,0 +1,4 @@
+required: &fields
+  - team
+  - oncall
+recommended: *fields

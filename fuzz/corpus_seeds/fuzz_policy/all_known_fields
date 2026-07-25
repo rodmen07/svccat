@@ -1,0 +1,11 @@
+required:
+  - name
+  - language
+  - platform
+  - role
+  - url
+  - team
+  - oncall
+  - docs
+  - ci
+recommended: []

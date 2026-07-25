@@ -1,0 +1,7 @@
+required:
+  - sbom
+  - runbook
+  - ""
+recommended:
+  - 日本語
+  - "field with spaces"
