@@ -21,7 +21,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [fuzz_manifest, fuzz_url, fuzz_glob]
+        # Keep in sync with fuzz/Cargo.toml's [[bin]] entries, the files in
+        # fuzz/fuzz_targets/, and the seed corpora in fuzz/corpus_seeds/. A
+        # target missing from THIS list still builds and still has tests, but is
+        # never actually fuzzed — the inert-surface failure this workflow was
+        # itself guilty of before PR #15. `fuzz_targets_agree_across_sources` in
+        # tests/fuzz_corpus_replay.rs fails the PR gate if they drift apart.
+        target: [fuzz_manifest, fuzz_url, fuzz_glob, fuzz_policy]
 
     steps:
       # 1. Pull project specifications

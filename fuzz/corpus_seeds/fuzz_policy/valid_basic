@@ -1,0 +1,7 @@
+required:
+  - team
+  - oncall
+recommended:
+  - language
+  - platform
+  - docs

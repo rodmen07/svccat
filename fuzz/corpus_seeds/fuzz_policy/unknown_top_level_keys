@@ -1,0 +1,6 @@
+version: 2
+severity: error
+rules:
+  - id: not-this-policy
+required:
+  - team

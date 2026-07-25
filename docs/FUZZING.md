@@ -80,6 +80,25 @@ Feeds arbitrary strings into `glob::Pattern::new`, the same pattern-compile
 call `src/discovery.rs` makes for every `discovery.ignore` / `--ignore`
 pattern read from a manifest or CLI flag.
 
+### 4. File-based policy config parsing + evaluation
+
+**File:** `fuzz/fuzz_targets/fuzz_policy.rs`
+
+Parses arbitrary bytes as the **file-based** policy config
+(`.svccat/policy.yaml`, `src/policy.rs`) and — when parsing succeeds — runs
+`policy::check` against a fixed catalog, so arbitrary field names flow through
+`has_field`'s match and arbitrary strings flow through the violation
+`format!`s. Note this is a *different* type from the **inline**
+`manifest.policy` config target 1 exercises: the two share the name
+`PolicyConfig` but nothing else, and before this target the file-based one had
+no fuzz coverage at all.
+
+The fuzzed entry point is the deserialization + evaluation pipeline
+`PolicyConfig::load` delegates to, not `load` itself: `load` takes a `&Path`
+and does its own file I/O, so fuzzing it directly would fuzz the filesystem
+rather than the parser. Everything `load` can reach on untrusted bytes is
+reached here.
+
 ## Running Fuzzing
 
 ### Run a Single Fuzzer
@@ -154,7 +173,7 @@ If fuzzing detects memory leaks or resource exhaustion:
 `push` to `main`, once a day (`0 0 * * *`), and on manual
 `workflow_dispatch`. It does **not** run on `pull_request` — fuzzing is a
 push/schedule/manual concern, not a per-PR gate, so it never adds time to a
-merge. It matrices the three real targets above, one job per target, each
+merge. It matrices the four real targets above, one job per target, each
 running `cargo fuzz run <target> -- -max_total_time=120` (a 120-second
 libFuzzer budget — enough to catch cheap, shallow crashes like the
 unguarded recursive `base` chain above on every push and once a day, without
@@ -171,13 +190,15 @@ current exact steps; it is the source of truth, not this paragraph.
 - [x] Inline policy rule compilation (`policy.rules` / `RuleEngine::compile`, including the `base`-chain cycle crash)
 - [x] URL validation
 - [x] Glob pattern compilation
+- [x] File-based policy config parsing + evaluation (`.svccat/policy.yaml` / `src/policy.rs`, target 4)
+- [x] Committed seed corpora for every target (`fuzz/corpus_seeds/<target>/`), replayed on every PR by `tests/fuzz_corpus_replay.rs` because this workflow does not run on `pull_request`
 
 ### 📋 Recommended Coverage
 
 - [ ] Git reference validation (unit tests currently cover this)
 - [ ] Path validation (unit tests currently cover this)
 - [ ] Dependency graph cycle detection (`src/deps_graph.rs` — a different cycle-detection surface than the policy-rule `base` chain above)
-- [ ] A dedicated `fuzz_policy` target with structured (`arbitrary`-derived) `Rule`/`Vec<Rule>` generation and seed corpora, rather than reaching `RuleEngine::compile` only indirectly through YAML manifest text (tracked in the crate's roadmap as a follow-up, alongside seed corpora for the three existing targets)
+- [ ] Structured (`arbitrary`-derived) `Rule`/`Vec<Rule>` generation for the **inline** rule compiler, rather than reaching `RuleEngine::compile` only indirectly through YAML manifest text. (Not the same thing as the `fuzz_policy` target above, which covers the **file-based** `.svccat/policy.yaml` config; this item was previously worded as if the two were one task.)
 
 ## Best Practices
 
