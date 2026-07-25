@@ -1,0 +1,19 @@
+version: "1"
+
+policy:
+  rules:
+    - id: rule_a
+      base: rule_b
+      description: "A depends on B"
+      expression: "team exists"
+      severity: error
+    - id: rule_b
+      base: rule_a
+      description: "B depends on A"
+      expression: "team exists"
+      severity: warning
+
+services:
+  - name: service-api
+    language: Rust
+    platform: Cloud Run

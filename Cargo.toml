@@ -50,6 +50,13 @@ clap_complete = "4"
 criterion = "0.5"
 predicates = "3"
 tempfile = "3"
+# tests/fuzz_corpus_replay.rs replays the committed fuzz seed corpus through the
+# same entry points the cargo-fuzz targets use. `glob` and `serde_yaml_ng` are
+# already normal dependencies (above); they are re-declared here, pinned
+# identically, only so the replay helpers can mirror the fuzz targets verbatim
+# (a normal dependency is not in scope for an integration test's crate root).
+glob        = "0.3"
+serde_yaml  = { package = "serde_yaml_ng", version = "0.10" }
 
 [[bench]]
 name = "benchmark"

@@ -1,0 +1,17 @@
+version: "1"
+
+policy:
+  rules:
+    - id: naming_convention
+      description: "Base rule for naming"
+      expression: "name matches ^service-[a-z0-9-]+$"
+      severity: error
+    - id: strict_naming
+      base: naming_convention
+      description: "Inherits from naming_convention"
+      severity: error
+
+services:
+  - name: service-api
+    language: Rust
+    platform: Cloud Run

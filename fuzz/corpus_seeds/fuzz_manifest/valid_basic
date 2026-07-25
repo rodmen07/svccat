@@ -1,0 +1,23 @@
+version: "1"
+
+discovery:
+  paths: ["services/*"]
+
+policy:
+  require_fields: ["language", "platform"]
+  rules:
+    - id: naming_convention
+      description: "Services must match pattern service-*"
+      expression: "name matches ^service-[a-z0-9-]+$"
+      severity: error
+    - id: approved_platforms
+      description: "Only approved deployment platforms allowed"
+      expression: "platform in [Cloud Run, GKE, Heroku]"
+      severity: warning
+
+services:
+  - name: service-api
+    language: Rust
+    platform: Cloud Run
+    role: Core API
+    team: platform
