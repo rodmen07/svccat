@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784967001695,
+  "lastUpdate": 1785022285308,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2579,6 +2579,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 9324,
             "range": "± 16",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "37cdcb3616d8acc8ca3005c0ab93d5eb2e642159",
+          "message": "feat(fuzz): fuzz_policy target for the file-based .svccat/policy.yaml config (#20)\n\nThe file-based policy config (`src/policy.rs`, loaded from\n`.svccat/policy.yaml` by `svccat policy`, `svccat ci` and `svccat scorecard`)\nhad no fuzz coverage at all. `fuzz_manifest` only drives the INLINE\n`manifest.policy.rules` list, a different type that happens to share the name\n`PolicyConfig`.\n\n- `fuzz/fuzz_targets/fuzz_policy.rs` parses arbitrary bytes as the file-based\n  `PolicyConfig`, then runs `policy::check` against a fixed catalog so\n  arbitrary field names flow through `has_field` and arbitrary strings flow\n  through the violation `format!`s. It fuzzes the pipeline `PolicyConfig::load`\n  delegates to rather than `load` itself, which takes a `&Path` and would fuzz\n  the filesystem instead of the parser.\n- `fuzz/corpus_seeds/fuzz_policy/` (11 seeds): valid, lenient (unknown keys,\n  duplicates, YAML aliases) and rejected (malformed, wrong type, null, empty).\n- `tests/fuzz_corpus_replay.rs` gains the `drive_policy` mirror plus 5 tests,\n  including exact violation counts that pin `has_field`'s semantics, and\n  `fuzz_targets_agree_across_sources`: a drift guard reading all four sources\n  that must agree on the target set (`fuzz/fuzz_targets/*.rs`,\n  `fuzz/Cargo.toml` `[[bin]]` entries, the Continuous Fuzzing matrix, and\n  `fuzz/corpus_seeds/*`). A target missing from the workflow matrix builds,\n  tests and ships while never being fuzzed by anything, which is the exact\n  inert-surface failure this workflow itself had before PR #15.\n- `docs/FUZZING.md`: target 4 documented, coverage checklist corrected (the\n  old \"dedicated fuzz_policy target\" line conflated the file-based config with\n  structured `arbitrary`-derived generation for the inline rules; the latter\n  stays open and is now named for what it is).\n\nTests 318 -> 323. fmt/clippy/test --all-features green.",
+          "timestamp": "2026-07-25T18:28:15-05:00",
+          "tree_id": "7de9af17e7bb0c9e9422564c9d0bb5f3d1288d09",
+          "url": "https://github.com/rodmen07/svccat/commit/37cdcb3616d8acc8ca3005c0ab93d5eb2e642159"
+        },
+        "date": 1785022284640,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12726,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23501,
+            "range": "± 118",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 316,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5533,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5223,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12863,
+            "range": "± 108",
             "unit": "ns/iter"
           }
         ]
