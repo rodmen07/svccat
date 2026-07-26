@@ -27,8 +27,9 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   `## [1.6.0] - 2026-07-26` naming all nine previously-unrecorded user-facing changes,
   and `Cargo.toml` is bumped. What is left is the tag push, and until it happens
   `cargo install svccat` still delivers 1.5.0, so the three security fixes in 1.6.0
-  reach nobody. The tag is gated on one user decision; see the release-cut row under
-  `## Blocked and user-only summary`.
+  reach nobody. The version question is answered (MINOR, user decision 2026-07-26);
+  the cut is now held only by the agent harness denying `git tag`. See the
+  release-cut row under `## Blocked and user-only summary`.
 - Shipped in earlier releases during 2026-06 and 2026-07 (the crate is NOT in frozen
   maintenance mode):
   - v1.1.0 (2026-06-07): language and platform inference in `init` and `fix`.
@@ -149,6 +150,21 @@ Same rules as v1.7.0; one runtime major per PR.
 Done when: no stale direct-dependency majors remain (or a skip decision is recorded),
 `cargo audit` is clean, and the declared MSRV is verified.
 
+## Unreleased on main
+
+Merged to `main`, written down in `CHANGELOG.md` under `## [Unreleased]`, and not in
+any published version. This section exists exactly while that is true, enforced by
+`roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
+PR moves these entries into the new version's section and deletes this heading.
+
+- **`svccat snapshot diff` drift-list ordering and format** (2026-07-26). The
+  `snapshot diff` path built `DiffReport::new_drift` / `resolved_drift` by
+  differencing two `HashSet`s, so the lists shuffled between runs over identical
+  input, and it rendered them as the bare `service:message` key while `svccat diff`
+  rendered the severity-prefixed line. Both paths now share one deterministic,
+  deduplicating builder, guarded by `tests/diff_drift_order_tests.rs`. Targets the
+  next release after v1.6.0.
+
 ## Later / candidates (no version assigned)
 
 Unshipped ideas on record. Pull forward only if the user chooses feature work over
@@ -169,7 +185,7 @@ bumps) are all lifted. What remains:
 | Item | Status | Reason |
 |------|--------|--------|
 | Writing the `CRATES_IO_TOKEN` repo secret | USER-ONLY | Secret values are never handled by an agent; set via `gh secret set` (interactive) |
-| The **v1.6.0** tag push specifically | USER DECISION PENDING (2026-07-26) | Prep is on main and green; the tag is held only because the MINOR-versus-MAJOR classification is an overridable default this document routes to the user, and a crates.io publish is irreversible. CLEARS when the user confirms 1.6.0 (or names 2.0.0): `git tag v1.6.0 && git push origin v1.6.0 && gh release create v1.6.0 --verify-tag`. `CRATES_IO_TOKEN` was confirmed present 2026-07-26 |
+| The **v1.6.0** tag push specifically | HELD ON THE LOCAL HARNESS (2026-07-26) | The version question is ANSWERED: the user classified it **MINOR** on 2026-07-26, so `v1.6.0` stands and no version string needs editing. Release readiness was re-verified the same day at `fe59cd5`: `cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo audit --deny warnings`, 367 tests, and `cargo publish --dry-run` (packaged 120 files, verification build clean) all pass, and `CRATES_IO_TOKEN` is present. The remaining blocker is neither this repo nor a decision: the agent harness's permission layer denies `git tag`, so the cut cannot be executed from an automated run. CLEARS when that permission is granted, then: `git tag v1.6.0 fe59cd5 && git push origin v1.6.0` (which fires `publish.yml` on the `v*` tag), `gh release create v1.6.0 --verify-tag`. Tag `fe59cd5` explicitly rather than `main`, so the published 1.6.0 contains exactly what its CHANGELOG section describes and later `## [Unreleased]` work does not ride along unlisted |
 | Tag push, GitHub release, `cargo publish` in general | Delegated | Follow the release flow in Working agreements; merge and tag only on green CI |
 | Editing README.md | Avoid | CRLF line endings; no roadmap work needs it |
 
