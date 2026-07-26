@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785025137664,
+  "lastUpdate": 1785027643438,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2699,6 +2699,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12366,
             "range": "± 32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ff7e9aefbe436b7b057cd116b453a72853a76536",
+          "message": "ci(fuzz): seed the Continuous Fuzzing campaign from the committed corpora (#22)\n\n* ci(fuzz): seed the Continuous Fuzzing campaign from the committed corpora\n\nPR #19 committed 37 seed/regression inputs under fuzz/corpus_seeds/<target>/\nand PR #20 added an 11-seed fourth target, but nothing ever handed them to\nlibFuzzer: the workflow ran `cargo fuzz run <target> -- -max_total_time=120`\nwith no corpus argument, so every job started from an empty corpus. The last\nrun on main (30180866540) shows it plainly -- all four targets report\n`INITED ... corp: 1/1b`, one synthetic empty input.\n\nPass the corpora explicitly, ordered. libFuzzer writes newly discovered\ninputs into the FIRST corpus directory and treats later ones as read-only\nseeds, so the gitignored working corpus fuzz/corpus/<target> goes first and\nthe committed fuzz/corpus_seeds/<target> second: a CI run now starts from the\ncommitted seeds without ever mutating them.\n\nfuzzing.yml does not run on pull_request, so this wiring needs a PR-time\nguard of its own or it can be silently undone the same way it was silently\nmissing. fuzzing_workflow_runs_from_the_committed_seed_corpus reads the real\nrun step out of the workflow and asserts the seeds are passed, that the\nwritable corpus precedes them, and that they land before the `--` separator\n(after it they would be a libFuzzer flag, not a corpus directory).\n\ndocs/FUZZING.md's CI Integration paragraph quoted the old command; updated to\nthe real one with the ordering rationale, so the doc and the workflow cannot\ndisagree.\n\n* test(fuzz): guard docs/FUZZING.md against quoting a command CI does not run\n\nThe doc quoted the pre-seed-corpus one-liner for exactly as long as the\ncommitted seeds went unused, so a reader following it would have reproduced\nthe empty-corpus run and seen nothing wrong. Reconciling it once is not\nenough: docs_quote_the_workflows_actual_fuzz_command reads the fenced command\nout of the CI Integration section AND the real run step out of fuzzing.yml,\nnormalises ${{ matrix.target }} to <target>, and asserts they are the same\ncommand.",
+          "timestamp": "2026-07-25T19:57:29-05:00",
+          "tree_id": "5f709ad01bed48edada7351213ec6dc769a2c519",
+          "url": "https://github.com/rodmen07/svccat/commit/ff7e9aefbe436b7b057cd116b453a72853a76536"
+        },
+        "date": 1785027642568,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12521,
+            "range": "± 419",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23866,
+            "range": "± 137",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 311,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5488,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5115,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12508,
+            "range": "± 298",
             "unit": "ns/iter"
           }
         ]
