@@ -143,7 +143,16 @@ pub fn run(manifest: &Manifest, root: &Path, ignore: &[String], depth: u32) -> S
     let discovered = discovery::discover_services_with_opts(root, manifest, ignore, depth);
     let drift_report = drift::analyze(manifest, &discovered, root);
 
-    let policy_cfg = PolicyConfig::load(root);
+    // A policy file that exists but does not load would otherwise score
+    // exactly like a repo that never configured one; say so rather than
+    // silently dropping the policy dimension.
+    let policy_cfg = match PolicyConfig::load_checked(root) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Warning: {e}; scoring without policy checks");
+            None
+        }
+    };
     let policy_report = policy_cfg
         .as_ref()
         .map(|cfg| crate::policy::check(manifest, cfg));

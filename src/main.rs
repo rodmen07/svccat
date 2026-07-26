@@ -671,11 +671,23 @@ fn run() -> Result<i32> {
         } => {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
-            let policy_cfg = policy::PolicyConfig::load(&root).unwrap_or_default();
+            // A policy file that exists but cannot be read or parsed is a user
+            // error, not an absent policy: name the file and the reason (the
+            // top-level handler prints it and exits 2) instead of claiming no
+            // policy file was found.
+            let loaded = policy::PolicyConfig::load_checked(&root)?;
+            let file_exists = loaded.is_some();
+            let policy_cfg = loaded.unwrap_or_default();
             if policy_cfg.is_empty() {
-                eprintln!(
-                    "No policy file found. Create .svccat/policy.yaml to define required/recommended fields."
-                );
+                if file_exists {
+                    eprintln!(
+                        "Policy file found, but it declares no required or recommended fields."
+                    );
+                } else {
+                    eprintln!(
+                        "No policy file found. Create .svccat/policy.yaml to define required/recommended fields."
+                    );
+                }
                 return Ok(0);
             }
             let result = policy::check(&m, &policy_cfg);

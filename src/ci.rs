@@ -55,9 +55,11 @@ pub fn run(manifest: &manifest::Manifest, root: &Path, ignore: &[String], depth:
     report.drift_warnings = drift_report.warning_count();
     report.steps_run.push("drift".to_string());
 
-    // Policy (optional - skip silently when unconfigured)
-    if let Some(policy_cfg) = policy::PolicyConfig::load(root) {
-        if !policy_cfg.is_empty() {
+    // Policy (optional - skipped silently when unconfigured, but a policy file
+    // that exists and does not load is a failure, not an absent policy: it
+    // means the configured checks did not run at all.)
+    match policy::PolicyConfig::load_checked(root) {
+        Ok(Some(policy_cfg)) if !policy_cfg.is_empty() => {
             let policy_report = policy::check(manifest, &policy_cfg);
             report.policy_errors = policy_report
                 .violations
@@ -69,6 +71,12 @@ pub fn run(manifest: &manifest::Manifest, root: &Path, ignore: &[String], depth:
                 .iter()
                 .filter(|v| matches!(v.severity, policy::PolicySeverity::Warning))
                 .count();
+            report.steps_run.push("policy".to_string());
+        }
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Error: {e}");
+            report.policy_errors = 1;
             report.steps_run.push("policy".to_string());
         }
     }

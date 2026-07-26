@@ -9,12 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`PolicyConfig::load_checked`** (library): loads `.svccat/policy.yaml` and reports *why* an existing file did not load, via the new `PolicyLoadError` (`Read` / `Parse`, each carrying the path). `PolicyConfig::load` is unchanged for callers that want "policy or nothing" and now delegates to `load_checked`, so the two can never disagree about which candidate file wins.
+
 ### Changed
 
 - **`notify` upgraded from 6.1.1 to 8.2.0**, the filesystem-watching backend behind `svccat watch` and `svccat ci --watch`. No behaviour change is intended or expected: the `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface svccat uses is identical across both majors, and `src/watch.rs` gained its first tests (an `is_relevant` contract test and an end-to-end test that the platform watcher really delivers events) so the swap is proven rather than assumed. Transitive dependency count dropped from 213 to 212 (`crossbeam-channel`, `filetime` and `bitflags` 1.x dropped, `notify-types` added).
 
 ### Fixed
 
+- **A broken `.svccat/policy.yaml` is no longer reported as an absent one.** `PolicyConfig::load` swallowed both the read error and the parse error and returned `None`, so a policy file with a typo in it was indistinguishable from having no policy file at all: `svccat policy` printed *"No policy file found. Create .svccat/policy.yaml ..."* — about a file that exists — and exited 0; `svccat ci` dropped the `policy` step from its report and said "all checks passed", silently disabling the policy gate in a pipeline; `svccat scorecard` scored the repo with no policy contribution and said nothing. All three now name the file and the reason. `svccat policy` exits 2 (the CLI's existing code for a bad input), `svccat ci` reports the `policy` step as failed rather than skipped, and `svccat scorecard` warns and scores on. A genuinely absent policy file behaves exactly as before, and a policy file that exists but declares no fields now says so instead of claiming none was found.
 - **`svccat watch` now reports a service whose `path` or `submodule` was edited.** The comparison behind watch mode's "Manifest changes detected" summary hand-listed 11 of `ServiceEntry`'s 13 fields and omitted exactly the two that decide where a service lives on disk (`ServiceEntry::declared_path`), so re-pointing a service in `services.yaml` was never listed as modified — and when the re-point did not also change the drift count, watch mode printed nothing at all. The comparison now delegates to the derived `PartialEq`, so it reads the struct definition instead of a copy of it, and a field added later cannot fall out of change detection the same way.
 
 ## [1.5.0] - 2026-07-18
