@@ -155,18 +155,36 @@ Pure test PRs; no API risk under the 1.x freeze.
 
 Done when: coverage on the targeted modules measurably improves and all tests pass.
 
-### v1.7.0: dependency currency, part 1 (notify and criterion)
+### v1.7.0: dependency currency, part 1 (notify and criterion) — PR 1 SHIPPED, PR 2 remaining
 
-Direct dependencies have aging majors (notify 6, colored 2, ureq 2, criterion 0.5).
+Direct dependencies have aging majors (colored 2, ureq 2, criterion 0.5).
 Bumps keep RUSTSEC exposure down. Split across two milestones so each stays at one
 or two small PRs. UNBLOCKED (was gated on the v1.5.0 release, which shipped
 2026-07-18; both parts touch Cargo.toml and Cargo.lock, which is now permitted).
 
 - Run `cargo outdated` and `cargo audit`; record the bump list in the PR description.
-- PR 1: bump notify to the current major with call-site migration and tests.
+- **PR 1 SHIPPED 2026-07-25: notify 6.1.1 → 8.2.0**, the current stable major
+  (9.0.0 is release-candidate only). No call-site migration was needed — the
+  `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface
+  `src/watch.rs` and `src/ci.rs` use is unchanged across both majors — so the
+  PR's substance is the coverage that proves the swapped backend still works:
+  `src/watch.rs` gained the module's first tests, one pinning `is_relevant`'s
+  event-kind contract in both directions and one end-to-end test asserting the
+  platform `RecommendedWatcher` actually delivers a relevant event for a real
+  file write, which the CI matrix runs on inotify, `ReadDirectoryChangesW` and
+  FSEvents. Supply chain shrank 213 → 212 crates (`crossbeam-channel`,
+  `filetime` and `bitflags` 1.x dropped, `notify-types` added); `cargo audit
+  --deny warnings` clean.
 - PR 2: bump criterion (dev-only; cannot affect the frozen API).
 - Confirm MSRV 1.85 still holds after each bump; document any required MSRV change
-  per the docs/API_STABILITY.md policy.
+  per the docs/API_STABILITY.md policy. **Finding 2026-07-25 (pre-existing, not
+  caused by the notify bump): MSRV 1.85 is not actually buildable under the
+  committed lockfile** — `idna_adapter` 1.2.2 and the `icu_*` 2.2.0 crates it
+  pulls in via `url` declare `rust-version = "1.86"`, and they were already on
+  `origin/main` before this bump. The notify family itself is clean at the
+  declared floor (notify 8.2.0 → 1.77, notify-types 2.1.0 → 1.85, mio 1.2.2 →
+  1.71, inotify 0.11.4 → 1.70). No CI job enforces MSRV in this repo, which is
+  why the drift went unnoticed; slokit's `MSRV 1.82` job is the pattern to copy.
 - Release per the flow in Working agreements.
 
 Done when: notify and criterion are on current majors, tests pass, and MSRV 1.85
