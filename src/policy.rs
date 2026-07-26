@@ -222,14 +222,18 @@ impl PolicyConfig {
         }
 
         let text = String::from_utf8(bytes).map_err(|e| {
-            read_error(path, std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+            read_error(
+                path,
+                std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+            )
         })?;
 
-        let config =
-            serde_yaml::from_str::<PolicyConfig>(&text).map_err(|source| PolicyLoadError::Parse {
+        let config = serde_yaml::from_str::<PolicyConfig>(&text).map_err(|source| {
+            PolicyLoadError::Parse {
                 path: path.to_path_buf(),
                 source,
-            })?;
+            }
+        })?;
         config.validate_limits(path)?;
         Ok(config)
     }
@@ -627,7 +631,8 @@ mod tests {
         }
         let dir = repo_with(&[(".svccat/policy.yaml", &body)]);
 
-        let err = PolicyConfig::load_checked(dir.path()).expect_err("oversized file must be refused");
+        let err =
+            PolicyConfig::load_checked(dir.path()).expect_err("oversized file must be refused");
 
         assert!(
             matches!(err, PolicyLoadError::Limit { .. }),
