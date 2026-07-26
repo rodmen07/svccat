@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785050942687,
+  "lastUpdate": 1785056605199,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3239,6 +3239,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12174,
             "range": "± 689",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eda3bda271d5da5341805455f056662cc6035b5e",
+          "message": "fix(diff): report snapshot-diff drift in snapshot order, not hash order (#31)\n\n`svccat snapshot diff` and `svccat diff` fill the same public\n`DiffReport::new_drift` / `resolved_drift` fields through two separate\nbuilders, and only one of them was correct.\n\n`build_diff` (the `snapshot diff` path) computed both lists with\n`HashSet::difference`. `RandomState` seeds each set independently, so the\nlists shuffled between two runs over byte-identical snapshots, and in fact\nbetween two calls inside one process. It also emitted the bare\n`service:message` dedup key, while `diff_snapshots` (the `svccat diff` path)\nemitted the severity-prefixed line, so one public field carried two different\nformats depending on which command filled it.\n\nBoth paths now share one `drift_changes` helper that walks the source\nsnapshot's drift vector in order and reports each `service:message` once,\nkeeping its first occurrence. A drift item whose severity was re-classified\nbetween snapshots is still not reported as one resolved plus one new, since\nthe comparison key deliberately excludes severity.\n\n`tests/diff_drift_order_tests.rs` reads BOTH entry points and asserts they\nproduce identical lists, so re-splitting the implementation fails the build\ninstead of drifting quietly the way the two builders already had.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T04:00:12-05:00",
+          "tree_id": "5a7b4ef74779794ece91a468f9a93ba4712951b9",
+          "url": "https://github.com/rodmen07/svccat/commit/eda3bda271d5da5341805455f056662cc6035b5e"
+        },
+        "date": 1785056604679,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12575,
+            "range": "± 104",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24110,
+            "range": "± 243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 296,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5568,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5214,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12169,
+            "range": "± 71",
             "unit": "ns/iter"
           }
         ]
