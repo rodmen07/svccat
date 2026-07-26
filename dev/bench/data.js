@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785042337162,
+  "lastUpdate": 1785045920816,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3059,6 +3059,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12276,
             "range": "± 36",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eb9b9c1adbe2990acd2f68aaa6f40754b7e8dcd7",
+          "message": "fix(sarif): stop dropping --ping results, and give the renderer its first tests (#28)\n\n`src/output/sarif.rs` had never had a test of any shape: no `mod tests`, and\nno file under `tests/` referenced it. Writing its first coverage surfaced a\nlive defect on the published CLI.\n\n`render_check(report, _ping_results)` took the ping results and discarded\nthem, so `svccat check --ping --format sarif` reported nothing at all about\nan unreachable or SSRF-blocked service URL. It is invisible twice over,\nbecause ping never affects `check`'s exit code either. Every sibling renderer\n(json, junit, markdown, terminal) reports them.\n\nPing failures are now results under two new rules, `unreachable_service` and\n`invalid_service_url`. A *reachable* service emits nothing: SARIF results are\nfindings, not a per-URL health log, which mirrors junit where a reachable\nservice is a passing testcase and only the other two states are failures.\nBoth result emitters now go through one `sarif_finding` helper so a new\nfinding kind cannot invent a different location layout.\n\nTests 346 -> 361: 11 unit tests in `src/output/sarif.rs` and 4 binary-level\ntests in the new `tests/sarif_output_tests.rs` that spawn the real binary.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T01:02:08-05:00",
+          "tree_id": "9c820f7742df9059ec1907eeca46b25862b0500d",
+          "url": "https://github.com/rodmen07/svccat/commit/eb9b9c1adbe2990acd2f68aaa6f40754b7e8dcd7"
+        },
+        "date": 1785045920358,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12789,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24119,
+            "range": "± 152",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 292,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5546,
+            "range": "± 65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5272,
+            "range": "± 255",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12456,
+            "range": "± 89",
             "unit": "ns/iter"
           }
         ]
