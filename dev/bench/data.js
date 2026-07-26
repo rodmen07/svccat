@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785030066494,
+  "lastUpdate": 1785032124162,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2819,6 +2819,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12183,
             "range": "± 63",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "805d7e0f41986403da03b84c208f97d938b07619",
+          "message": "test(watch): real coverage for change detection, fixing the two fields it ignored (#24)\n\n`tests/watch_enhancement_tests.rs` was named for the watch surface but\nnever touched it. All five of its tests re-implemented the added/removed\nset computation inline (\"Detect changes manually (mimicking the\ndetect_changes logic)\"), so they passed no matter what `src/watch.rs`\ndid: gut `detect_changes` to return three empty vectors and all five\nstill pass.\n\nPointing the tests at the real function immediately surfaced a live\ndefect. `services_equal` hand-listed 11 of `ServiceEntry`'s 13 fields\nand omitted `path` and `submodule` -- the two that decide where a\nservice lives on disk (`ServiceEntry::declared_path`) -- so re-pointing\na service in `services.yaml` was never reported as a modification by\n`svccat watch`, and printed nothing at all when the re-point did not\nalso change the drift count.\n\n- `services_equal` now delegates to the derived `PartialEq`, so it reads\n  the struct definition instead of a copy of its field list.\n- Five unit tests in `src/watch.rs` that call `detect_changes`: a\n  per-field mutation sweep, rename as add-plus-remove, add + remove +\n  modify together, no-op including reordering, and both empty-list\n  directions.\n- `populated_service` is an exhaustive struct literal with no\n  `..Default::default()`, so a 14th `ServiceEntry` field stops this file\n  compiling until it is given a value and a mutator.\n- `tests/watch_enhancement_tests.rs` deleted; its five cases are covered\n  by tests that can actually fail.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-25T21:12:19-05:00",
+          "tree_id": "29cdf3bc32d54fe796e5c2f08b26c8c1924c17e5",
+          "url": "https://github.com/rodmen07/svccat/commit/805d7e0f41986403da03b84c208f97d938b07619"
+        },
+        "date": 1785032123590,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12459,
+            "range": "± 178",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23945,
+            "range": "± 131",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 265,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5030,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4752,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12104,
+            "range": "± 36",
             "unit": "ns/iter"
           }
         ]
