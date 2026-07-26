@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785027643438,
+  "lastUpdate": 1785030066494,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2759,6 +2759,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12508,
             "range": "± 298",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e08852b440724129026488d4f8fba63a260ec6e7",
+          "message": "docs(fuzzing): rewrite FUZZING.md and pin it to the real fuzz layout (v1.6.0 PR2d) (#23)\n\n* docs(fuzzing): rewrite FUZZING.md and pin it to the real fuzz layout\n\nThe `Best Practices` section told readers to put interesting inputs in\n`fuzz/seeds/`. That directory has never existed in this repo -- the seed\ncorpus is `fuzz/corpus_seeds/<target>/` -- so anyone following the advice\nadded files that cargo-fuzz, the workflow and the replay suite all ignore.\nThe document also had no account of the committed regression corpus as a\n*workflow*: what to actually do when a run finds a crash.\n\nRewrite:\n\n- crash workflow documented end to end (get the input, reproduce, fix,\n  commit the seed under its real path, pin the contract by name), plus a\n  section on the committed corpus itself (the `drive_*` mirror rule and\n  the 0-byte `empty` seed that makes `seed corpus: files: N` read one low)\n- corpus/artifact arguments moved before the `--` separator, matching\n  `cargo fuzz run [OPTIONS] <TARGET> [CORPUS]... [-- <ARGS>...]`; the\n  run-all loop now passes the same corpora, in the same order, as CI\n- coverage section corrected: `cargo fuzz coverage` has no report-format\n  flag, and args after `--` go to libFuzzer rather than to a renderer\n- new subsection on verifying a fuzzing change by `workflow_dispatch` from\n  a branch, which is how this repo verifies such changes on a dev box with\n  no clang\n\nTwo new PR-time guards in tests/fuzz_corpus_replay.rs, because a wrong path\nin a doc is the quietest kind of inert surface:\n\n- `docs_only_reference_fuzz_paths_that_exist`: every `fuzz/...` path the\n  prose names must be committed under `fuzz/` or listed in `fuzz/.gitignore`\n  as generated. Reads the ignore file rather than hardcoding a list.\n- `docs_describe_every_fuzz_target`: the `## Fuzz Targets` section must cite\n  `fuzz/fuzz_targets/<name>.rs` for exactly the targets that exist, making\n  the prose a fifth source in the drift set `fuzz_targets_agree_across_sources`\n  already pins.\n\nThe `## CI Integration` fenced command is untouched, so\n`docs_quote_the_workflows_actual_fuzz_command` still holds it equal to the\nworkflow run step.\n\nTests 327 -> 329.\n\n* fix(test): make the docs path guard platform-independent\n\n`Build & Test (This Checkout)` failed on ubuntu and macos while passing on\nwindows. The cause was in the new guard, not in the doc: the extractor\ntreated the prose ellipsis in \"every `fuzz/...` path named below\" as a path\nsegment, and the guard then probed it with `Path::exists()`. Windows\nnormalizes trailing dots away, so `fuzz/...` resolved and reported true\nthere; Linux and macOS answered false and failed the assertion.\n\nTwo changes, either of which alone would have caught it:\n\n- compare against a `read_dir` listing of `fuzz/` instead of an\n  `exists()` probe, so no platform path normalizer is in the loop\n- drop segments that carry no alphanumeric character (and trailing\n  sentence dots), because those are prose, not paths\n\nVerified by reproducing the CI failure locally on Windows: with the\nread_dir change in place and only the prose filter removed, the Windows\nrun fails with the same `fuzz/...` message the ubuntu leg produced. Full\ngate green: fmt, clippy -D warnings, 329 tests.",
+          "timestamp": "2026-07-25T20:37:56-05:00",
+          "tree_id": "2c3b19b74d3e21876f69a3b0e6f0b43e5c9a112d",
+          "url": "https://github.com/rodmen07/svccat/commit/e08852b440724129026488d4f8fba63a260ec6e7"
+        },
+        "date": 1785030065674,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12490,
+            "range": "± 129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23767,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 305,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5614,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5238,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12183,
+            "range": "± 63",
             "unit": "ns/iter"
           }
         ]
