@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785045920816,
+  "lastUpdate": 1785048288473,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3119,6 +3119,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12456,
             "range": "± 89",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "010e0654289ffcfd2c1e4b0a9c9f94a63fa74c4d",
+          "message": "docs(roadmap): reconcile ROADMAP with real state, and guard it with a test (#29)\n\nThe 2026-07-24 reconciliation (PR #18) was stale within two days. Facts\nchecked against git, the crates.io API and the repo itself:\n\n- `### v1.6.0: make fuzzing real` still read \"PR 1 SHIPPED, PR 2 remaining\"\n  and listed both remaining bullets as open. Both shipped: `fuzz_policy`\n  in PR #20, committed seed corpora in PR #19 (4 target dirs, 7/9/11/10\n  seeds), wired into the campaign in PR #22, docs pinned in PR #23. Moved\n  to History with the evidence.\n- `## Current state`'s unreleased list stopped at PR #17 while eleven more\n  PRs had merged, and it never named PR #4 or #5 at all. Replaced by a\n  `## Unreleased on main` section enumerating all 24 commits since the\n  `v1.5.0` tag, grouped, each with its PR and squash commit.\n- `### v1.5.0` sat under `## Milestones` a week after it shipped.\n- v1.7.0/v1.8.0 named no target versions. Now pinned to the crates.io\n  `max_stable_version` read today: criterion 0.8.2, ureq 3.3.0,\n  colored 3.1.1, notify 8.2.0 (already current).\n\nFound while reconciling, and the reason this is a milestone rather than a\ntidy-up: **CHANGELOG.md's `[Unreleased]` is nine user-facing changes\nshort.** It records PRs #21/#24/#25/#27 only; the CycloneDX exporter\n(#11), three multi-repo features (#4/#5/#6), policy rule schema\nvalidation (#12), the DOM-XSS fix (#7), the SSRF redirect fix (#14), the\nHIGH cyclic-base stack overflow fix (#16) and the SARIF ping fix (#28)\nare all absent. Verified by grepping the whole file per change, not by\nreading the top of it. So `### v1.6.0` is redefined as the release cut\nthat publishes what is already on main, with a checkable done-when and a\nsemver classification (MINOR) flagged as an overridable default.\n\n`### v1.5.1` is retired and folded into it: its two live tasks are\ncarried verbatim, and cutting a 1.5.1 patch would publish a version\nnumber strictly older than nine unreleased user-facing changes.\n\nNew `tests/roadmap_truth.rs` (5 tests) makes this the last hand-run\nreconciliation. It reads ROADMAP.md against Cargo.toml and CHANGELOG.md\nand fails the build when they disagree: the crate-version bullet vs\n`[package] version`; no released version still listed as an upcoming\n`### vX.Y.Z` milestone; no released version in a BLOCKED row; and\n`## Unreleased on main` present exactly when the changelog has\n`[Unreleased]` entries. Every extractor is exercised on synthetic input\nso a parser that stops matching fails loudly instead of passing\neverything.\n\nTests 361 -> 366. No src/ change; no API or behaviour change.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T01:41:32-05:00",
+          "tree_id": "13e0e9da80eb5b2400d5400510fbec9d02014b25",
+          "url": "https://github.com/rodmen07/svccat/commit/010e0654289ffcfd2c1e4b0a9c9f94a63fa74c4d"
+        },
+        "date": 1785048287578,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12670,
+            "range": "± 182",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24075,
+            "range": "± 205",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 298,
+            "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5439,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5154,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12201,
+            "range": "± 37",
             "unit": "ns/iter"
           }
         ]
