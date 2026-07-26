@@ -522,6 +522,13 @@ fn docs_quote_the_workflows_actual_fuzz_command() {
 ///
 /// A bare `fuzz/` only counts when it starts a path token, so `cargo-fuzz`,
 /// `rust-fuzz.github.io` and any deeper `.../fuzz/` segment are skipped.
+///
+/// Segments carrying no alphanumeric character are prose, not paths: the doc
+/// says "every `fuzz/...` path named below", and `...` is an ellipsis. This is
+/// not a cosmetic filter — Windows normalizes away trailing dots, so
+/// `fuzz/...` reports `exists() == true` there and `false` on Linux and macOS,
+/// which is exactly how the first version of this guard passed locally and
+/// failed on two of the three `Build & Test (This Checkout)` legs.
 fn fuzz_paths_named_in_docs() -> BTreeSet<String> {
     let text = fuzzing_docs();
     let bytes = text.as_bytes();
@@ -540,11 +547,26 @@ fn fuzz_paths_named_in_docs() -> BTreeSet<String> {
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
             .collect();
-        if !segment.is_empty() {
-            found.insert(segment);
+        // Trailing dots are sentence punctuation, never part of a real path here.
+        let segment = segment.trim_end_matches('.');
+        if segment.chars().any(|c| c.is_ascii_alphanumeric()) {
+            found.insert(segment.to_string());
         }
     }
     found
+}
+
+/// The real entries of the `fuzz/` directory.
+///
+/// Deliberately a `read_dir` listing rather than a `Path::exists()` probe per
+/// name: `exists()` runs through the platform's path normalizer, and Windows
+/// strips trailing dots, so a bogus `fuzz/...` "exists" there while failing on
+/// Linux and macOS. Comparing against a listing behaves identically everywhere.
+fn committed_fuzz_entries() -> BTreeSet<String> {
+    fs::read_dir(repo_root().join("fuzz"))
+        .expect("fuzz/ is readable")
+        .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+        .collect()
 }
 
 /// Entries `fuzz/.gitignore` excludes, i.e. the generated paths that legitimately
@@ -571,7 +593,7 @@ fn docs_only_reference_fuzz_paths_that_exist() {
     // deliberately generated (per `fuzz/.gitignore`, read here rather than
     // hardcoded so the two cannot drift).
     let gitignored = gitignored_fuzz_entries();
-    let fuzz_dir = repo_root().join("fuzz");
+    let committed = committed_fuzz_entries();
 
     let named = fuzz_paths_named_in_docs();
     assert!(
@@ -581,10 +603,8 @@ fn docs_only_reference_fuzz_paths_that_exist() {
     );
 
     for name in &named {
-        let committed = fuzz_dir.join(name).exists();
-        let generated = gitignored.contains(name);
         assert!(
-            committed || generated,
+            committed.contains(name) || gitignored.contains(name),
             "docs/FUZZING.md points at `fuzz/{name}`, which is neither committed in \
              fuzz/ nor listed in fuzz/.gitignore as a generated path. Either the doc \
              names a directory that does not exist (the `fuzz/seeds/` mistake) or a \
