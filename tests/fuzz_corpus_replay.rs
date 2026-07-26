@@ -425,11 +425,16 @@ fn fuzz_run_command_in_workflow() -> String {
     rest[..end].trim().to_string()
 }
 
+/// The text of `docs/FUZZING.md`.
+fn fuzzing_docs() -> String {
+    fs::read_to_string(repo_root().join("docs").join("FUZZING.md"))
+        .expect("docs/FUZZING.md is readable")
+}
+
 /// The `cargo fuzz run` invocation quoted in `docs/FUZZING.md`'s CI Integration
 /// section, flattened the same way, so the two can be compared directly.
 fn fuzz_run_command_in_docs() -> String {
-    let text = fs::read_to_string(repo_root().join("docs").join("FUZZING.md"))
-        .expect("docs/FUZZING.md is readable");
+    let text = fuzzing_docs();
     let section = text
         .split("## CI Integration")
         .nth(1)
@@ -508,5 +513,148 @@ fn docs_quote_the_workflows_actual_fuzz_command() {
         docs, workflow,
         "docs/FUZZING.md's CI Integration section quotes a `cargo fuzz run` command that is \
          not the one .github/workflows/fuzzing.yml actually runs"
+    );
+}
+
+/// Every path under `fuzz/` that `docs/FUZZING.md` names, reduced to its first
+/// component below `fuzz/` (`fuzz/corpus_seeds/<target>/` contributes
+/// `corpus_seeds`, `fuzz/Cargo.toml` contributes `Cargo.toml`).
+///
+/// A bare `fuzz/` only counts when it starts a path token, so `cargo-fuzz`,
+/// `rust-fuzz.github.io` and any deeper `.../fuzz/` segment are skipped.
+///
+/// Segments carrying no alphanumeric character are prose, not paths: the doc
+/// says "every `fuzz/...` path named below", and `...` is an ellipsis. This is
+/// not a cosmetic filter — Windows normalizes away trailing dots, so
+/// `fuzz/...` reports `exists() == true` there and `false` on Linux and macOS,
+/// which is exactly how the first version of this guard passed locally and
+/// failed on two of the three `Build & Test (This Checkout)` legs.
+fn fuzz_paths_named_in_docs() -> BTreeSet<String> {
+    let text = fuzzing_docs();
+    let bytes = text.as_bytes();
+    let mut found = BTreeSet::new();
+    let mut from = 0;
+    while let Some(rel) = text[from..].find("fuzz/") {
+        let at = from + rel;
+        from = at + "fuzz/".len();
+        if at > 0 {
+            let prev = bytes[at - 1] as char;
+            if prev.is_ascii_alphanumeric() || matches!(prev, '-' | '_' | '.' | '/') {
+                continue;
+            }
+        }
+        let segment: String = text[from..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+            .collect();
+        // Trailing dots are sentence punctuation, never part of a real path here.
+        let segment = segment.trim_end_matches('.');
+        if segment.chars().any(|c| c.is_ascii_alphanumeric()) {
+            found.insert(segment.to_string());
+        }
+    }
+    found
+}
+
+/// The real entries of the `fuzz/` directory.
+///
+/// Deliberately a `read_dir` listing rather than a `Path::exists()` probe per
+/// name: `exists()` runs through the platform's path normalizer, and Windows
+/// strips trailing dots, so a bogus `fuzz/...` "exists" there while failing on
+/// Linux and macOS. Comparing against a listing behaves identically everywhere.
+fn committed_fuzz_entries() -> BTreeSet<String> {
+    fs::read_dir(repo_root().join("fuzz"))
+        .expect("fuzz/ is readable")
+        .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+        .collect()
+}
+
+/// Entries `fuzz/.gitignore` excludes, i.e. the generated paths that legitimately
+/// do not exist in a fresh checkout.
+fn gitignored_fuzz_entries() -> BTreeSet<String> {
+    let text = fs::read_to_string(repo_root().join("fuzz").join(".gitignore"))
+        .expect("fuzz/.gitignore is readable");
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.trim_matches('/').to_string())
+        .collect()
+}
+
+#[test]
+fn docs_only_reference_fuzz_paths_that_exist() {
+    // The `Best Practices` section told readers to drop interesting inputs into
+    // `fuzz/seeds/` for as long as this document existed. That directory has
+    // never existed in this repo -- the seed corpus lives in
+    // `fuzz/corpus_seeds/<target>/` -- so anyone following the advice added
+    // files nothing reads: not cargo-fuzz, not the workflow, not this suite.
+    // A wrong path in a doc is the quietest kind of inert surface, so pin every
+    // `fuzz/...` path the prose names to something that is either committed or
+    // deliberately generated (per `fuzz/.gitignore`, read here rather than
+    // hardcoded so the two cannot drift).
+    let gitignored = gitignored_fuzz_entries();
+    let committed = committed_fuzz_entries();
+
+    let named = fuzz_paths_named_in_docs();
+    assert!(
+        named.contains("corpus_seeds"),
+        "docs/FUZZING.md must name the real seed corpus path fuzz/corpus_seeds/, \
+         otherwise this guard is vacuous. Paths found: {named:?}"
+    );
+
+    for name in &named {
+        assert!(
+            committed.contains(name) || gitignored.contains(name),
+            "docs/FUZZING.md points at `fuzz/{name}`, which is neither committed in \
+             fuzz/ nor listed in fuzz/.gitignore as a generated path. Either the doc \
+             names a directory that does not exist (the `fuzz/seeds/` mistake) or a \
+             real path was removed without updating the doc. Generated paths: \
+             {gitignored:?}"
+        );
+    }
+}
+
+/// Fuzz target names the `## Fuzz Targets` section of `docs/FUZZING.md`
+/// documents, taken from the `fuzz/fuzz_targets/<name>.rs` file path each
+/// subsection cites.
+fn targets_documented_in_docs() -> BTreeSet<String> {
+    let text = fuzzing_docs();
+    let section = text
+        .split("## Fuzz Targets")
+        .nth(1)
+        .expect("docs/FUZZING.md must have a `## Fuzz Targets` section");
+    let section = section.split("\n## ").next().unwrap_or(section);
+
+    let mut found = BTreeSet::new();
+    let needle = "fuzz/fuzz_targets/";
+    let mut from = 0;
+    while let Some(rel) = section[from..].find(needle) {
+        from = from + rel + needle.len();
+        let name: String = section[from..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() {
+            found.insert(name);
+        }
+    }
+    found
+}
+
+#[test]
+fn docs_describe_every_fuzz_target() {
+    // `fuzz_targets_agree_across_sources` pins the four machine-readable
+    // sources (files, [[bin]] entries, workflow matrix, seed corpora) to each
+    // other, but the prose was not one of them: a fifth target could ship,
+    // build, run in CI and carry seeds while `docs/FUZZING.md` still described
+    // four, and nothing would fail. Reading the doc here makes the prose a
+    // source like any other, so adding or removing a target has to bring its
+    // documentation along.
+    let expected: BTreeSet<String> = TARGETS.iter().map(|t| t.to_string()).collect();
+    assert_eq!(
+        targets_documented_in_docs(),
+        expected,
+        "the `## Fuzz Targets` section of docs/FUZZING.md must cite \
+         fuzz/fuzz_targets/<name>.rs for exactly the targets that exist"
     );
 }
