@@ -302,7 +302,9 @@ fn run() -> Result<i32> {
                         OutputFormat::Compact => {
                             output::terminal::render_compact(&m, &report);
                         }
-                        OutputFormat::Sarif => output::sarif::render_check(&report, &ping_results)?,
+                        OutputFormat::Sarif => {
+                            output::sarif::render_check(&report, &ping_results, &root)?
+                        }
                         OutputFormat::Junit => output::junit::render_check(&report, &ping_results)?,
                         OutputFormat::GithubAnnotation => {
                             output::github_annotation::render_check(&report);

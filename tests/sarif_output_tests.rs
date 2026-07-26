@@ -149,6 +149,40 @@ fn every_emitted_rule_id_is_declared_by_the_real_binary() {
     }
 }
 
+/// The absolute-path URI defect, pinned against the real binary with the
+/// exact repro from the bug report: `svccat --root <abs path> check --format
+/// sarif` used to write the bare absolute path into every
+/// `artifactLocation.uri`, which on Windows is a URI whose scheme is a drive
+/// letter and on POSIX a root-relative reference. This fixture already runs
+/// with an absolute `--root` (the tempdir) and an absolute `--manifest`
+/// under it, so the URI must now come out relativised against the root: the
+/// SARIF-preferred form, identical on every OS in the CI matrix.
+#[test]
+fn an_absolute_root_yields_a_root_relative_artifact_uri_not_a_bare_path() {
+    let dir = repo_with_a_blocked_url();
+    let doc = sarif_stdout(dir.path(), &["--ping"]);
+
+    let artifact = doc["runs"][0]["artifacts"][0]["location"]["uri"]
+        .as_str()
+        .expect("artifact uri");
+    assert_eq!(
+        artifact, "services.yaml",
+        "expected the manifest relativised against --root, got {artifact:?}"
+    );
+
+    let results = doc["runs"][0]["results"].as_array().expect("results array");
+    assert!(!results.is_empty(), "fixture produced no findings at all");
+    for result in results {
+        assert_eq!(
+            result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+                .as_str()
+                .expect("result uri"),
+            artifact,
+            "every result must name the same artifact the artifacts array declares"
+        );
+    }
+}
+
 /// Without `--ping` the document must contain no ping rule ids at all, which
 /// is what keeps the test above from passing for the wrong reason.
 #[test]
