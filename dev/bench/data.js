@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785087349366,
+  "lastUpdate": 1785089608951,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3419,6 +3419,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 9529,
             "range": "± 19",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c847d15096879a27e8970e3f490b20ef5f5e3c53",
+          "message": "fix(sarif): emit legal URIs for absolute manifest paths in artifactLocation.uri (#34)\n\nSARIF 2.1.0 types artifactLocation.uri as a URI reference, so the old\npass-through of absolute paths shipped C:/repo/services.yaml as a URI\nwith scheme 'c' and /srv/repo/services.yaml as a root-relative\nreference. Absolute paths are now relativised against the run root when\nunder it, and become percent-encoded file:// URIs otherwise; relative\npaths are byte-identical to before. The artifact URI is computed once\nin build_sarif and threaded into every result.\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T13:10:10-05:00",
+          "tree_id": "82e16c46c58a91969a3b54a4449b45f1bd3bca58",
+          "url": "https://github.com/rodmen07/svccat/commit/c847d15096879a27e8970e3f490b20ef5f5e3c53"
+        },
+        "date": 1785089608335,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 10391,
+            "range": "± 349",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 21231,
+            "range": "± 450",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 241,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 4326,
+            "range": "± 112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4012,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 10039,
+            "range": "± 385",
             "unit": "ns/iter"
           }
         ]
