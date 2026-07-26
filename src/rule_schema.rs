@@ -176,13 +176,9 @@ fn find_base_cycle<'a>(rule: &'a Rule, by_id: &HashMap<&'a str, &'a Rule>) -> Op
             path.push(base_id);
             return Some(path);
         }
-        match by_id.get(base_id) {
-            Some(base_rule) => {
-                path.push(base_id);
-                current = base_rule;
-            }
-            None => return None,
-        }
+        let base_rule = by_id.get(base_id)?;
+        path.push(base_id);
+        current = base_rule;
     }
 
     None

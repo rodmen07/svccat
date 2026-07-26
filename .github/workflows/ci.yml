@@ -128,6 +128,13 @@ jobs:
     # The job NAME is load-bearing: it is the exact branch-protection required
     # context string on `main`. `tests/ci_lint_gate_tests.rs` pins both the
     # name and the two commands so neither can drift out from under it.
+    #
+    # Floating `@stable` (this repo-wide convention) means a new clippy
+    # release can red a PR whose own diff did not cause it. That is
+    # toolchain drift, and the response is to clear the new lint, never to
+    # weaken this gate. It happened on this job first run: clippy 1.97 on
+    # the runner flagged `question_mark` in `src/rule_schema.rs` while the
+    # local clippy 1.96 was silent about it.
     runs-on: ubuntu-latest
     permissions:
       contents: read
