@@ -18,18 +18,27 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 - Crate version on main: **v1.6.0** (`Cargo.toml` `[package] version`). Pinned to this
   document by `roadmap_current_state_matches_the_crate_version`, so a release-prep PR
   that bumps one and not the other fails the build.
-- Published to crates.io: **1.5.0**, 2026-07-18 (tag `v1.5.0` = merge commit `60c56b2`).
-  Re-verified 2026-07-26 via the crates.io API: `"newest_version":"1.5.0"`.
-  v1.5.0 delivered SPDX 2.3 JSON SBOM export (`export --format spdx-json`), a
-  `snapshot save --sbom` sidecar with delete cleanup, and a shared `timefmt` module.
-- **v1.6.0 is PREPARED but NOT CUT (2026-07-26).** The 24 commits that had piled up
-  on `main` since the `v1.5.0` tag are now written down: `CHANGELOG.md` carries a
-  `## [1.6.0] - 2026-07-26` naming all nine previously-unrecorded user-facing changes,
-  and `Cargo.toml` is bumped. What is left is the tag push, and until it happens
-  `cargo install svccat` still delivers 1.5.0, so the three security fixes in 1.6.0
-  reach nobody. The version question is answered (MINOR, user decision 2026-07-26);
-  the cut is now held only by the agent harness denying `git tag`. See the
-  release-cut row under `## Blocked and user-only summary`.
+- Published to crates.io: **1.6.0**, 2026-07-26 (annotated tag `v1.6.0` = `fe59cd5`,
+  the release-prep commit, deliberately NOT `main`). Verified after the publish via
+  the crates.io API: `"newest_version":"1.6.0"`, `"max_stable_version":"1.6.0"`.
+  Earlier: v1.5.0, 2026-07-18 (tag `v1.5.0` = merge commit `60c56b2`), which delivered
+  SPDX 2.3 JSON SBOM export (`export --format spdx-json`), a `snapshot save --sbom`
+  sidecar with delete cleanup, and a shared `timefmt` module.
+- **v1.6.0 is CUT and PUBLISHED (2026-07-26).** The 24 commits that had piled up on
+  `main` since the `v1.5.0` tag were written down by release-prep PR #30 and are now
+  shipped: `CHANGELOG.md` carries `## [1.6.0] - 2026-07-26` naming all nine
+  previously-unrecorded user-facing changes. `cargo install svccat` therefore finally
+  delivers the three security fixes (DOM-based XSS in the HTML graph, PR #7; SSRF via
+  HTTP redirect in `--ping` and webhooks, PR #14; the HIGH cyclic-`base` stack
+  overflow, PR #16) that reached nobody for the eight days 1.5.0 was newest. The
+  version question was answered MINOR by the user on 2026-07-26. `publish.yml` run
+  `30196265195` is green end to end, including the three `Post-Publish Registry
+  Validation` legs that `cargo install svccat --force` straight from the registry and
+  run `svccat --version` on ubuntu, windows and macos.
+- The tag is at `fe59cd5`, not at `main`, on purpose: `main` had already taken PR #31
+  (snapshot-diff ordering), which is listed under `## [Unreleased]` and ships in the
+  next release, so published 1.6.0 contains exactly what its own changelog section
+  describes. See `## Unreleased on main` for what that leaves pending.
 - Shipped in earlier releases during 2026-06 and 2026-07 (the crate is NOT in frozen
   maintenance mode):
   - v1.1.0 (2026-06-07): language and platform inference in `init` and `fix`.
@@ -185,14 +194,15 @@ bumps) are all lifted. What remains:
 | Item | Status | Reason |
 |------|--------|--------|
 | Writing the `CRATES_IO_TOKEN` repo secret | USER-ONLY | Secret values are never handled by an agent; set via `gh secret set` (interactive) |
-| The **v1.6.0** tag push specifically | HELD ON THE LOCAL HARNESS (2026-07-26) | The version question is ANSWERED: the user classified it **MINOR** on 2026-07-26, so `v1.6.0` stands and no version string needs editing. Release readiness was re-verified the same day at `fe59cd5`: `cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo audit --deny warnings`, 367 tests, and `cargo publish --dry-run` (packaged 120 files, verification build clean) all pass, and `CRATES_IO_TOKEN` is present. The remaining blocker is neither this repo nor a decision: the agent harness's permission layer denies `git tag`, so the cut cannot be executed from an automated run. CLEARS when that permission is granted, then: `git tag v1.6.0 fe59cd5 && git push origin v1.6.0` (which fires `publish.yml` on the `v*` tag), `gh release create v1.6.0 --verify-tag`. Tag `fe59cd5` explicitly rather than `main`, so the published 1.6.0 contains exactly what its CHANGELOG section describes and later `## [Unreleased]` work does not ride along unlisted |
 | Tag push, GitHub release, `cargo publish` in general | Delegated | Follow the release flow in Working agreements; merge and tag only on green CI |
 | Editing README.md | Avoid | CRLF line endings; no roadmap work needs it |
 
 ## History and supersession
 
-- **v1.6.0 "publish what is already on main": release PREP shipped 2026-07-26, and the
-  cut is pending one user decision.** Moved out of Milestones because its whole task
+- **v1.6.0 "publish what is already on main" — SHIPPED 2026-07-26.** Release prep landed
+  as PR #30 and the cut followed the same day: annotated tag `v1.6.0` at `fe59cd5`,
+  `publish.yml` run `30196265195` green, crates.io `"newest_version":"1.6.0"`, GitHub
+  release published. Its whole task
   list is done: `CHANGELOG.md` gained `## [1.6.0] - 2026-07-26` naming all nine
   user-facing changes that were on `main` and in no released version (six features,
   three security fixes, four behaviour fixes, one dependency major); the changelog was
@@ -204,19 +214,20 @@ bumps) are all lifted. What remains:
   (with the honest note that the `--follow-symlinks` opt-out was never built, because
   discovery rejects symlinks unconditionally) and this release's own three security
   fixes were added to that file's fix changelog; and `Cargo.toml` went to 1.6.0.
-  **Not done: the `v1.6.0` tag.** The MINOR-versus-MAJOR call is an overridable default
-  this document routes to the user, and a crates.io publish cannot be undone. The
+  The MINOR-versus-MAJOR call was an overridable default this document routed to the
+  user, who answered **MINOR** on 2026-07-26. The
   argument is restated here in full so it does not disappear with the milestone that
-  held it: **the default is MINOR.** Every library change since 1.5.0 is additive
+  held it, and so the classification is not relitigated: **MINOR.** Every library change since 1.5.0 is additive
   (`PolicyConfig::load_checked` and `PolicyLoadError` are new; no existing signature,
   type or field changed), and the behaviour changes are fixes to output ordering, to an
   exit code on input that was already broken, and to a format that was emitting nothing.
   Nothing in the frozen surface described by `docs/API_STABILITY.md` was removed or
   narrowed. If the `svccat policy` exit-code change (0 to 2 on a policy file that exists
-  but does not parse, PR #25) is judged breaking for CLI consumers rather than a fix,
-  say so and this becomes 2.0.0 instead.
-- **v1.6.0 "make fuzzing real" — the work is COMPLETE (2026-07-26); the version is not
-  yet published.** The 2026-07-18 audit found the fuzzing setup was a stub that could
+  but does not parse, PR #25) had been judged breaking for CLI consumers rather than a
+  fix, this would have been 2.0.0; the user classified it a fix, on the grounds that the
+  old exit 0 was a false report of success about a file it could not read, so no
+  consumer could have depended on it deliberately.
+- **v1.6.0 "make fuzzing real" — COMPLETE and PUBLISHED (2026-07-26).** The 2026-07-18 audit found the fuzzing setup was a stub that could
   never have built. Delivered across six PRs: PR #15 (`f840161`) created
   `fuzz/Cargo.toml`, made `fuzz_glob` / `fuzz_manifest` / `fuzz_url` build, renamed the
   workflow to `Continuous Fuzzing` and replaced the placeholder run step with real
@@ -231,8 +242,8 @@ bumps) are all lifted. What remains:
   `Continuous Fuzzing` green on `main` at `eb9b9c1`. **Note for anyone reading the
   history: "committed seed corpora exist" was true from PR #19 while the fuzzer was
   still ignoring them — existence and use are separate claims, and only PR #22 made the
-  second one true.** The milestone's version number is reused by the release cut above
-  because 1.6.0 was never published.
+  second one true.** The milestone shares its version number with the release cut above:
+  both landed in the 1.6.0 that shipped on 2026-07-26.
 - **v1.5.0: SPDX SBOM release — SHIPPED 2026-07-18** (moved out of Milestones
   2026-07-26). `feat/spdx-sbom` merged as PR #3 (merge commit `60c56b2`), tag `v1.5.0`
   pushed, the publish workflow pushed 1.5.0 to crates.io, and the GitHub release is

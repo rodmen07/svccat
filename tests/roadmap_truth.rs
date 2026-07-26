@@ -15,7 +15,8 @@
 //! 1. the `- Crate version on main:` line equals `Cargo.toml`'s `[package] version`,
 //! 2. no version `CHANGELOG.md` says is released is still an upcoming `### vX.Y.Z`
 //!    milestone under `## Milestones`,
-//! 3. no released version sits in a `BLOCKED` row of the blocked/user-only table, and
+//! 3. no released version sits in a `BLOCKED` or `HELD` row of the blocked/user-only
+//!    table, and
 //! 4. `## Unreleased on main` exists exactly when the CHANGELOG has `[Unreleased]`
 //!    entries — shipped-but-unpublished work must be visible in the roadmap, and must
 //!    disappear from it when the release is cut.
@@ -131,8 +132,23 @@ fn upcoming_milestone_versions(roadmap: &str) -> Vec<Version> {
         .collect()
 }
 
-/// Versions named by rows of the blocked/user-only table whose status cell is
-/// exactly `BLOCKED`.
+/// Versions named by rows of the blocked/user-only table whose status cell GATES the
+/// item, i.e. whose first word is `BLOCKED` or `HELD`.
+///
+/// Matching the first word rather than the whole cell is deliberate and was learned
+/// the expensive way. This extractor originally required the cell to equal `BLOCKED`
+/// exactly, so the row
+/// `| The **v1.6.0** tag push specifically | HELD ON THE LOCAL HARNESS (2026-07-26) | ... |`
+/// was invisible to it: `CHANGELOG.md` had said `## [1.6.0] - 2026-07-26` since PR #30
+/// while the roadmap still gated v1.6.0, which is precisely the disagreement this guard
+/// exists to shout about, and it stayed green through both PRs. A status cell that
+/// carries its date and clearing condition inline (which the marker convention
+/// requires) can never equal a bare keyword, so an exact match structurally could not
+/// see the markers it was written to police.
+///
+/// `USER-ONLY`, `Delegated` and `Avoid` rows are still ignored: those are standing
+/// policy about an action, not a gate on a version, and are expected to outlive any
+/// release.
 fn blocked_row_versions(roadmap: &str) -> Vec<Version> {
     let mut out = Vec::new();
     for line in section(roadmap, "## Blocked and user-only summary") {
@@ -148,7 +164,8 @@ fn blocked_row_versions(roadmap: &str) -> Vec<Version> {
         let [item, status, ..] = cells.as_slice() else {
             continue;
         };
-        if *status != "BLOCKED" {
+        let gate = status.split_whitespace().next().unwrap_or_default();
+        if !matches!(gate, "BLOCKED" | "HELD") {
             continue;
         }
         out.extend(
@@ -215,8 +232,8 @@ fn roadmap_does_not_list_a_released_version_as_blocked() {
         .collect();
     assert!(
         shipped.is_empty(),
-        "ROADMAP.md's blocked/user-only table still gates {}, which CHANGELOG.md says \
-         has shipped",
+        "ROADMAP.md's blocked/user-only table still gates {} with a BLOCKED or HELD row, \
+         which CHANGELOG.md says has shipped",
         shipped.join(", ")
     );
 }
@@ -341,5 +358,23 @@ fn extractors_find_what_they_are_looking_for() {
         vec![(1, 7, 0)],
         "blocked_row_versions must read the status cell, ignore USER-ONLY rows, and not \
          trip over the separator row"
+    );
+
+    // The regression that motivated the first-word match: a real gating row states its
+    // date and clearing condition in the status cell, so it never equals a bare
+    // keyword. Under the old `*status != "BLOCKED"` test this returned only (1, 7, 0)
+    // and the v1.6.0 row -- released since PR #30 -- sailed through guard 3.
+    assert_eq!(
+        blocked_row_versions(
+            "## Blocked and user-only summary\n\
+             | v1.7.0 dependency bumps | BLOCKED | gated on the v1.5.0 release |\n\
+             | The **v1.6.0** tag push specifically | HELD ON THE LOCAL HARNESS (2026-07-26) | the harness denies the push |\n\
+             | Tag push in general | Delegated | follow the release flow |\n\
+             | Editing README.md | Avoid | CRLF line endings |\n\
+             ## History and supersession\n"
+        ),
+        vec![(1, 7, 0), (1, 6, 0)],
+        "a HELD row must gate exactly like a BLOCKED one, however much prose its status \
+         cell carries, while Delegated and Avoid rows stay ignored"
     );
 }
