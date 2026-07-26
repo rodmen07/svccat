@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785056605199,
+  "lastUpdate": 1785070988013,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3299,6 +3299,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12169,
             "range": "± 71",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "175f6903e7f698a47242237b7261c1282b57e900",
+          "message": "docs(roadmap): record the v1.6.0 cut, and make the guard see HELD rows (#32)\n\nv1.6.0 is published (tag `v1.6.0` at `fe59cd5`, publish run 30196265195 green,\ncrates.io `\"newest_version\":\"1.6.0\"`), so every claim in ROADMAP.md that said\notherwise is now false and is corrected here.\n\nThe interesting half is why the drift guard stayed green while the roadmap was\nwrong. `blocked_row_versions` required the status cell to equal `BLOCKED`\nexactly, so it never saw\n\n  | The **v1.6.0** tag push specifically | HELD ON THE LOCAL HARNESS (2026-07-26) | ... |\n\neven though CHANGELOG.md had said `## [1.6.0] - 2026-07-26` since PR #30. That\nis exactly the disagreement guard 3 exists to shout about. And it is structural\nrather than a one-off: the marker convention requires a status cell to carry its\ndate and clearing condition inline, so a real gating row can never equal a bare\nkeyword. The extractor now matches the status cell's FIRST WORD against\n`BLOCKED` or `HELD`; `USER-ONLY`, `Delegated` and `Avoid` rows stay ignored,\nsince those are standing policy about an action rather than a gate on a version.",
+          "timestamp": "2026-07-26T08:00:00-05:00",
+          "tree_id": "09f069f0e093a16c22c3acc96b44519d22f51e26",
+          "url": "https://github.com/rodmen07/svccat/commit/175f6903e7f698a47242237b7261c1282b57e900"
+        },
+        "date": 1785070987575,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12452,
+            "range": "± 55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23288,
+            "range": "± 66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 299,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5408,
+            "range": "± 24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5140,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12019,
+            "range": "± 61",
             "unit": "ns/iter"
           }
         ]
