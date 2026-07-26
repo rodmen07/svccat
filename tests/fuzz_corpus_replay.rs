@@ -416,9 +416,35 @@ fn fuzz_run_command_in_workflow() -> String {
         .find("cargo fuzz run")
         .expect("fuzzing.yml must invoke `cargo fuzz run`");
     let rest = &flat[start..];
-    // The command ends where the next workflow step begins (or at EOF).
-    let end = rest.find("- name:").unwrap_or(rest.len());
+    // The command ends at the trailing YAML comment, the next workflow step, or
+    // EOF -- whichever comes first. The command itself contains no `#`.
+    let end = rest
+        .find(" #")
+        .or_else(|| rest.find("- name:"))
+        .unwrap_or(rest.len());
     rest[..end].trim().to_string()
+}
+
+/// The `cargo fuzz run` invocation quoted in `docs/FUZZING.md`'s CI Integration
+/// section, flattened the same way, so the two can be compared directly.
+fn fuzz_run_command_in_docs() -> String {
+    let text = fs::read_to_string(repo_root().join("docs").join("FUZZING.md"))
+        .expect("docs/FUZZING.md is readable");
+    let section = text
+        .split("## CI Integration")
+        .nth(1)
+        .expect("docs/FUZZING.md must have a `## CI Integration` section");
+    let section = section.split("\n## ").next().unwrap_or(section);
+    let block = section
+        .split("```")
+        .nth(1)
+        .expect("the CI Integration section must quote the command in a fenced block");
+    let block = block.strip_prefix("bash").unwrap_or(block);
+    block
+        .replace('\\', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[test]
@@ -465,5 +491,22 @@ fn fuzzing_workflow_runs_from_the_committed_seed_corpus() {
         "`{seeds}` must appear before the `--` separator so cargo-fuzz treats it as a \
          corpus directory; after `--` it would be passed to libFuzzer as a flag. \
          Command found: {cmd}"
+    );
+}
+
+#[test]
+fn docs_quote_the_workflows_actual_fuzz_command() {
+    // The drift guard for the prose half. `docs/FUZZING.md` quotes the command
+    // CI runs, and it quoted the pre-seed-corpus one-liner for exactly as long
+    // as the seeds went unused -- a reader following the doc would have
+    // reproduced the empty-corpus run and seen nothing wrong. Reading BOTH
+    // sources here means the next change to the run step has to bring the doc
+    // with it instead of leaving a plausible, wrong command behind.
+    let workflow = fuzz_run_command_in_workflow().replace("${{ matrix.target }}", "<target>");
+    let docs = fuzz_run_command_in_docs();
+    assert_eq!(
+        docs, workflow,
+        "docs/FUZZING.md's CI Integration section quotes a `cargo fuzz run` command that is \
+         not the one .github/workflows/fuzzing.yml actually runs"
     );
 }
