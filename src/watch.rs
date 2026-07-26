@@ -242,28 +242,61 @@ pub fn run(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/// Detect what changed between two manifest states
+/// Detect what changed between two manifest states.
+///
+/// All three lists come back in the order the services appear in the manifest
+/// they were read from — `added` and `modified` follow `new_services`,
+/// `removed` follows `prev_services` — and each name appears at most once.
+///
+/// That ordering is part of the contract rather than an accident of the
+/// implementation. `added` and `removed` used to be collected straight out of
+/// `HashSet::difference`, whose iteration order is unspecified and is
+/// re-randomised per set by the default hasher, so watch mode printed the same
+/// change set in a different order on every reload (`+ 2 service(s): cache,
+/// worker` on one run, `worker, cache` on the next) even though nothing about
+/// the manifest had changed. `modified` was always built by walking
+/// `new_services`, so the three lines of a change summary now share one rule
+/// instead of following two.
 fn detect_changes(
     prev_services: &[manifest::ServiceEntry],
     new_services: &[manifest::ServiceEntry],
 ) -> (Vec<String>, Vec<String>, Vec<String>) {
-    let prev_names: HashSet<_> = prev_services.iter().map(|s| s.name.clone()).collect();
-    let new_names: HashSet<_> = new_services.iter().map(|s| s.name.clone()).collect();
+    let prev_names: HashSet<&str> = prev_services.iter().map(|s| s.name.as_str()).collect();
+    let new_names: HashSet<&str> = new_services.iter().map(|s| s.name.as_str()).collect();
 
-    let added: Vec<String> = new_names.difference(&prev_names).cloned().collect();
-    let removed: Vec<String> = prev_names.difference(&new_names).cloned().collect();
-
-    // Detect modifications by comparing common services
-    let mut modified = Vec::new();
-    for new_svc in new_services {
-        if let Some(prev_svc) = prev_services.iter().find(|s| s.name == new_svc.name) {
-            if !services_equal(prev_svc, new_svc) {
-                modified.push(new_svc.name.clone());
-            }
-        }
-    }
+    // The sets are membership tests only; the manifest slices decide the order.
+    let added =
+        names_in_manifest_order(new_services, |svc| !prev_names.contains(svc.name.as_str()));
+    let removed =
+        names_in_manifest_order(prev_services, |svc| !new_names.contains(svc.name.as_str()));
+    let modified = names_in_manifest_order(new_services, |new_svc| {
+        prev_services
+            .iter()
+            .find(|s| s.name == new_svc.name)
+            .is_some_and(|prev_svc| !services_equal(prev_svc, new_svc))
+    });
 
     (added, removed, modified)
+}
+
+/// Names of the services matching `keep`, in the order they appear in
+/// `services`, keeping only the first entry of a duplicated name.
+///
+/// Deduplication is by name and independent of `keep`, so a manifest that
+/// declares the same `name:` twice contributes it to at most one position of at
+/// most one list.
+fn names_in_manifest_order(
+    services: &[manifest::ServiceEntry],
+    mut keep: impl FnMut(&manifest::ServiceEntry) -> bool,
+) -> Vec<String> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut names = Vec::new();
+    for svc in services {
+        if seen.insert(svc.name.as_str()) && keep(svc) {
+            names.push(svc.name.clone());
+        }
+    }
+    names
 }
 
 /// Compare two services for equality.
@@ -604,13 +637,87 @@ mod tests {
             populated_service("worker"),
         ];
 
-        let (mut added, removed, modified) = detect_changes(&prev, &new);
-        // `detect_changes` builds added/removed from `HashSet::difference`, so
-        // their order is not defined; sort before asserting on the contents.
-        added.sort();
+        let (added, removed, modified) = detect_changes(&prev, &new);
 
         assert_eq!(added, vec!["worker".to_string()]);
         assert_eq!(removed, vec!["legacy".to_string()]);
+        assert_eq!(modified, vec!["api".to_string()]);
+    }
+
+    /// Ordering is user-visible, not an internal detail: `display_change_summary`
+    /// joins these lists straight into the "Manifest changes detected" summary.
+    /// Both lists here are in an order that is neither alphabetical nor
+    /// reverse-alphabetical, so sorting the results fails this assertion exactly
+    /// as loudly as the `HashSet::difference` iteration it replaced.
+    #[test]
+    fn added_and_removed_are_reported_in_manifest_order() {
+        let removed_order = ["zulu", "alpha", "mike", "bravo", "yankee", "charlie"];
+        let added_order = ["sierra", "delta", "november", "echo", "victor", "foxtrot"];
+
+        let prev: Vec<_> = removed_order.iter().map(|n| populated_service(n)).collect();
+        let new: Vec<_> = added_order.iter().map(|n| populated_service(n)).collect();
+
+        let (added, removed, modified) = detect_changes(&prev, &new);
+
+        assert_eq!(added, added_order, "added must follow the new manifest");
+        assert_eq!(
+            removed, removed_order,
+            "removed must follow the previous manifest"
+        );
+        assert!(modified.is_empty(), "got {modified:?}");
+    }
+
+    /// The defect being pinned is a *nondeterminism*, so a single call proves
+    /// nothing: the previous implementation returned the correct set in an
+    /// arbitrary order, and the default hasher re-randomises that order for
+    /// every set it builds. Identical input must therefore produce an identical
+    /// answer on every call, not merely an equivalent one.
+    #[test]
+    fn detect_changes_returns_the_same_order_on_every_call() {
+        let prev: Vec<_> = ["zulu", "alpha", "mike", "bravo"]
+            .iter()
+            .map(|n| populated_service(n))
+            .collect();
+        let mut new: Vec<_> = ["sierra", "delta", "november", "echo"]
+            .iter()
+            .map(|n| populated_service(n))
+            .collect();
+        // One survivor, edited, so the same loop also covers `modified`.
+        let mut alpha_moved = populated_service("alpha");
+        alpha_moved.path = Some("services/alpha-v2".to_string());
+        new.push(alpha_moved);
+
+        let first = detect_changes(&prev, &new);
+        assert_eq!(first.0.len(), 4, "added: {:?}", first.0);
+        assert_eq!(first.1.len(), 3, "removed: {:?}", first.1);
+        assert_eq!(first.2, vec!["alpha".to_string()]);
+
+        for run in 1..64 {
+            assert_eq!(
+                detect_changes(&prev, &new),
+                first,
+                "run {run} disagreed with run 0 on byte-identical input"
+            );
+        }
+    }
+
+    /// A `services.yaml` that declares the same `name:` twice must not print the
+    /// service twice in one summary line. `added` and `removed` used to
+    /// deduplicate implicitly because they were built from sets while `modified`
+    /// did not, so the three lists disagreed about what a duplicate meant.
+    #[test]
+    fn a_duplicated_service_name_is_reported_once() {
+        let prev = vec![populated_service("api"), populated_service("api")];
+        let mut api_moved = populated_service("api");
+        api_moved.path = Some("services/api-v2".to_string());
+        let new = vec![api_moved.clone(), api_moved];
+
+        let (added, removed, modified) = detect_changes(&prev, &new);
+
+        assert!(
+            added.is_empty() && removed.is_empty(),
+            "added={added:?} removed={removed:?}"
+        );
         assert_eq!(modified, vec!["api".to_string()]);
     }
 
