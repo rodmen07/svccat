@@ -166,6 +166,12 @@ any published version. This section exists exactly while that is true, enforced 
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
 
+- **SARIF absolute-path URIs** (2026-07-26). `check --format sarif` under an absolute
+  `--root` wrote the bare filesystem path into every `artifactLocation.uri`, which on
+  Windows parses as a URI with a one-letter scheme. Absolute manifest paths are now
+  relativised against the run root when possible and emitted as percent-encoded
+  `file://` URIs otherwise; relative paths are unchanged. Targets the next release
+  after v1.6.0.
 - **`svccat snapshot diff` drift-list ordering and format** (2026-07-26). The
   `snapshot diff` path built `DiffReport::new_drift` / `resolved_drift` by
   differencing two `HashSet`s, so the lists shuffled between runs over identical

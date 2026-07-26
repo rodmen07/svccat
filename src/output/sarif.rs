@@ -2,6 +2,7 @@ use crate::drift::{DriftKind, DriftReport, Severity};
 use crate::ping::{PingResult, PingStatus};
 use anyhow::Result;
 use serde_json::{json, Value};
+use std::path::Path;
 
 /// Emit a SARIF 2.1.0 document to stdout.
 ///
@@ -13,20 +14,25 @@ use serde_json::{json, Value};
 /// to see, exactly as it is in the `json`, `junit`, `markdown` and terminal
 /// renderers.  A *reachable* service produces no result, because SARIF results
 /// are problems, not a per-URL health log.
-pub fn render_check(report: &DriftReport, ping_results: &[PingResult]) -> Result<()> {
-    let doc = build_sarif(report, ping_results);
+pub fn render_check(report: &DriftReport, ping_results: &[PingResult], root: &Path) -> Result<()> {
+    let doc = build_sarif(report, ping_results, root);
     println!("{}", serde_json::to_string_pretty(&doc)?);
     Ok(())
 }
 
 // ── Internal ──────────────────────────────────────────────────────────────────
 
-fn build_sarif(report: &DriftReport, ping_results: &[PingResult]) -> Value {
+fn build_sarif(report: &DriftReport, ping_results: &[PingResult], root: &Path) -> Value {
     let rules = sarif_rules();
+
+    // Computed exactly once and threaded into every location, so the artifact
+    // entry and the results can never disagree about which file they name.
+    let artifact_uri = uri_from_path(&report.manifest, root);
+
     let mut results: Vec<Value> = report
         .drifts
         .iter()
-        .map(|item| sarif_result(item, &report.manifest))
+        .map(|item| sarif_result(item, &artifact_uri))
         .collect();
 
     // Ping results keep the manifest order `ping::ping_services` walked, and
@@ -35,7 +41,7 @@ fn build_sarif(report: &DriftReport, ping_results: &[PingResult]) -> Value {
     results.extend(
         ping_results
             .iter()
-            .filter_map(|ping| sarif_ping_result(ping, &report.manifest)),
+            .filter_map(|ping| sarif_ping_result(ping, &artifact_uri)),
     );
 
     json!({
@@ -52,7 +58,7 @@ fn build_sarif(report: &DriftReport, ping_results: &[PingResult]) -> Value {
             },
             "results": results,
             "artifacts": [{
-                "location": { "uri": uri_from_path(&report.manifest) },
+                "location": { "uri": artifact_uri },
                 "roles": ["analysisTarget"]
             }]
         }]
@@ -128,7 +134,7 @@ fn sarif_rule(id: &str, name: &str, description: &str, default_level: &str) -> V
     })
 }
 
-fn sarif_result(item: &crate::drift::DriftItem, manifest_path: &str) -> Value {
+fn sarif_result(item: &crate::drift::DriftItem, artifact_uri: &str) -> Value {
     let rule_id = match item.kind {
         DriftKind::DeclaredMissingFromRepo => "declared_missing_from_repo",
         DriftKind::UndeclaredInRepo => "undeclared_in_repo",
@@ -143,7 +149,7 @@ fn sarif_result(item: &crate::drift::DriftItem, manifest_path: &str) -> Value {
         Severity::Warning => "warning",
     };
 
-    sarif_finding(rule_id, level, &item.message, &item.service, manifest_path)
+    sarif_finding(rule_id, level, &item.message, &item.service, artifact_uri)
 }
 
 /// A ping outcome as a SARIF result, or `None` when there is nothing to report.
@@ -152,7 +158,7 @@ fn sarif_result(item: &crate::drift::DriftItem, manifest_path: &str) -> Value {
 /// emitting one per healthy URL would turn a clean run into a wall of Code
 /// Scanning alerts.  This mirrors the junit renderer, where a reachable
 /// service is a passing testcase and only the other two states are failures.
-fn sarif_ping_result(ping: &PingResult, manifest_path: &str) -> Option<Value> {
+fn sarif_ping_result(ping: &PingResult, artifact_uri: &str) -> Option<Value> {
     let (rule_id, message) = match &ping.ping {
         PingStatus::Reachable { .. } => return None,
         PingStatus::Unreachable { reason } => (
@@ -176,7 +182,7 @@ fn sarif_ping_result(ping: &PingResult, manifest_path: &str) -> Option<Value> {
         "error",
         &message,
         &ping.service,
-        manifest_path,
+        artifact_uri,
     ))
 }
 
@@ -187,7 +193,7 @@ fn sarif_finding(
     level: &str,
     message: &str,
     service: &str,
-    manifest_path: &str,
+    artifact_uri: &str,
 ) -> Value {
     json!({
         "ruleId": rule_id,
@@ -195,7 +201,7 @@ fn sarif_finding(
         "message": { "text": message },
         "locations": [{
             "physicalLocation": {
-                "artifactLocation": { "uri": uri_from_path(manifest_path) }
+                "artifactLocation": { "uri": artifact_uri }
             },
             "logicalLocations": [{
                 "name": service,
@@ -205,11 +211,94 @@ fn sarif_finding(
     })
 }
 
-/// Convert a file-system path to a URI suitable for SARIF artifact locations.
-/// Strips a leading "./" for cleaner output; leaves absolute paths as-is.
-fn uri_from_path(path: &str) -> String {
-    let stripped = path.trim_start_matches("./").trim_start_matches(".\\");
-    stripped.replace('\\', "/")
+/// Convert the manifest path into the URI a SARIF consumer resolves.
+///
+/// SARIF 2.1.0 types `artifactLocation.uri` as a URI *reference*, so a bare
+/// absolute filesystem path is not a legal value: `C:/repo/services.yaml`
+/// parses as a URI with scheme `c`, and `/srv/repo/services.yaml` reads as a
+/// root-relative reference rather than the `file:` URI it means. Three cases,
+/// in preference order:
+///
+/// 1. A relative path is normalised as-is (leading `./` stripped, `\`
+///    mapped to `/`) — the SARIF-preferred relative form.
+/// 2. An absolute path under the run root is relativised against it, which
+///    is the same repo-relative form GitHub Code Scanning expects. The
+///    comparison is textual on `/`-normalised strings: both values come from
+///    the same CLI invocation (the manifest default is `root.join(...)`), so
+///    no filesystem canonicalisation is needed or wanted here.
+/// 3. Any other absolute path becomes a proper `file://` URI.
+///
+/// The detection is textual rather than `Path::is_absolute()` so the same
+/// input string produces the same URI on every OS — a document generated on
+/// Windows must not change meaning when the test suite or a consumer reads
+/// it on Linux.
+fn uri_from_path(path: &str, root: &Path) -> String {
+    if !is_absolute_path(path) {
+        let stripped = path.trim_start_matches("./").trim_start_matches(".\\");
+        return stripped.replace('\\', "/");
+    }
+
+    let normalized = path.replace('\\', "/");
+    let root_normalized = root.display().to_string().replace('\\', "/");
+    if is_absolute_path(&root_normalized) {
+        let root_prefix = format!("{}/", root_normalized.trim_end_matches('/'));
+        if let Some(rel) = normalized.strip_prefix(&root_prefix) {
+            if !rel.is_empty() {
+                return rel.to_string();
+            }
+        }
+    }
+
+    file_uri(&normalized)
+}
+
+/// Textual absolute-path detection covering the three shapes a
+/// `path.display()` string can take: POSIX (`/srv/...`), Windows drive
+/// (`C:\...` or `C:/...`), and UNC (`\\server\share\...`).
+fn is_absolute_path(path: &str) -> bool {
+    if path.starts_with('/') || path.starts_with("\\\\") {
+        return true;
+    }
+    let b = path.as_bytes();
+    b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'/' || b[2] == b'\\')
+}
+
+/// A `file://` URI (RFC 8089) from a `/`-normalised absolute path.
+fn file_uri(normalized: &str) -> String {
+    if let Some(unc) = normalized.strip_prefix("//") {
+        // UNC: \\server\share\x → file://server/share/x (the host goes in
+        // the authority component).
+        format!("file://{}", percent_encode(unc))
+    } else if normalized.starts_with('/') {
+        // POSIX: /srv/x → file:///srv/x (empty authority).
+        format!("file://{}", percent_encode(normalized))
+    } else {
+        // Drive letter: C:/x → file:///C:/x (RFC 8089 appendix E.2).
+        format!("file:///{}", percent_encode(normalized))
+    }
+}
+
+/// Percent-encode every byte outside RFC 3986 `unreserved` plus the path
+/// characters this URI shape keeps literal (`/`, the drive-letter `:`, `@`).
+/// Over-encoding a sub-delim is legal; under-encoding a space is not.
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'/'
+            | b':'
+            | b'@' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -248,6 +337,12 @@ mod tests {
             url: format!("https://{service}.example.com/health"),
             ping: status,
         }
+    }
+
+    /// The document as most tests want it: built with the default relative
+    /// root, so a relative manifest path exercises case 1 of `uri_from_path`.
+    fn sarif_doc(report: &DriftReport, ping_results: &[PingResult]) -> Value {
+        build_sarif(report, ping_results, Path::new("."))
     }
 
     /// Every `DriftKind`, listed once.
@@ -322,7 +417,7 @@ mod tests {
 
     #[test]
     fn document_carries_the_sarif_version_and_tool_driver_a_consumer_keys_off() {
-        let doc = build_sarif(&report_with(vec![]), &[]);
+        let doc = sarif_doc(&report_with(vec![]), &[]);
 
         assert_eq!(doc["version"], "2.1.0");
         assert!(doc["$schema"]
@@ -344,7 +439,7 @@ mod tests {
 
     #[test]
     fn drift_severity_maps_onto_the_sarif_level_enum() {
-        let doc = build_sarif(
+        let doc = sarif_doc(
             &report_with(vec![
                 drift(DriftKind::PolicyViolation, Severity::Error),
                 drift(DriftKind::MissingField, Severity::Warning),
@@ -375,10 +470,10 @@ mod tests {
     /// and the two lists are maintained by hand in different functions.
     #[test]
     fn every_rule_id_a_result_can_emit_is_declared_in_the_rules_array() {
-        let declared = declared_rule_ids(&build_sarif(&report_with(vec![]), &[]));
+        let declared = declared_rule_ids(&sarif_doc(&report_with(vec![]), &[]));
 
         for kind in all_drift_kinds() {
-            let doc = build_sarif(
+            let doc = sarif_doc(
                 &report_with(vec![drift(kind.clone(), Severity::Error)]),
                 &[],
             );
@@ -392,7 +487,7 @@ mod tests {
         }
 
         for status in all_ping_statuses() {
-            let doc = build_sarif(&report_with(vec![]), &[ping("billing", status.clone())]);
+            let doc = sarif_doc(&report_with(vec![]), &[ping("billing", status.clone())]);
             for emitted in result_rule_ids(&doc) {
                 assert!(
                     declared.contains(&emitted),
@@ -404,7 +499,7 @@ mod tests {
 
     #[test]
     fn declared_rule_ids_are_unique() {
-        let declared = declared_rule_ids(&build_sarif(&report_with(vec![]), &[]));
+        let declared = declared_rule_ids(&sarif_doc(&report_with(vec![]), &[]));
         let mut sorted = declared.clone();
         sorted.sort();
         sorted.dedup();
@@ -419,7 +514,7 @@ mod tests {
 
     #[test]
     fn unreachable_and_invalid_pings_become_results() {
-        let doc = build_sarif(
+        let doc = sarif_doc(
             &report_with(vec![]),
             &[
                 ping(
@@ -467,7 +562,7 @@ mod tests {
     /// of `results`, or every clean `--ping` run becomes a wall of alerts.
     #[test]
     fn reachable_pings_produce_no_result() {
-        let doc = build_sarif(
+        let doc = sarif_doc(
             &report_with(vec![]),
             &[
                 ping("billing", PingStatus::Reachable { code: 200 }),
@@ -483,7 +578,7 @@ mod tests {
 
     #[test]
     fn ping_results_are_appended_after_drift_results_in_manifest_order() {
-        let doc = build_sarif(
+        let doc = sarif_doc(
             &report_with(vec![drift(DriftKind::MissingField, Severity::Warning)]),
             &[
                 ping("billing", PingStatus::Reachable { code: 200 }),
@@ -522,12 +617,12 @@ mod tests {
         ]);
 
         assert_eq!(
-            result_rule_ids(&build_sarif(&report, &[])),
+            result_rule_ids(&sarif_doc(&report, &[])),
             vec!["declared_missing_from_repo", "missing_field"]
         );
         assert_eq!(
-            build_sarif(&report, &[]),
-            build_sarif(
+            sarif_doc(&report, &[]),
+            sarif_doc(
                 &report,
                 &[ping("billing", PingStatus::Reachable { code: 200 })]
             ),
@@ -537,28 +632,150 @@ mod tests {
 
     // ── uri_from_path ───────────────────────────────────────────────────────
 
+    /// A relative root for the relative-path cases, where the root plays no
+    /// part in the result.
+    const DOT: &str = ".";
+
     #[test]
     fn uri_from_path_strips_the_leading_dot_slash_in_both_separators() {
-        assert_eq!(uri_from_path("./services.yaml"), "services.yaml");
-        assert_eq!(uri_from_path(".\\services.yaml"), "services.yaml");
-        assert_eq!(uri_from_path("services.yaml"), "services.yaml");
+        assert_eq!(
+            uri_from_path("./services.yaml", Path::new(DOT)),
+            "services.yaml"
+        );
+        assert_eq!(
+            uri_from_path(".\\services.yaml", Path::new(DOT)),
+            "services.yaml"
+        );
+        assert_eq!(
+            uri_from_path("services.yaml", Path::new(DOT)),
+            "services.yaml"
+        );
     }
 
     #[test]
     fn uri_from_path_normalises_windows_separators_so_the_uri_is_not_os_dependent() {
         assert_eq!(
-            uri_from_path(".\\catalog\\services.yaml"),
+            uri_from_path(".\\catalog\\services.yaml", Path::new(DOT)),
             "catalog/services.yaml"
         );
         assert_eq!(
-            uri_from_path("catalog\\nested\\services.yaml"),
+            uri_from_path("catalog\\nested\\services.yaml", Path::new(DOT)),
             "catalog/nested/services.yaml"
+        );
+    }
+
+    // The defect this section pins: an absolute path used to be emitted
+    // as-is, so `C:/repo/services.yaml` shipped as a URI whose scheme is a
+    // drive letter and `/srv/repo/services.yaml` as a root-relative
+    // reference. Case 2 (relativise against the run root) and case 3
+    // (`file://` fallback) are asserted separately so a mutation that
+    // removes one branch fails its own tests and not the other's.
+
+    #[test]
+    fn an_absolute_manifest_under_the_run_root_is_relativised_against_it() {
+        // Windows drive form, the exact shape `--root C:\repo` produces.
+        assert_eq!(
+            uri_from_path("C:\\repo\\services.yaml", Path::new("C:\\repo")),
+            "services.yaml"
+        );
+        assert_eq!(
+            uri_from_path("C:\\repo\\catalog\\services.yaml", Path::new("C:\\repo")),
+            "catalog/services.yaml"
+        );
+        // POSIX form.
+        assert_eq!(
+            uri_from_path("/srv/repo/services.yaml", Path::new("/srv/repo")),
+            "services.yaml"
+        );
+        // A trailing separator on the root must not defeat the match.
+        assert_eq!(
+            uri_from_path("C:\\repo\\services.yaml", Path::new("C:\\repo\\")),
+            "services.yaml"
+        );
+    }
+
+    #[test]
+    fn an_absolute_manifest_outside_the_run_root_becomes_a_file_uri() {
+        // Windows drive form: the old output here was `C:/repo/services.yaml`,
+        // which parses as scheme `c`.
+        assert_eq!(
+            uri_from_path("C:\\repo\\services.yaml", Path::new(DOT)),
+            "file:///C:/repo/services.yaml"
+        );
+        assert_eq!(
+            uri_from_path("C:\\repo\\services.yaml", Path::new("D:\\elsewhere")),
+            "file:///C:/repo/services.yaml"
+        );
+        // POSIX form: the old output was a root-relative reference.
+        assert_eq!(
+            uri_from_path("/srv/repo/services.yaml", Path::new(DOT)),
+            "file:///srv/repo/services.yaml"
+        );
+        // UNC form: the host belongs in the authority component.
+        assert_eq!(
+            uri_from_path("\\\\server\\share\\services.yaml", Path::new(DOT)),
+            "file://server/share/services.yaml"
+        );
+    }
+
+    #[test]
+    fn file_uri_fallback_percent_encodes_what_a_path_may_contain_and_a_uri_may_not() {
+        assert_eq!(
+            uri_from_path("C:\\repo dir\\services.yaml", Path::new(DOT)),
+            "file:///C:/repo%20dir/services.yaml"
+        );
+    }
+
+    /// Run the emitted URIs through the real `url` parser rather than eyeball
+    /// them: the pre-fix Windows output really does parse as a URI with a
+    /// one-letter scheme (the bug), and every post-fix absolute fallback must
+    /// parse as scheme `file`.
+    #[test]
+    fn absolute_fallback_uris_parse_as_file_scheme_where_the_old_output_did_not() {
+        // The defect, demonstrated with the parser a consumer would use.
+        let old_output = url::Url::parse("C:/repo/services.yaml").expect("the bug: this parses");
+        assert_eq!(
+            old_output.scheme(),
+            "c",
+            "drive letter read as a URI scheme"
+        );
+
+        for path in [
+            "C:\\repo\\services.yaml",
+            "/srv/repo/services.yaml",
+            "\\\\server\\share\\services.yaml",
+            "C:\\repo dir\\services.yaml",
+        ] {
+            let uri = uri_from_path(path, Path::new(DOT));
+            let parsed = url::Url::parse(&uri)
+                .unwrap_or_else(|e| panic!("emitted URI {uri:?} does not parse: {e}"));
+            assert_eq!(parsed.scheme(), "file", "for input {path:?}");
+        }
+    }
+
+    #[test]
+    fn the_document_relativises_an_absolute_manifest_against_the_run_root() {
+        let report = report_at(
+            "C:\\repo\\services.yaml",
+            vec![drift(DriftKind::MissingField, Severity::Warning)],
+        );
+
+        let relativised = build_sarif(&report, &[], Path::new("C:\\repo"));
+        assert_eq!(
+            relativised["runs"][0]["artifacts"][0]["location"]["uri"],
+            "services.yaml"
+        );
+
+        let fallback = build_sarif(&report, &[], Path::new(DOT));
+        assert_eq!(
+            fallback["runs"][0]["artifacts"][0]["location"]["uri"],
+            "file:///C:/repo/services.yaml"
         );
     }
 
     #[test]
     fn the_artifact_uri_and_every_result_location_name_the_same_file() {
-        let doc = build_sarif(
+        let doc = sarif_doc(
             &report_at(
                 ".\\catalog\\services.yaml",
                 vec![drift(DriftKind::MissingField, Severity::Warning)],
