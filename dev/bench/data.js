@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785037052544,
+  "lastUpdate": 1785040208700,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2939,6 +2939,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12386,
             "range": "± 32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5767793f227bb062ba1dcc342ce8cceca6279a96",
+          "message": "ci: add the missing lint gate (fmt + clippy) (#26)\n\n* ci: add the missing lint gate (fmt + clippy) to ci.yml\n\nsvccat was the only one of the three published crates with no lint gate at\nall: none of the six workflow files ran `cargo fmt` or `cargo clippy`, and\nthere is no rust-toolchain, clippy.toml, deny.toml, Makefile, justfile or\npre-commit config either, so formatting drift and clippy `-D warnings`\nerrors could merge silently. PR #24's first draft carried two\n(`field_reassign_with_default`, `type_complexity`) that only a local run\ncaught. slokit already requires a `fmt, clippy, test` context.\n\nNew `lint` job, \"Lint (fmt + clippy)\", ubuntu-latest only (the three-OS\nBuild & Test matrix already covers compile/test; rustfmt output and the\nclippy lint set are toolchain-versioned, not OS-versioned).\n\n`tests/ci_lint_gate_tests.rs` pins the job from the test suite, which every\nPR runs: one test asserts the job's `name:` (the branch-protection required\ncontext string) and one asserts both commands verbatim, so deleting the\njob, renaming it out from under its protection binding, or dropping\n`-D warnings` fails a check instead of passing silently.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n* fix(rule_schema): clear the clippy question_mark the new gate caught\n\nThe `Lint (fmt + clippy)` job went red on its own first run: clippy 1.97 on\nthe ubuntu runner flagged `clippy::question_mark` at src/rule_schema.rs:179\n(`find_base_cycle`'s `match by_id.get(base_id)` with a `None => return None`\narm) while the local clippy 1.96 was silent about it. Pre-existing code,\nfound by the gate rather than by a diff, which is the point of adding it.\n\nApplied clippy's own suggestion (`let base_rule = by_id.get(base_id)?;`);\nsemantics are identical, a dangling base still terminates the walk as \"not a\ncycle\". `cargo test --all-features` 343 passed, including the 9 rule_schema\nunit tests that cover self-reference, mutual and three-hop cycles plus the\ndangling-base case. Verified clean under stable clippy 1.96 AND nightly\nclippy 0.1.99 (a superset of the runner's 1.97 lint set).\n\nAlso documents the floating-@stable toolchain-drift caveat in the job's\ncomment block: the response to a new lint is to clear it, never to weaken\nthe gate.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-25T23:26:45-05:00",
+          "tree_id": "546742405fe5024af8bb9e2c1c5d281f868495e2",
+          "url": "https://github.com/rodmen07/svccat/commit/5767793f227bb062ba1dcc342ce8cceca6279a96"
+        },
+        "date": 1785040208426,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12631,
+            "range": "± 108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23280,
+            "range": "± 168",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 307,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5437,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5181,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12052,
+            "range": "± 39",
             "unit": "ns/iter"
           }
         ]
