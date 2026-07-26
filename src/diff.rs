@@ -2,7 +2,7 @@ use crate::manifest::ServiceEntry;
 use anyhow::Result;
 use colored::Colorize;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 // ── Snapshot (subset of export JSON we care about) ───────────────────────────
@@ -114,44 +114,7 @@ pub fn diff_snapshots(before_path: &Path, after_path: &Path) -> Result<DiffRepor
     changed.sort_by(|a, b| a.name.cmp(&b.name));
 
     // Drift changes
-    let before_drift: std::collections::HashSet<String> = before
-        .drift
-        .iter()
-        .map(|d| format!("{}:{}", d.service, d.message))
-        .collect();
-    let after_drift: std::collections::HashSet<String> = after
-        .drift
-        .iter()
-        .map(|d| format!("{}:{}", d.service, d.message))
-        .collect();
-
-    let new_drift: Vec<String> = after
-        .drift
-        .iter()
-        .filter(|d| !before_drift.contains(&format!("{}:{}", d.service, d.message)))
-        .map(|d| {
-            format!(
-                "[{}] {} — {}",
-                d.severity.to_uppercase(),
-                d.service,
-                d.message
-            )
-        })
-        .collect();
-
-    let resolved_drift: Vec<String> = before
-        .drift
-        .iter()
-        .filter(|d| !after_drift.contains(&format!("{}:{}", d.service, d.message)))
-        .map(|d| {
-            format!(
-                "[{}] {} — {}",
-                d.severity.to_uppercase(),
-                d.service,
-                d.message
-            )
-        })
-        .collect();
+    let (new_drift, resolved_drift) = drift_changes(&before.drift, &after.drift);
 
     Ok(DiffReport {
         before_path: before_path.display().to_string(),
@@ -322,6 +285,60 @@ pub fn render_diff(report: &DiffReport) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// The identity two snapshots compare drift entries by: same service, same
+/// message. Severity is deliberately excluded, so a drift item whose severity was
+/// re-classified between snapshots is not reported as one resolved plus one new.
+fn drift_key(item: &DriftSummaryItem) -> String {
+    format!("{}:{}", item.service, item.message)
+}
+
+/// One rendered drift line, as both renderers print it.
+fn drift_line(item: &DriftSummaryItem) -> String {
+    format!(
+        "[{}] {} — {}",
+        item.severity.to_uppercase(),
+        item.service,
+        item.message
+    )
+}
+
+/// The `(new_drift, resolved_drift)` pair for two snapshots' drift lists.
+///
+/// Both lists walk their SOURCE vector in order instead of differencing two hash
+/// sets, so the output follows the snapshot the reader is looking at and is
+/// identical across runs; `HashSet` iteration order is unspecified and is
+/// re-randomised per set by the default hasher, which made these lists shuffle
+/// between two runs over byte-identical input. Each `service:message` is reported
+/// once, keeping its first occurrence, because nothing upstream dedupes the drift
+/// vector.
+///
+/// This is the single implementation behind BOTH `diff_snapshots` (the
+/// `svccat diff` path) and `build_diff` (the `svccat snapshot diff` path). They
+/// used to compute these lists separately and disagreed on both the order and the
+/// text: one emitted the severity-prefixed line, the other the raw
+/// `service:message` key, out of one public `DiffReport` field.
+/// `tests/diff_drift_order_tests.rs::both_diff_entry_points_produce_identical_drift_lists`
+/// reads both entry points and is what keeps them from splitting again.
+fn drift_changes(
+    before: &[DriftSummaryItem],
+    after: &[DriftSummaryItem],
+) -> (Vec<String>, Vec<String>) {
+    fn only_in(source: &[DriftSummaryItem], other: &[DriftSummaryItem]) -> Vec<String> {
+        let other_keys: HashSet<String> = other.iter().map(drift_key).collect();
+        let mut seen: HashSet<String> = HashSet::new();
+        source
+            .iter()
+            .filter(|item| {
+                let key = drift_key(item);
+                !other_keys.contains(&key) && seen.insert(key)
+            })
+            .map(drift_line)
+            .collect()
+    }
+
+    (only_in(after, before), only_in(before, after))
+}
+
 fn opt_str(v: &Option<String>) -> String {
     v.as_deref().unwrap_or("(none)").to_string()
 }
@@ -426,19 +443,7 @@ fn build_diff(
         }
     }
 
-    let before_drift: std::collections::HashSet<String> = before
-        .drift
-        .iter()
-        .map(|d| format!("{}:{}", d.service, d.message))
-        .collect();
-    let after_drift: std::collections::HashSet<String> = after
-        .drift
-        .iter()
-        .map(|d| format!("{}:{}", d.service, d.message))
-        .collect();
-
-    let new_drift: Vec<String> = after_drift.difference(&before_drift).cloned().collect();
-    let resolved_drift: Vec<String> = before_drift.difference(&after_drift).cloned().collect();
+    let (new_drift, resolved_drift) = drift_changes(&before.drift, &after.drift);
 
     Ok(DiffReport {
         before_path: before_label.to_string(),

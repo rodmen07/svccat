@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`svccat snapshot diff` no longer prints its drift lists in a random order, or in a different format from `svccat diff`.** The two commands build the same public `DiffReport::new_drift` / `resolved_drift` fields through two different code paths, and only one of them was correct. The snapshot path differenced two `HashSet`s, whose iteration order is unspecified and re-randomised per set by the default hasher, so two runs over byte-identical snapshots listed the same drift in different orders (observed failing on the first repeat inside a single process, not just across runs); it also emitted the bare `service:message` dedup key while `svccat diff` emitted the severity-prefixed line, so one public field carried two formats depending on which command filled it. Both lists are now built by one shared helper that walks the source snapshot's drift vector in order and reports each `service:message` once, so `svccat snapshot diff --format markdown` is stable enough to commit or to diff in CI, and both commands render drift identically. A `service:message` whose severity was re-classified between snapshots is still not reported as one resolved plus one new, as before.
+
 ## [1.6.0] - 2026-07-26
 
 Everything in this release was merged to `main` between 2026-07-19 and 2026-07-26 and
