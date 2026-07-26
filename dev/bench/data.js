@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785070988013,
+  "lastUpdate": 1785087349366,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3359,6 +3359,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12019,
             "range": "± 61",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "203281930aa8afec2ab559217cfff1a925874cab",
+          "message": "fix(policy): load .svccat/policy.yaml under the manifest's resource-limit posture (#33)\n\n* wip: interrupted policy size-limits increment\n\nAutodev wave 17 was killed mid-increment when the Claude Code process\nexited (2026-07-26 10:20). Preserves the working tree as the worker left\nit. NOT verified, NOT gate-checked, NOT PR-ready: audit before trusting\n(L-007), then finish or discard this branch on its merits.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n* style: rustfmt pass over the interrupted WIP\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n* docs: changelog and roadmap entries for the policy resource limits\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T12:33:10-05:00",
+          "tree_id": "5aa6c08c2525e2ed4b254d501b9647524d057f3a",
+          "url": "https://github.com/rodmen07/svccat/commit/203281930aa8afec2ab559217cfff1a925874cab"
+        },
+        "date": 1785087348563,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 9729,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 18250,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 207,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 3931,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 3565,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 9529,
+            "range": "± 19",
             "unit": "ns/iter"
           }
         ]
