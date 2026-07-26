@@ -303,15 +303,44 @@ svccat **does not** produce audit logs. For compliance/audit requirements:
 
 ## Changelog of Security Fixes
 
-### v0.19.0 (Planned)
+### v1.6.0 (2026-07-26)
 
-- [ ] Fix symlink attacks in discovery (detect symlinks, add `--follow-symlinks` flag)
-- [ ] Fix path traversal in manifest `path` fields (normalize and validate)
-- [ ] Add glob pattern DoS mitigations (depth limits, pattern whitelisting)
-- [ ] Improve error message redaction (no full paths in output)
-- [ ] Add security.md documentation
+- ✅ DOM-based XSS in the HTML dependency graph (`graph --format html` and
+  `workspace check --format html`). Node and link JSON was embedded by Rust `{:?}`
+  Debug interpolation rather than the escaping writer, and the D3 tooltip wrote
+  service metadata straight into `innerHTML`, so a service `name`, `platform`,
+  `team` or `language` from `services.yaml` could execute script in whoever opened
+  the report. Both paths escape now.
+- ✅ SSRF via HTTP redirect in `--ping` and webhooks. The v0.19.0 URL validation
+  below only ever applied to the address the user supplied; `ureq` then followed
+  redirects internally, so a public URL could be redirected to a private or
+  loopback address unchecked. `src/safe_http.rs` disables automatic
+  redirect-following and re-validates every hop.
+- ✅ Stack overflow (HIGH) on a cyclic policy rule `base` chain. A rule naming
+  itself, or two naming each other, drove the inheritance resolver into unbounded
+  recursion and killed the process instead of returning an error, reachable from
+  the `services.yaml` of any scanned repository. Resolution is an iterative walk
+  with cycle detection, pinned by a fuzz target and committed crash reproducers.
+- ✅ `svccat lint` validates inline policy rules before they reach the compiler,
+  so a malformed rule is reported rather than silently disabling every policy rule
+  at check time.
 
-### v0.18.1 (Current)
+### v0.19.0 (2026-05-28)
+
+Delivered in full; see the v0.19.0 CHANGELOG entry, which records ten fixes.
+
+- ✅ Symlink attacks in discovery. Symlinks are **rejected** during discovery
+  (`src/discovery.rs`), not followed. The `--follow-symlinks` opt-out this item
+  originally proposed was deliberately not built: there is no flag to re-enable
+  following, so the safe behaviour cannot be turned off.
+- ✅ Path traversal in manifest `path` fields (normalize and validate; also
+  applies to `submodule`, `docs` and `ci`)
+- ✅ Glob pattern DoS mitigations (max 20 discovery patterns, max 2 consecutive
+  wildcards)
+- ✅ Error message redaction (absolute paths converted to repo-relative)
+- ✅ SECURITY.md documentation
+
+### v0.18.1 (2026-05-27)
 
 - ✅ Git command injection prevention (git ref validation, manifest path validation)
 - ✅ SSRF prevention (URL validation, private IP blocking)
@@ -338,4 +367,4 @@ For questions or security concerns:
 
 This security policy is part of svccat, released under the MIT License.
 
-Last Updated: 2026-05-27
+Last Updated: 2026-07-26

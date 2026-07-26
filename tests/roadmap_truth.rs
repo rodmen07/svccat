@@ -238,6 +238,36 @@ fn roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some() {
     );
 }
 
+/// The changelog's own ordering, which nothing checked until now.
+///
+/// The 1.2.0 / 1.3.x cluster sat out of order from 2026-07-09 (1.2.0 between 1.4.0 and
+/// 1.3.0; 1.3.2 above 1.3.1) and survived two hygiene milestones as a hand task nobody's
+/// build could see: v1.5.1 listed it, was retired, and handed it to v1.6.0, which fixed
+/// it. A one-time sort rots exactly the way this roadmap did twice, so the third
+/// reconciliation ships as a guard instead of a promise.
+#[test]
+fn changelog_versions_are_in_strictly_descending_order() {
+    let released = released_versions(&read("CHANGELOG.md"));
+    assert!(
+        released.len() > 20,
+        "parsed only {} released versions from CHANGELOG.md; the `## [x.y.z]` heading \
+         format changed and this guard stopped guarding anything",
+        released.len()
+    );
+
+    let out_of_order: Vec<String> = released
+        .windows(2)
+        .filter(|pair| pair[0] <= pair[1])
+        .map(|pair| format!("{} is listed above {}", show(pair[0]), show(pair[1])))
+        .collect();
+    assert!(
+        out_of_order.is_empty(),
+        "CHANGELOG.md headings must run newest first, strictly descending, so the top of \
+         the file is always the newest release: {}",
+        out_of_order.join("; ")
+    );
+}
+
 // Every extractor above is exercised on input whose answer is known, so a parser that
 // silently stops matching fails here rather than turning the four guards into
 // assertions that cannot fire.
@@ -253,6 +283,14 @@ fn extractors_find_what_they_are_looking_for() {
         released_versions("## [Unreleased]\n## [1.5.0] - 2026-07-18\n## [1.4.1] - 2026-07-09\n"),
         vec![(1, 5, 0), (1, 4, 1)],
         "released_versions must skip [Unreleased] and keep dated releases"
+    );
+
+    // The ordering guard reads file order, so released_versions must preserve it
+    // rather than sorting: a sorted extractor would make that guard unfalsifiable.
+    assert_eq!(
+        released_versions("## [1.2.0] - a\n## [1.3.0] - b\n"),
+        vec![(1, 2, 0), (1, 3, 0)],
+        "released_versions must report versions in FILE order, never sorted"
     );
 
     assert!(changelog_has_unreleased_entries(

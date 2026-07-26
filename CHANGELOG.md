@@ -9,19 +9,37 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-26
+
+Everything in this release was merged to `main` between 2026-07-19 and 2026-07-26 and
+had no published version until now: `cargo install svccat` delivered 1.5.0 the whole
+time. Each entry cites the pull request that landed it.
+
 ### Added
 
-- **`PolicyConfig::load_checked`** (library): loads `.svccat/policy.yaml` and reports *why* an existing file did not load, via the new `PolicyLoadError` (`Read` / `Parse`, each carrying the path). `PolicyConfig::load` is unchanged for callers that want "policy or nothing" and now delegates to `load_checked`, so the two can never disagree about which candidate file wins.
+- **Multi-repo `workspace` config completion, and `workspace check --filter` actually filters** (PR #4). The `[workspace]` `name` and `description` fields of `svccat.toml` are parsed and propagated to all three `workspace check` renderers. `--filter` (comma-separated repo names) had been accepted and then discarded since v0.21.0, a documented flag that silently did nothing, and now restricts the run to the named repos.
+- **`[reporting]` section in `svccat.toml`** (PR #5): `format` sets the default output format (an explicit `--format` still wins), `include_cross_repo_deps = false` skips cross-repo dependency analysis entirely rather than merely hiding it from the report, and `exclude_patterns` merges additively into the discovery ignore globs coming from `--ignore` and the root config, so no source of ignores can silently drop another's. A recognised key carrying an unusable value is rejected rather than ignored.
+- **`svccat workspace check --format html`** (PR #6, hardened by PR #8): a self-contained multi-repo HTML report (summary table, per-repo drift tables, cross-repo dependency analysis, and an interactive D3 dependency graph) with no external assets and no network access when it is opened.
+- **CycloneDX 1.7 JSON SBOM export** (PR #11): `svccat export --format cyclonedx-json [--output <file>]`, a sibling of the SPDX 2.3 exporter added in v1.5.0.
+- **`svccat lint` now validates inline policy rules** (PR #12). `manifest.policy.rules` was never looked at by `lint`, so a duplicate rule id, a dangling `base` reference, a bad severity or an unparsable expression passed lint and then disabled *every* policy rule at check time behind a warning that did not change the exit code. A new `src/rule_schema.rs` runs the structural checks first, including base-chain cycle detection, and only then delegates to the rule compiler for semantic ones. Rule-compiler errors now name the offending rule id.
+- **`PolicyConfig::load_checked` and `PolicyLoadError`** (library, PR #25): loads `.svccat/policy.yaml` and reports *why* an existing file did not load, via `PolicyLoadError` (`Read` / `Parse`, each carrying the path). `PolicyConfig::load` is unchanged for callers that want "policy or nothing" and now delegates to `load_checked`, so the two can never disagree about which candidate file wins.
 
 ### Changed
 
-- **`notify` upgraded from 6.1.1 to 8.2.0**, the filesystem-watching backend behind `svccat watch` and `svccat ci --watch`. No behaviour change is intended or expected: the `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface svccat uses is identical across both majors, and `src/watch.rs` gained its first tests (an `is_relevant` contract test and an end-to-end test that the platform watcher really delivers events) so the swap is proven rather than assumed. Transitive dependency count dropped from 213 to 212 (`crossbeam-channel`, `filetime` and `bitflags` 1.x dropped, `notify-types` added).
+- **`notify` upgraded from 6.1.1 to 8.2.0** (PR #21), the filesystem-watching backend behind `svccat watch` and `svccat ci --watch`. No behaviour change is intended or expected: the `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface svccat uses is identical across both majors, and `src/watch.rs` gained its first tests (an `is_relevant` contract test and an end-to-end test that the platform watcher really delivers events) so the swap is proven rather than assumed. Transitive dependency count dropped from 213 to 212 (`crossbeam-channel`, `filetime` and `bitflags` 1.x dropped, `notify-types` added).
 
 ### Fixed
 
-- **A broken `.svccat/policy.yaml` is no longer reported as an absent one.** `PolicyConfig::load` swallowed both the read error and the parse error and returned `None`, so a policy file with a typo in it was indistinguishable from having no policy file at all: `svccat policy` printed *"No policy file found. Create .svccat/policy.yaml ..."* — about a file that exists — and exited 0; `svccat ci` dropped the `policy` step from its report and said "all checks passed", silently disabling the policy gate in a pipeline; `svccat scorecard` scored the repo with no policy contribution and said nothing. All three now name the file and the reason. `svccat policy` exits 2 (the CLI's existing code for a bad input), `svccat ci` reports the `policy` step as failed rather than skipped, and `svccat scorecard` warns and scores on. A genuinely absent policy file behaves exactly as before, and a policy file that exists but declares no fields now says so instead of claiming none was found.
-- **`svccat watch`'s "Manifest changes detected" summary is no longer printed in a random order.** The added and removed lists were collected straight out of `HashSet::difference`, whose iteration order is unspecified and is re-randomised per set by the default hasher, so adding `cache` and `worker` in one edit printed `+ 2 service(s): cache, worker` on one reload and `worker, cache` on the next with nothing about the manifest having changed. All three lists now follow the order of the manifest they were read from — added and modified follow the new `services:` list, removed follows the previous one — which is the rule the modified list already used, and each name is reported at most once even if `services.yaml` declares it twice.
-- **`svccat watch` now reports a service whose `path` or `submodule` was edited.** The comparison behind watch mode's "Manifest changes detected" summary hand-listed 11 of `ServiceEntry`'s 13 fields and omitted exactly the two that decide where a service lives on disk (`ServiceEntry::declared_path`), so re-pointing a service in `services.yaml` was never listed as modified — and when the re-point did not also change the drift count, watch mode printed nothing at all. The comparison now delegates to the derived `PartialEq`, so it reads the struct definition instead of a copy of it, and a field added later cannot fall out of change detection the same way.
+- **`svccat watch` now reports a service whose `path` or `submodule` was edited** (PR #24). The comparison behind watch mode's "Manifest changes detected" summary hand-listed 11 of `ServiceEntry`'s 13 fields and omitted exactly the two that decide where a service lives on disk (`ServiceEntry::declared_path`), so re-pointing a service in `services.yaml` was never listed as modified, and when the re-point did not also change the drift count, watch mode printed nothing at all. The comparison now delegates to the derived `PartialEq`, so it reads the struct definition instead of a copy of it, and a field added later cannot fall out of change detection the same way.
+- **A broken `.svccat/policy.yaml` is no longer reported as an absent one** (PR #25). `PolicyConfig::load` swallowed both the read error and the parse error and returned `None`, so a policy file with a typo in it was indistinguishable from having no policy file at all: `svccat policy` printed *"No policy file found. Create .svccat/policy.yaml ..."*, about a file that exists, and exited 0; `svccat ci` dropped the `policy` step from its report and said "all checks passed", silently disabling the policy gate in a pipeline; `svccat scorecard` scored the repo with no policy contribution and said nothing. All three now name the file and the reason. `svccat policy` exits 2 (the CLI's existing code for a bad input), `svccat ci` reports the `policy` step as failed rather than skipped, and `svccat scorecard` warns and scores on. A genuinely absent policy file behaves exactly as before, and a policy file that exists but declares no fields now says so instead of claiming none was found.
+- **`svccat watch`'s "Manifest changes detected" summary is no longer printed in a random order** (PR #27). The added and removed lists were collected straight out of `HashSet::difference`, whose iteration order is unspecified and is re-randomised per set by the default hasher, so adding `cache` and `worker` in one edit printed `+ 2 service(s): cache, worker` on one reload and `worker, cache` on the next with nothing about the manifest having changed. All three lists now follow the order of the manifest they were read from (added and modified follow the new `services:` list, removed follows the previous one), which is the rule the modified list already used, and each name is reported at most once even if `services.yaml` declares it twice.
+- **`check --ping --format sarif` no longer computes ping results and throws them away** (PR #28). The SARIF renderer took the ping results and never used them, so a service failing its health check produced no SARIF result at all: the one output format wired into GitHub Code Scanning reported drift and stayed silent about reachability. Ping failures are now results under their own rules, emitted in the manifest order `ping::ping_services` walked so the document is deterministic for a given input.
+
+### Security
+
+- **DOM-based XSS in the HTML dependency graph** (PR #7). `graph --format html` embedded its node and link JSON by Rust `{:?}` Debug interpolation instead of the escaping writer used everywhere else, and the D3 tooltip wrote service metadata straight into `innerHTML`. A service `name`, `platform`, `team` or `language` in `services.yaml` could therefore execute script in whoever opened the generated report. Both the data island and the tooltip escape now, with regression tests asserting the breakout sequence is absent and the escaped form present for every affected field.
+- **SSRF via HTTP redirect in `--ping` and webhooks** (PR #14). `ureq` follows redirects internally, so a URL that passed `validate_url` could be redirected to a private or loopback address with no re-validation of the new target, and the check that blocks private IPs applied only to the address the user typed. The new `src/safe_http.rs` disables automatic redirect-following and re-validates every hop before following it. Two pre-existing trust-boundary limits are unchanged and remain documented: the `localhost` development exception also applies to redirect targets, and non-IP-literal hostnames are still not resolved before the fetch (DNS rebinding).
+- **HIGH severity: stack overflow on a cyclic policy rule `base` chain** (PR #16). A rule naming itself, or two rules naming each other, sent `RuleEngine::compile`'s inheritance resolver into unbounded recursion and killed the process with a stack overflow (`STATUS_STACK_OVERFLOW`, `0xc00000fd` on Windows) instead of returning an error, and it is reachable from the `services.yaml` of any repository being scanned. Resolution is now an iterative walk with cycle detection, and the case is pinned by a fuzz target plus committed crash-reproducer corpora.
 
 ## [1.5.0] - 2026-07-18
 
@@ -47,15 +65,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `svccat export` now supports the `--output <file>` option across JSON, CSV, Markdown, and Backstage YAML formats.
  
-## [1.2.0] - 2026-07-09
+## [1.3.2] - 2026-07-09
 
-### Changed
+### Fixed
 
-- Bumped crate version to 1.2.0.
+- Formatting: fix long warning line in `src/main.rs` to satisfy rustfmt check. (Patch release)
 
-### Notes
+## [1.3.1] - 2026-07-09
 
-- Release notes autogenerated from commits since `1.1.7`. No additional user-facing changes were found since the last published version.
+### Fixed
+
+- CI: ensure `svccat check` (installed from crates.io) won't fail PR runs when no `services.yaml` is present by exiting gracefully. (Patch release)
 
 ## [1.3.0] - 2026-07-09
 
@@ -71,18 +91,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `svccat check` now exits gracefully (prints a warning) when no manifest is found in the repo root. This makes CI runs that invoke `svccat check` safe for repositories without a `services.yaml` file.
 
-## [1.3.2] - 2026-07-09
+## [1.2.0] - 2026-07-09
 
-### Fixed
+### Changed
 
-- Formatting: fix long warning line in `src/main.rs` to satisfy rustfmt check. (Patch release)
+- Bumped crate version to 1.2.0.
 
-## [1.3.1] - 2026-07-09
+### Notes
 
-### Fixed
-
-- CI: ensure `svccat check` (installed from crates.io) won't fail PR runs when no `services.yaml` is present by exiting gracefully. (Patch release)
-
+- Release notes autogenerated from commits since `1.1.7`. No additional user-facing changes were found since the last published version.
 
 ## [1.1.7] - 2026-06-27
 
