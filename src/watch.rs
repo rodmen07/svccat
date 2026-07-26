@@ -266,19 +266,17 @@ fn detect_changes(
     (added, removed, modified)
 }
 
-/// Compare two services for equality (ignoring derived fields)
+/// Compare two services for equality.
+///
+/// Delegates to `ServiceEntry`'s derived `PartialEq` instead of listing fields
+/// by hand. The hand-written list this replaces compared 11 of the struct's 13
+/// fields and silently omitted `path` and `submodule` — the two fields that
+/// decide where a service lives on disk (`ServiceEntry::declared_path`) — so
+/// re-pointing a service in `services.yaml` was never reported as a
+/// modification. A derived comparison reads the struct definition itself, so a
+/// field added later cannot fall out of change detection the same way.
 fn services_equal(a: &manifest::ServiceEntry, b: &manifest::ServiceEntry) -> bool {
-    a.name == b.name
-        && a.language == b.language
-        && a.platform == b.platform
-        && a.team == b.team
-        && a.role == b.role
-        && a.url == b.url
-        && a.oncall == b.oncall
-        && a.docs == b.docs
-        && a.ci == b.ci
-        && a.depends_on == b.depends_on
-        && a.tags == b.tags
+    a == b
 }
 
 /// Display a summary of changes in a visually clear format
@@ -484,6 +482,166 @@ mod tests {
             paths: Vec::new(),
             attrs: EventAttributes::default(),
         }
+    }
+
+    /// One field of `ServiceEntry` plus the edit that changes it.
+    type FieldMutator = (&'static str, fn(&mut manifest::ServiceEntry));
+
+    /// A service with EVERY `ServiceEntry` field populated, so a mutation test
+    /// changes a value rather than filling in a `None`.
+    ///
+    /// Written as an exhaustive struct literal with no `..Default::default()`
+    /// on purpose: adding a 14th field to `ServiceEntry` then stops this file
+    /// COMPILING until the field is given a value here and a mutator in
+    /// `every_non_name_field_of_service_entry_counts_as_a_modification` below.
+    /// That build failure is the signal `path` and `submodule` never got when
+    /// they were left out of the change comparison.
+    fn populated_service(name: &str) -> manifest::ServiceEntry {
+        manifest::ServiceEntry {
+            name: name.to_string(),
+            language: Some("Rust".to_string()),
+            platform: Some("Cloud Run".to_string()),
+            url: Some("https://api.example.com".to_string()),
+            role: Some("Service".to_string()),
+            team: Some("platform".to_string()),
+            oncall: Some("@platform-oncall".to_string()),
+            submodule: Some("vendor/api".to_string()),
+            path: Some("services/api".to_string()),
+            docs: Some("docs/api.md".to_string()),
+            ci: Some(".github/workflows/api.yml".to_string()),
+            tags: vec!["critical".to_string()],
+            depends_on: vec!["db".to_string()],
+        }
+    }
+
+    /// The regression test for the defect this module shipped with: editing a
+    /// service's `path` or `submodule` in `services.yaml` was never reported by
+    /// watch mode, because `services_equal` hand-listed 11 of `ServiceEntry`'s
+    /// 13 fields and those two were missing. Against the old comparison the
+    /// `path` and `submodule` iterations of this loop fail; the other ten pass,
+    /// which is what makes the assertion non-tautological.
+    #[test]
+    fn every_non_name_field_of_service_entry_counts_as_a_modification() {
+        // One entry per field `populated_service` sets, except `name`; the
+        // exhaustive literal there is what forces a new field to arrive here.
+        let mutators: Vec<FieldMutator> = vec![
+            ("language", |s| s.language = Some("Go".to_string())),
+            ("platform", |s| s.platform = Some("Fly.io".to_string())),
+            ("url", |s| s.url = Some("https://api.internal".to_string())),
+            ("role", |s| s.role = Some("Worker".to_string())),
+            ("team", |s| s.team = Some("growth".to_string())),
+            ("oncall", |s| s.oncall = Some("@growth-oncall".to_string())),
+            ("submodule", |s| {
+                s.submodule = Some("vendor/api-v2".to_string())
+            }),
+            ("path", |s| s.path = Some("services/api-v2".to_string())),
+            ("docs", |s| s.docs = Some("docs/api-v2.md".to_string())),
+            ("ci", |s| {
+                s.ci = Some(".github/workflows/v2.yml".to_string())
+            }),
+            ("tags", |s| s.tags = vec!["beta".to_string()]),
+            ("depends_on", |s| s.depends_on = vec!["cache".to_string()]),
+        ];
+        assert_eq!(
+            mutators.len(),
+            12,
+            "one mutator per `ServiceEntry` field except `name` (a name change is \
+             an add plus a remove, asserted separately)"
+        );
+
+        let base = populated_service("api");
+        for (field, mutate) in mutators {
+            let mut changed = base.clone();
+            mutate(&mut changed);
+
+            let (added, removed, modified) =
+                detect_changes(std::slice::from_ref(&base), std::slice::from_ref(&changed));
+
+            assert!(
+                added.is_empty() && removed.is_empty(),
+                "editing `{field}` is neither an addition nor a removal, got \
+                 added={added:?} removed={removed:?}"
+            );
+            assert_eq!(
+                modified,
+                vec!["api".to_string()],
+                "editing `{field}` in services.yaml is not reported as a \
+                 modification by watch mode"
+            );
+        }
+    }
+
+    /// A name change is the one edit that is NOT a modification: the service is
+    /// keyed by name, so it reads as one removal plus one addition.
+    #[test]
+    fn detect_changes_reports_a_renamed_service_as_added_plus_removed() {
+        let prev = vec![populated_service("api")];
+        let new = vec![populated_service("api-gateway")];
+
+        let (added, removed, modified) = detect_changes(&prev, &new);
+
+        assert_eq!(added, vec!["api-gateway".to_string()]);
+        assert_eq!(removed, vec!["api".to_string()]);
+        assert!(modified.is_empty(), "got {modified:?}");
+    }
+
+    /// Additions, removals and modifications in a single reload, which is what
+    /// a real `services.yaml` edit looks like. The modification here is a
+    /// `path` re-point, i.e. the exact edit the shipped comparison ignored.
+    #[test]
+    fn detect_changes_reports_additions_removals_and_modifications_together() {
+        let prev = vec![
+            populated_service("api"),
+            populated_service("web"),
+            populated_service("legacy"),
+        ];
+
+        let mut api_moved = populated_service("api");
+        api_moved.path = Some("services/api-v2".to_string());
+        let new = vec![
+            api_moved,
+            populated_service("web"),
+            populated_service("worker"),
+        ];
+
+        let (mut added, removed, modified) = detect_changes(&prev, &new);
+        // `detect_changes` builds added/removed from `HashSet::difference`, so
+        // their order is not defined; sort before asserting on the contents.
+        added.sort();
+
+        assert_eq!(added, vec!["worker".to_string()]);
+        assert_eq!(removed, vec!["legacy".to_string()]);
+        assert_eq!(modified, vec!["api".to_string()]);
+    }
+
+    /// Nothing changed, including a reordered `services:` list: watch mode must
+    /// stay quiet, otherwise every unrelated file event prints a change summary.
+    #[test]
+    fn detect_changes_is_silent_when_nothing_changed_including_reordering() {
+        let prev = vec![populated_service("api"), populated_service("web")];
+        let new = vec![populated_service("web"), populated_service("api")];
+
+        let (added, removed, modified) = detect_changes(&prev, &new);
+
+        assert!(added.is_empty(), "got {added:?}");
+        assert!(removed.is_empty(), "got {removed:?}");
+        assert!(modified.is_empty(), "got {modified:?}");
+    }
+
+    /// Both empty-list directions: the first service added to an empty manifest
+    /// and the last one removed from it.
+    #[test]
+    fn detect_changes_handles_empty_manifests_in_both_directions() {
+        let empty: Vec<manifest::ServiceEntry> = Vec::new();
+        let one = vec![populated_service("first")];
+
+        let (added, removed, modified) = detect_changes(&empty, &one);
+        assert_eq!(added, vec!["first".to_string()]);
+        assert!(removed.is_empty() && modified.is_empty());
+
+        let (added, removed, modified) = detect_changes(&one, &empty);
+        assert!(added.is_empty() && modified.is_empty());
+        assert_eq!(removed, vec!["first".to_string()]);
     }
 
     /// `is_relevant` is the only place svccat interprets `notify`'s event

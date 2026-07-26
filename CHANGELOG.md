@@ -13,6 +13,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`notify` upgraded from 6.1.1 to 8.2.0**, the filesystem-watching backend behind `svccat watch` and `svccat ci --watch`. No behaviour change is intended or expected: the `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface svccat uses is identical across both majors, and `src/watch.rs` gained its first tests (an `is_relevant` contract test and an end-to-end test that the platform watcher really delivers events) so the swap is proven rather than assumed. Transitive dependency count dropped from 213 to 212 (`crossbeam-channel`, `filetime` and `bitflags` 1.x dropped, `notify-types` added).
 
+### Fixed
+
+- **`svccat watch` now reports a service whose `path` or `submodule` was edited.** The comparison behind watch mode's "Manifest changes detected" summary hand-listed 11 of `ServiceEntry`'s 13 fields and omitted exactly the two that decide where a service lives on disk (`ServiceEntry::declared_path`), so re-pointing a service in `services.yaml` was never listed as modified — and when the re-point did not also change the drift count, watch mode printed nothing at all. The comparison now delegates to the derived `PartialEq`, so it reads the struct definition instead of a copy of it, and a field added later cannot fall out of change detection the same way.
+
 ## [1.5.0] - 2026-07-18
 
 ### Added
