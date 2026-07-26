@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785040208700,
+  "lastUpdate": 1785042337162,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2999,6 +2999,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12052,
             "range": "± 39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce830381658a4e128eea2f59dd5f8640589d6036",
+          "message": "fix(watch): report manifest changes in manifest order, not hash order (#27)\n\ndetect_changes built its added/removed lists from HashSet::difference,\nwhose iteration order is unspecified and is re-randomised per set by the\ndefault hasher, so watch mode printed the same change set in a different\norder on every reload. modified was never affected: it walks new_services,\ni.e. manifest order. All three lists now follow the manifest they were read\nfrom, via one names_in_manifest_order helper that also deduplicates a name\nthe loader accepts twice.\n\nThree new tests (343 -> 346) and the existing combined test no longer sorts\nits result before asserting.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T00:02:28-05:00",
+          "tree_id": "929b5c4f0fecadda8c21857b359fffb4e76fda8f",
+          "url": "https://github.com/rodmen07/svccat/commit/ce830381658a4e128eea2f59dd5f8640589d6036"
+        },
+        "date": 1785042336890,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12505,
+            "range": "± 48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23813,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 309,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5497,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5145,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12276,
+            "range": "± 36",
             "unit": "ns/iter"
           }
         ]
