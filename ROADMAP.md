@@ -163,7 +163,7 @@ or two small PRs. UNBLOCKED (was gated on the v1.5.0 release, which shipped
 2026-07-18; both parts touch Cargo.toml and Cargo.lock, which is now permitted).
 
 - Run `cargo outdated` and `cargo audit`; record the bump list in the PR description.
-- **PR 1 SHIPPED 2026-07-25: notify 6.1.1 → 8.2.0**, the current stable major
+- **PR 1 SHIPPED 2026-07-25 (PR #21): notify 6.1.1 → 8.2.0**, the current stable major
   (9.0.0 is release-candidate only). No call-site migration was needed — the
   `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface
   `src/watch.rs` and `src/ci.rs` use is unchanged across both majors — so the
