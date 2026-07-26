@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785022285308,
+  "lastUpdate": 1785025137664,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2639,6 +2639,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12863,
             "range": "± 108",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d6225554fc5f2868ee85b5297d51835aa900aa04",
+          "message": "chore(deps): notify 6.1.1 -> 8.2.0, with the watch backend's first real coverage (#21)\n\n* chore(deps): notify 6.1.1 -> 8.2.0 with first real coverage for the watch backend\n\nv1.7.0 PR 1 (dependency currency, part 1). notify 8.2.0 is the current stable\nmajor; 9.0.0 is release-candidate only and raises the MSRV to 1.88, so 8 is the\nright target under the declared rust-version = \"1.85\".\n\nZero call-site migration was required: the `Config` / `RecommendedWatcher` /\n`RecursiveMode` / `EventKind` surface that `src/watch.rs` and `src/ci.rs` use is\nunchanged across notify 6, 7 and 8, and the crate built with no source edits at\nall. That is exactly why this PR does not stop there -- \"it compiled\" is the\nonly evidence a filesystem-watching backend swap normally leaves behind, and\n`src/watch.rs` had no tests whatsoever.\n\nSo the substance here is the coverage:\n\n- `is_relevant_accepts_create_modify_remove_and_rejects_everything_else` pins\n  the one place svccat interprets notify's event vocabulary, in both\n  directions. The negative half matters specifically because notify 7.0 started\n  reporting inotify open/access events on Linux; svccat must keep ignoring them\n  rather than re-running the whole drift analysis on every file read.\n- `recommended_watcher_delivers_a_relevant_event_for_a_real_write` wires a real\n  `RecommendedWatcher` exactly the way `run()` does and asserts a relevant event\n  actually arrives for a real file write. The three `Build & Test (This\n  Checkout)` legs run it on inotify, ReadDirectoryChangesW and FSEvents -- three\n  different implementations behind one type alias.\n\nSupply chain: 213 -> 212 crates. `crossbeam-channel`, `filetime` and\n`bitflags` 1.x drop out (notify 7 removed its internal crossbeam use and\ndisabled that feature by default); `notify-types` is added (notify 7 moved the\nevent types into it); the windows-sys family moves 0.48 -> 0.60.\n`cargo audit --deny warnings` clean at 212 deps.\n\n* docs(roadmap): cite PR #21 on the shipped v1.7.0 PR 1 line",
+          "timestamp": "2026-07-25T19:15:53-05:00",
+          "tree_id": "4e4a0a0df89bc2f581d5354221c0e58bba9af092",
+          "url": "https://github.com/rodmen07/svccat/commit/d6225554fc5f2868ee85b5297d51835aa900aa04"
+        },
+        "date": 1785025137151,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12725,
+            "range": "± 376",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24251,
+            "range": "± 217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 299,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5057,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4836,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12366,
+            "range": "± 32",
             "unit": "ns/iter"
           }
         ]
