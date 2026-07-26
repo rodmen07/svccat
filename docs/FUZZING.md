@@ -174,13 +174,30 @@ If fuzzing detects memory leaks or resource exhaustion:
 `workflow_dispatch`. It does **not** run on `pull_request` — fuzzing is a
 push/schedule/manual concern, not a per-PR gate, so it never adds time to a
 merge. It matrices the four real targets above, one job per target, each
-running `cargo fuzz run <target> -- -max_total_time=120` (a 120-second
-libFuzzer budget — enough to catch cheap, shallow crashes like the
-unguarded recursive `base` chain above on every push and once a day, without
-turning this into a multi-hour runner) against a nightly toolchain, and
-uploads the crashing input as a build artifact on failure so it can be
-downloaded and reproduced locally. Read the actual workflow file for the
-current exact steps; it is the source of truth, not this paragraph.
+running
+
+```bash
+cargo fuzz run <target> fuzz/corpus/<target> fuzz/corpus_seeds/<target> \
+  -- -max_total_time=120
+```
+
+against a nightly toolchain, and uploads the crashing input as a build
+artifact on failure so it can be downloaded and reproduced locally.
+
+Two details of that command matter:
+
+- **120 seconds** is a deliberately CI-sane libFuzzer budget — enough to catch
+  cheap, shallow crashes like the unguarded recursive `base` chain above on
+  every push and once a day, without turning this into a multi-hour runner.
+- **The corpus arguments are ordered.** libFuzzer writes newly discovered
+  inputs into the *first* corpus directory and treats every later one as
+  read-only seed input, so the gitignored working corpus
+  `fuzz/corpus/<target>` comes first and the committed
+  `fuzz/corpus_seeds/<target>` comes second. A CI run therefore starts from
+  the committed seeds without ever mutating them.
+
+Read the actual workflow file for the current exact steps; it is the source of
+truth, not this paragraph.
 
 ## What Gets Fuzzed
 
@@ -192,6 +209,7 @@ current exact steps; it is the source of truth, not this paragraph.
 - [x] Glob pattern compilation
 - [x] File-based policy config parsing + evaluation (`.svccat/policy.yaml` / `src/policy.rs`, target 4)
 - [x] Committed seed corpora for every target (`fuzz/corpus_seeds/<target>/`), replayed on every PR by `tests/fuzz_corpus_replay.rs` because this workflow does not run on `pull_request`
+- [x] Those seeds wired into the CI campaign itself as libFuzzer's read-only seed corpus (see the ordered corpus arguments above), so the daily run starts from them instead of an empty corpus
 
 ### 📋 Recommended Coverage
 

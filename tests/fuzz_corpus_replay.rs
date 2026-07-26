@@ -12,9 +12,11 @@
 //! fuzz target makes, asserting the process does not abort and pinning the known
 //! crash reproducers to a graceful `Err` (never a stack overflow / SIGABRT).
 //!
-//! These files double as libFuzzer seed inputs: pointing a `cargo fuzz run` at
-//! `fuzz/corpus_seeds/<target>` gives the fuzzer a meaningful starting corpus
-//! instead of an empty one.
+//! These files double as libFuzzer seed inputs: the workflow's `cargo fuzz run`
+//! step passes `fuzz/corpus_seeds/<target>` as a read-only seed directory, so
+//! the daily campaign starts from this corpus instead of an empty one.
+//! `fuzzing_workflow_runs_from_the_committed_seed_corpus` below is the PR-time
+//! guard on that wiring, since the workflow never runs on `pull_request`.
 //!
 //! Each `drive_*` helper is a byte-for-byte mirror of the body of the fuzz
 //! target with the same name; keep them in sync when a target changes.
@@ -333,15 +335,20 @@ fn targets_in_fuzz_manifest() -> BTreeSet<String> {
     found
 }
 
-/// Target names in the `Continuous Fuzzing` workflow's job matrix.
-fn targets_in_fuzzing_workflow() -> BTreeSet<String> {
-    let text = fs::read_to_string(
+/// The text of `.github/workflows/fuzzing.yml`.
+fn fuzzing_workflow() -> String {
+    fs::read_to_string(
         repo_root()
             .join(".github")
             .join("workflows")
             .join("fuzzing.yml"),
     )
-    .expect(".github/workflows/fuzzing.yml is readable");
+    .expect(".github/workflows/fuzzing.yml is readable")
+}
+
+/// Target names in the `Continuous Fuzzing` workflow's job matrix.
+fn targets_in_fuzzing_workflow() -> BTreeSet<String> {
+    let text = fuzzing_workflow();
     let list = text
         .lines()
         .map(str::trim)
@@ -397,4 +404,66 @@ fn fuzz_targets_agree_across_sources() {
         })
         .collect();
     assert_eq!(corpora, expected, "fuzz/corpus_seeds/* vs TARGETS");
+}
+
+/// The `cargo fuzz run` invocation from the `Continuous Fuzzing` workflow, with
+/// YAML line continuations and indentation collapsed so it reads as the single
+/// shell command the runner actually executes.
+fn fuzz_run_command_in_workflow() -> String {
+    let text = fuzzing_workflow().replace('\\', " ");
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let start = flat
+        .find("cargo fuzz run")
+        .expect("fuzzing.yml must invoke `cargo fuzz run`");
+    let rest = &flat[start..];
+    // The command ends where the next workflow step begins (or at EOF).
+    let end = rest.find("- name:").unwrap_or(rest.len());
+    rest[..end].trim().to_string()
+}
+
+#[test]
+fn fuzzing_workflow_runs_from_the_committed_seed_corpus() {
+    // Committing seeds is only half the job: libFuzzer reads a corpus only if
+    // it is passed one. Before this guard, every leg of the workflow ran
+    // `cargo fuzz run <target> -- -max_total_time=120` with NO corpus argument
+    // and the job logs on main showed `INITED ... corp: 1/1b` for all four
+    // targets — one synthetic empty input — so the committed regression seeds
+    // (the PR #16 base-cycle crash reproducers among them) were replayed by
+    // this suite and handed to the actual fuzzer never. That is the same
+    // inert-surface shape as a target missing from the matrix, and since
+    // `fuzzing.yml` does not run on `pull_request`, nothing at PR time would
+    // notice it being undone. This test is that notice.
+    let cmd = fuzz_run_command_in_workflow();
+    let seeds = "fuzz/corpus_seeds/${{ matrix.target }}";
+    let working = "fuzz/corpus/${{ matrix.target }}";
+
+    let seeds_at = cmd.find(seeds).unwrap_or_else(|| {
+        panic!(
+            "the Continuous Fuzzing run step must pass `{seeds}` to `cargo fuzz run`, \
+             or the daily campaign starts from an empty corpus and ignores every \
+             committed seed. Command found: {cmd}"
+        )
+    });
+    let working_at = cmd.find(working).unwrap_or_else(|| {
+        panic!(
+            "the run step must pass the gitignored working corpus `{working}` as well, \
+             because libFuzzer WRITES newly discovered inputs into the first corpus \
+             directory it is given. Command found: {cmd}"
+        )
+    });
+
+    assert!(
+        working_at < seeds_at,
+        "`{working}` must come BEFORE `{seeds}`: libFuzzer writes new inputs into the \
+         first corpus directory, so seeds-first would have a CI run mutate the committed \
+         corpus this suite pins. Command found: {cmd}"
+    );
+
+    let separator = cmd.find(" -- ").unwrap_or(cmd.len());
+    assert!(
+        seeds_at < separator,
+        "`{seeds}` must appear before the `--` separator so cargo-fuzz treats it as a \
+         corpus directory; after `--` it would be passed to libFuzzer as a flag. \
+         Command found: {cmd}"
+    );
 }

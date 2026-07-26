@@ -53,15 +53,36 @@ jobs:
       # so this always fuzzes the code in the PR/commit being tested, never
       # a published crates.io release).
       #
+      # Corpus arguments, and why the ORDER matters: libFuzzer treats the
+      # FIRST corpus directory as the writable one (new interesting inputs
+      # are written there) and every later directory as read-only seed
+      # input. So the gitignored working corpus `fuzz/corpus/<target>` goes
+      # first and the COMMITTED `fuzz/corpus_seeds/<target>` seeds go
+      # second, which means a run can never mutate the committed corpus that
+      # `tests/fuzz_corpus_replay.rs` pins.
+      #
+      # Without the seed argument every job started from nothing — the run
+      # on main before this change reported `INITED ... corp: 1/1b` for all
+      # four targets, i.e. one synthetic empty input — so the committed
+      # regression seeds (including the PR #16 base-cycle crash
+      # reproducers) were replayed only by the PR-time test suite and were
+      # never actually handed to the fuzzer. `fuzzing_workflow_runs_from_the_committed_seed_corpus`
+      # in tests/fuzz_corpus_replay.rs fails the PR gate if this regresses.
+      #
       # Budget: 120 seconds of libFuzzer time per target. This is a CI-sane
       # bound for a background/regression job, not a serious continuous
       # fuzzing campaign — it is enough to catch cheap, shallow crashes
       # (e.g. an unguarded recursive `base` chain in the policy rule
       # compiler) on every push to main and once a day, without turning this
-      # job into a multi-hour runner. Extending the budget or adding a
-      # persisted corpus is a follow-up, not this change.
+      # job into a multi-hour runner. Extending the budget or persisting the
+      # working corpus between runs is a follow-up, not this change.
       - name: Run cargo fuzz (${{ matrix.target }})
-        run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=120
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            fuzz/corpus_seeds/${{ matrix.target }} \
+            -- -max_total_time=120
 
       # 4. Preserve the crashing input so it can be downloaded and
       # reproduced locally with `cargo fuzz run <target> <artifact>`.
