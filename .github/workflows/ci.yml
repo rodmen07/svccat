@@ -106,3 +106,56 @@ jobs:
         # findings); the gate exists so a future advisory fails CI rather than
         # riding along invisibly.
         run: cargo audit --deny warnings
+
+  lint:
+    name: Lint (fmt + clippy)
+    # Until this job existed, NO workflow in this repo ran rustfmt or clippy
+    # at all (all six workflow files used only build/test/audit/bench/fuzz
+    # steps), so formatting drift and clippy errors could merge silently:
+    # svccat PR #24's first draft carried two (`field_reassign_with_default`,
+    # `type_complexity`) that only a local run caught. slokit already requires
+    # a `fmt, clippy, test` context, so svccat was the outlier of the three
+    # published crates.
+    #
+    # Scope: ubuntu-latest only. "Build & Test (This Checkout)" above already
+    # covers all three OSes for compile and test; rustfmt's output and the
+    # clippy lint set are toolchain-versioned rather than OS-versioned, so a
+    # second and third runner would re-report identical findings. Kept as its
+    # own job rather than two extra steps in the build matrix so a lint
+    # failure is a distinct, greppable red instead of one buried inside a leg
+    # that also compiles and tests.
+    #
+    # The job NAME is load-bearing: it is the exact branch-protection required
+    # context string on `main`. `tests/ci_lint_gate_tests.rs` pins both the
+    # name and the two commands so neither can drift out from under it.
+    #
+    # Floating `@stable` (this repo-wide convention) means a new clippy
+    # release can red a PR whose own diff did not cause it. That is
+    # toolchain drift, and the response is to clear the new lint, never to
+    # weaken this gate. It happened on this job first run: clippy 1.97 on
+    # the runner flagged `question_mark` in `src/rule_schema.rs` while the
+    # local clippy 1.96 was silent about it.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2.7.3
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      # --all-targets lints tests, benches and examples too, not just the lib
+      # and binary; -- -D warnings makes a lint a failure instead of a line of
+      # green-run noise nobody reads.
+      - name: Clippy (all targets, all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
