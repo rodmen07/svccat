@@ -15,17 +15,20 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 
 ## Current state (2026-07-26)
 
-- Crate version on main: **v1.5.0** (`Cargo.toml` `[package] version`). Pinned to this
+- Crate version on main: **v1.6.0** (`Cargo.toml` `[package] version`). Pinned to this
   document by `roadmap_current_state_matches_the_crate_version`, so a release-prep PR
   that bumps one and not the other fails the build.
 - Published to crates.io: **1.5.0**, 2026-07-18 (tag `v1.5.0` = merge commit `60c56b2`).
   Re-verified 2026-07-26 via the crates.io API: `"newest_version":"1.5.0"`.
   v1.5.0 delivered SPDX 2.3 JSON SBOM export (`export --format spdx-json`), a
   `snapshot save --sbom` sidecar with delete cleanup, and a shared `timefmt` module.
-- **24 commits sit on `main` unpublished** — everything merged since the `v1.5.0` tag,
-  including nine user-facing changes that no released version contains. They are
-  enumerated under `## Unreleased on main` below, which is the input to the v1.6.0
-  release cut.
+- **v1.6.0 is PREPARED but NOT CUT (2026-07-26).** The 24 commits that had piled up
+  on `main` since the `v1.5.0` tag are now written down: `CHANGELOG.md` carries a
+  `## [1.6.0] - 2026-07-26` naming all nine previously-unrecorded user-facing changes,
+  and `Cargo.toml` is bumped. What is left is the tag push, and until it happens
+  `cargo install svccat` still delivers 1.5.0, so the three security fixes in 1.6.0
+  reach nobody. The tag is gated on one user decision; see the release-cut row under
+  `## Blocked and user-only summary`.
 - Shipped in earlier releases during 2026-06 and 2026-07 (the crate is NOT in frozen
   maintenance mode):
   - v1.1.0 (2026-06-07): language and platform inference in `init` and `fix`.
@@ -47,68 +50,6 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   real regression, not noise), `Continuous Fuzzing` (real since PR #15 and seeded from
   the committed corpora since PR #22), and `publish` (runs on `v*` tag push). `main` is
   branch-protected with the required contexts set live 2026-07-20.
-
-## Unreleased on main
-
-Everything below is merged and installed by nobody: `cargo install svccat` still
-delivers 1.5.0. Each entry cites its PR and squash commit, so `git log v1.5.0..main`
-is a second source for this list.
-
-**Features (6)**
-
-- `workspace` config completion and repo filtering, multi-repo slice 1 — PR #4 (`bb907d8`).
-- `[reporting]` config section with CLI-over-config precedence, slice 2 — PR #5 (`c4fc702`).
-- `workspace check --format html`, a self-contained interactive multi-repo report,
-  slice 3 — PR #6 (`8f625fc`), hardened by PR #8 (binary-level `assert_cmd` tests,
-  `23cccff`).
-- CycloneDX 1.7 JSON SBOM export as a sibling of `spdx-json` — PR #11 (`4202db6`).
-- Policy rule schema validation in `svccat lint` — PR #12 (`da3d537`).
-- `PolicyConfig::load_checked` and `PolicyLoadError` (library, purely additive) —
-  PR #25 (`bb68350`).
-
-**Security fixes (3)**
-
-- DOM-based XSS in the shared HTML/mermaid renderer behind `graph --format html` —
-  PR #7 (`e97a67b`).
-- SSRF via redirect in `--ping` and webhooks: the new `src/safe_http.rs` disables
-  `ureq`'s automatic redirect-following and re-validates every hop — PR #14 (`c925000`).
-- HIGH stack overflow on cyclic policy `base` chains in `svccat check`, surfaced by the
-  fuzzing rework — PR #16 (`32f2bca`).
-
-**Behaviour fixes (4)**
-
-- `svccat watch` ignored `path` and `submodule` edits in change detection — PR #24
-  (`805d7e0`).
-- A broken `.svccat/policy.yaml` was reported as an absent one, silently disabling the
-  policy gate in `svccat ci` — PR #25 (`bb68350`).
-- `svccat watch`'s change summary printed in hash order rather than manifest order —
-  PR #27 (`ce83038`).
-- `check --ping --format sarif` computed ping results and dropped them — PR #28
-  (`eb9b9c1`).
-
-**Dependencies (1)**
-
-- `notify` 6.1.1 → 8.2.0, with `src/watch.rs`'s first tests proving the swapped backend
-  still delivers events — PR #21 (`d622555`).
-
-**Internal only, no user-facing surface (11)**
-
-- PR #8 (`23cccff`) binary-level CLI tests via `assert_cmd`; PR #10 (`8c6dc20`) CI builds
-  and tests this checkout rather than only the published crate; PR #13 (`36a58aa`) and
-  PR #18 (`6a7accc`) roadmap reconciliations; PR #15 (`f840161`) the real fuzzing harness;
-  PR #17 (`1a7d9a3`) the `cargo audit` gate; PR #19 (`f1a3e08`) committed seed corpora
-  plus the PR-time replay suite; PR #20 (`37cdcb3`) the `fuzz_policy` target; PR #22
-  (`ff7e9ae`) the campaign seeded from those corpora; PR #23 (`e08852b`) the FUZZING.md
-  rewrite and its two doc guards; PR #26 (`5767793`) the `Lint (fmt + clippy)` gate.
-
-**Finding, 2026-07-26 — `CHANGELOG.md`'s `[Unreleased]` section is nine changes short.**
-It records PR #21, #24, #25 and #27 and nothing else. The other nine user-facing changes
-above are absent, checked by grepping the entire file for each rather than reading the
-top of it: `CycloneDX` 0 hits, `redirect` 0, `rule schema` 0, `XSS` 0, `repo filter` 0,
-`[reporting]` 0; `workspace check`, `SSRF`, `stack overflow` and `sarif` hit only in
-pre-1.5.0 sections. Writing those entries is the first task of the v1.6.0 cut below and
-not a separate errand: a release whose changelog omits its own CycloneDX exporter and
-two security fixes is worse than no release.
 
 ## Working agreements
 
@@ -135,49 +76,13 @@ two security fixes is worse than no release.
   crate version, that no released version is still listed as an upcoming milestone,
   that no released version sits in a `BLOCKED` row, and that `## Unreleased on main`
   exists exactly when `CHANGELOG.md` has `[Unreleased]` entries. Keep the headings it
-  anchors on (`## Current state`'s `- Crate version on main:` line, `## Milestones`,
-  `## Blocked and user-only summary`, `## Unreleased on main`) intact when editing.
+  anchors on intact when editing: `## Current state`'s `- Crate version on main:`
+  line, `## Milestones`, and `## Blocked and user-only summary`. The fourth,
+  `## Unreleased on main`, is the one heading that is *supposed* to come and go: it
+  exists exactly while `CHANGELOG.md` has `[Unreleased]` entries, and the guard fails
+  if it lingers after a release is prepared or is missing while work sits unpublished.
 
 ## Milestones
-
-### v1.6.0: publish what is already on main
-
-The version number is carried over from the milestone that previously held it ("make
-fuzzing real"). That work is complete and has moved to History and supersession; 1.6.0
-was never published, so its scope simply grew. The release now carries every entry
-under `## Unreleased on main`.
-
-**Semver classification — MINOR, and an overridable default for the user.** Every
-library change since 1.5.0 is additive: `PolicyConfig::load_checked` and
-`PolicyLoadError` are new, and no existing signature, type or field changed. The
-behaviour changes are bug fixes to output ordering, to an exit code on input that was
-already broken, and to a format that was emitting nothing. Nothing in the frozen
-surface described by `docs/API_STABILITY.md` was removed or narrowed. If the `svccat
-policy` exit-code change (0 → 2 on a policy file that exists but does not parse, PR #25)
-is judged breaking for CLI consumers rather than a fix, say so and this becomes 2.0.0.
-
-Tasks:
-
-- Write the nine missing `[Unreleased]` entries identified above, then convert
-  `## [Unreleased]` to `## [1.6.0] - <date>`.
-- Reorder `CHANGELOG.md` into strictly descending version order. It is not: 1.2.0 sits
-  between 1.4.0 and 1.3.0, and 1.3.2 precedes 1.3.1. (Carried from the retired v1.5.1
-  hygiene milestone; re-confirmed still true 2026-07-26.)
-- Check the five `SECURITY.md` "### v0.19.0 (Planned)" boxes — still unchecked at
-  `SECURITY.md:306-312` as of 2026-07-26 — against the 0.19.0 changelog entry that
-  delivered all five (v0.19.0 shipped 2026-05-28). (Also carried from v1.5.1.)
-- Bump `Cargo.toml` to 1.6.0 in the same PR that updates `## Current state` here; the
-  two are pinned to each other by `roadmap_current_state_matches_the_crate_version`,
-  and moving this section to History is what
-  `roadmap_does_not_list_a_released_version_as_an_upcoming_milestone` will demand once
-  `## [1.6.0]` appears in the changelog.
-- Release per the flow in Working agreements.
-
-Done when: `## [1.6.0]` exists in `CHANGELOG.md` and names all nine missing changes,
-changelog headings are strictly descending, `SECURITY.md` has no stale unchecked
-"Planned" boxes, `cargo test --all-features` is green (which includes the roadmap
-guard), the `v1.6.0` tag is pushed, and the crates.io API reports
-`"newest_version":"1.6.0"`.
 
 ### v1.6.1: coverage improvements
 
@@ -264,11 +169,36 @@ bumps) are all lifted. What remains:
 | Item | Status | Reason |
 |------|--------|--------|
 | Writing the `CRATES_IO_TOKEN` repo secret | USER-ONLY | Secret values are never handled by an agent; set via `gh secret set` (interactive) |
-| Tag push, GitHub release, `cargo publish` | Delegated | Follow the release flow in Working agreements; merge and tag only on green CI |
+| The **v1.6.0** tag push specifically | USER DECISION PENDING (2026-07-26) | Prep is on main and green; the tag is held only because the MINOR-versus-MAJOR classification is an overridable default this document routes to the user, and a crates.io publish is irreversible. CLEARS when the user confirms 1.6.0 (or names 2.0.0): `git tag v1.6.0 && git push origin v1.6.0 && gh release create v1.6.0 --verify-tag`. `CRATES_IO_TOKEN` was confirmed present 2026-07-26 |
+| Tag push, GitHub release, `cargo publish` in general | Delegated | Follow the release flow in Working agreements; merge and tag only on green CI |
 | Editing README.md | Avoid | CRLF line endings; no roadmap work needs it |
 
 ## History and supersession
 
+- **v1.6.0 "publish what is already on main": release PREP shipped 2026-07-26, and the
+  cut is pending one user decision.** Moved out of Milestones because its whole task
+  list is done: `CHANGELOG.md` gained `## [1.6.0] - 2026-07-26` naming all nine
+  user-facing changes that were on `main` and in no released version (six features,
+  three security fixes, four behaviour fixes, one dependency major); the changelog was
+  reordered into strictly descending version order (the 1.2.0 / 1.3.x cluster had been
+  out of order since 2026-07-09 and survived two hygiene milestones as a hand task), and
+  is now pinned there by `changelog_versions_are_in_strictly_descending_order`, so the
+  third reconciliation is the last one; `SECURITY.md`'s "v0.19.0 (Planned)" boxes,
+  unchecked since 2026-05-28 although v0.19.0 shipped all five that day, were resolved
+  (with the honest note that the `--follow-symlinks` opt-out was never built, because
+  discovery rejects symlinks unconditionally) and this release's own three security
+  fixes were added to that file's fix changelog; and `Cargo.toml` went to 1.6.0.
+  **Not done: the `v1.6.0` tag.** The MINOR-versus-MAJOR call is an overridable default
+  this document routes to the user, and a crates.io publish cannot be undone. The
+  argument is restated here in full so it does not disappear with the milestone that
+  held it: **the default is MINOR.** Every library change since 1.5.0 is additive
+  (`PolicyConfig::load_checked` and `PolicyLoadError` are new; no existing signature,
+  type or field changed), and the behaviour changes are fixes to output ordering, to an
+  exit code on input that was already broken, and to a format that was emitting nothing.
+  Nothing in the frozen surface described by `docs/API_STABILITY.md` was removed or
+  narrowed. If the `svccat policy` exit-code change (0 to 2 on a policy file that exists
+  but does not parse, PR #25) is judged breaking for CLI consumers rather than a fix,
+  say so and this becomes 2.0.0 instead.
 - **v1.6.0 "make fuzzing real" — the work is COMPLETE (2026-07-26); the version is not
   yet published.** The 2026-07-18 audit found the fuzzing setup was a stub that could
   never have built. Delivered across six PRs: PR #15 (`f840161`) created
@@ -332,7 +262,7 @@ bumps) are all lifted. What remains:
   are not resolved before the fetch) is unchanged.
 - docs/FEATURE_DESIGN_MULTI_REPO.md: shipped in v0.21.0 on 2026-06-03; historical
   design record only. The three multi-repo slices that landed after it (PRs #4, #5
-  and #6) are unreleased; see `## Unreleased on main`.
+  and #6) are recorded in the `## [1.6.0]` CHANGELOG entry.
 - docs/PERFORMANCE_OPTIMIZATIONS_PHASE1.md: Phase 1 work was completed 2026-05-30
   and released in v0.20.0 on 2026-06-01; the Phase 2 follow-up (parallel discovery)
   shipped in v1.4.0 on 2026-07-09; historical record only.
