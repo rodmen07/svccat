@@ -467,3 +467,113 @@ fn send_os_notification(body: &str) {
             .spawn();
     }
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::event::{
+        AccessKind, CreateKind, DataChange, EventAttributes, ModifyKind, RemoveKind,
+    };
+    use notify::Event;
+
+    fn event_of(kind: EventKind) -> Event {
+        Event {
+            kind,
+            paths: Vec::new(),
+            attrs: EventAttributes::default(),
+        }
+    }
+
+    /// `is_relevant` is the only place svccat interprets `notify`'s event
+    /// vocabulary, so it is the surface a `notify` major bump can silently
+    /// change. Both directions are asserted: the three kinds that must trigger
+    /// a re-check, and the kinds that must NOT (an `Access` storm re-running
+    /// the whole drift analysis on every read is the failure this guards).
+    #[test]
+    fn is_relevant_accepts_create_modify_remove_and_rejects_everything_else() {
+        assert!(is_relevant(&event_of(EventKind::Create(CreateKind::File))));
+        assert!(is_relevant(&event_of(EventKind::Modify(ModifyKind::Data(
+            DataChange::Content
+        )))));
+        assert!(is_relevant(&event_of(EventKind::Modify(ModifyKind::Any))));
+        assert!(is_relevant(&event_of(EventKind::Remove(RemoveKind::File))));
+
+        // Negative control. `Access` matters specifically because notify 7.0
+        // started reporting inotify open/access events on Linux; svccat must
+        // keep ignoring them.
+        assert!(!is_relevant(&event_of(EventKind::Access(
+            AccessKind::Open(notify::event::AccessMode::Read)
+        ))));
+        assert!(!is_relevant(&event_of(EventKind::Access(AccessKind::Read))));
+        assert!(!is_relevant(&event_of(EventKind::Any)));
+        assert!(!is_relevant(&event_of(EventKind::Other)));
+    }
+
+    /// End-to-end proof that the backend `RecommendedWatcher` resolves to on
+    /// THIS platform actually delivers a relevant event for a real file write,
+    /// wired exactly the way `run` wires it (`mpsc::Sender` event handler,
+    /// `Config::default()`, `RecursiveMode::Recursive`).
+    ///
+    /// The three `Build & Test (This Checkout)` legs run this on ubuntu,
+    /// windows and macos, i.e. on inotify, `ReadDirectoryChangesW` and
+    /// FSEvents respectively — three different implementations behind one
+    /// type alias. Without this, "it compiled" is the only evidence that
+    /// `svccat watch` / `svccat ci --watch` still see anything at all.
+    #[test]
+    fn recommended_watcher_delivers_a_relevant_event_for_a_real_write() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        // macOS hands out /var/... temp dirs that FSEvents reports back as
+        // /private/var/..., so watch the canonical path.
+        let root = dir.path().canonicalize().expect("canonicalize temp dir");
+
+        let (tx, rx) = mpsc::channel::<notify::Result<notify::Event>>();
+        let mut watcher =
+            RecommendedWatcher::new(tx, Config::default()).expect("build recommended watcher");
+        watcher
+            .watch(&root, RecursiveMode::Recursive)
+            .expect("watch temp dir");
+
+        let target = root.join("services.yaml");
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut writes = 0u32;
+        let mut saw_relevant = false;
+
+        while Instant::now() < deadline && !saw_relevant {
+            // Re-write on every idle tick so a slow watcher start-up cannot
+            // permanently lose the single event this test is waiting for.
+            writes += 1;
+            std::fs::write(&target, format!("services: []\n# write {writes}\n"))
+                .expect("write manifest");
+
+            loop {
+                match rx.recv_timeout(Duration::from_millis(500)) {
+                    Ok(Ok(event)) => {
+                        if is_relevant(&event)
+                            && event
+                                .paths
+                                .iter()
+                                .any(|p| p.file_name() == target.file_name())
+                        {
+                            saw_relevant = true;
+                            break;
+                        }
+                    }
+                    Ok(Err(e)) => panic!("watcher reported an error: {e}"),
+                    Err(mpsc::RecvTimeoutError::Timeout) => break,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        panic!("watcher channel disconnected before any event arrived")
+                    }
+                }
+            }
+        }
+
+        assert!(
+            saw_relevant,
+            "no Create/Modify/Remove event for {} arrived within 30s after {writes} write(s); \
+             the notify backend for this platform is not delivering events to svccat",
+            target.display()
+        );
+    }
+}

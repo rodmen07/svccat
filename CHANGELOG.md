@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`notify` upgraded from 6.1.1 to 8.2.0**, the filesystem-watching backend behind `svccat watch` and `svccat ci --watch`. No behaviour change is intended or expected: the `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface svccat uses is identical across both majors, and `src/watch.rs` gained its first tests (an `is_relevant` contract test and an end-to-end test that the platform watcher really delivers events) so the swap is proven rather than assumed. Transitive dependency count dropped from 213 to 212 (`crossbeam-channel`, `filetime` and `bitflags` 1.x dropped, `notify-types` added).
+
 ## [1.5.0] - 2026-07-18
 
 ### Added
