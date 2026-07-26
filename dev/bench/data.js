@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785048288473,
+  "lastUpdate": 1785050942687,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3179,6 +3179,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12201,
             "range": "± 37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fe59cd59bb35894a122ac531f6ba972d141e03d5",
+          "message": "release: prepare v1.6.0, the nine changes main never wrote down (#30)\n\n24 commits have sat on main since the v1.5.0 tag and `cargo install svccat`\nstill delivers 1.5.0, so three security fixes reach nobody: the DOM-based XSS\nin the HTML graph (PR #7), the SSRF-via-redirect in --ping and webhooks\n(PR #14), and the HIGH stack overflow on a cyclic policy `base` chain (PR #16).\n\nCHANGELOG.md's [Unreleased] section recorded four of the thirteen user-facing\nchanges. The other nine were absent, re-checked here by grepping the whole file\nper change rather than reading its top: CycloneDX 0 hits, \"rule schema\" 0,\nXSS 0, redirect 0, \"repo filter\" 0, \"[reporting]\" 0, and \"workspace check\",\nSSRF, \"stack overflow\" and sarif hitting only pre-1.5.0 sections.\n\n  - [Unreleased] becomes [1.6.0] - 2026-07-26 with all thirteen entries under\n    Added / Changed / Fixed / Security, each citing its PR.\n  - CHANGELOG.md is reordered into strictly descending version order. It was\n    not: 1.2.0 sat between 1.4.0 and 1.3.0, and 1.3.2 above 1.3.1, since\n    2026-07-09. That reorder was a hand task carried through two hygiene\n    milestones (v1.5.1, retired; then v1.6.0), so this third reconciliation\n    ships as a guard instead of a promise:\n    changelog_versions_are_in_strictly_descending_order in tests/roadmap_truth.rs.\n  - SECURITY.md's \"v0.19.0 (Planned)\" boxes had been unchecked since\n    2026-05-28 although v0.19.0 shipped all five that day. Resolved against the\n    0.19.0 changelog entry, with the honest note that the --follow-symlinks\n    opt-out was never built because discovery rejects symlinks unconditionally\n    (src/discovery.rs:140). \"v0.18.1 (Current)\" was seven versions stale. This\n    release's own three security fixes were added to that file.\n  - Cargo.toml and Cargo.lock go to 1.6.0; ROADMAP.md moves the v1.6.0\n    milestone to History and drops `## Unreleased on main`, both of which the\n    existing roadmap guards now require.\n\nNOT done: the v1.6.0 tag. The MINOR-versus-MAJOR classification is an\noverridable default ROADMAP.md routes to the user, and a crates.io publish\ncannot be undone. The full argument is carried into ROADMAP.md's History entry\nso it does not vanish with the milestone, and the pending step is a dated row\nin the blocked/user-only table.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T02:25:50-05:00",
+          "tree_id": "eec636d2bd9e4f56c6da3b2aa39ca9a618ee9ad2",
+          "url": "https://github.com/rodmen07/svccat/commit/fe59cd59bb35894a122ac531f6ba972d141e03d5"
+        },
+        "date": 1785050942179,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12513,
+            "range": "± 66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23925,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 300,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5436,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5200,
+            "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12174,
+            "range": "± 689",
             "unit": "ns/iter"
           }
         ]
