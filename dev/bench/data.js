@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785032124162,
+  "lastUpdate": 1785037052544,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -2879,6 +2879,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12104,
             "range": "± 36",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb68350abbc496e0f84e5611c6c54660240cfdd2",
+          "message": "fix(policy): report a broken policy file instead of pretending it is absent (#25)\n\n`PolicyConfig::load` swallowed both the read error and the parse error and\nreturned `None`, so a `.svccat/policy.yaml` with a typo in it was\nindistinguishable from having no policy file at all. All three call sites\nreported that silence differently, and all three were wrong: `svccat policy`\nprinted \"No policy file found. Create .svccat/policy.yaml ...\" about a file\nthat exists and exited 0; `svccat ci` dropped the `policy` step and reported\n\"all checks passed\", silently disabling the policy gate in a pipeline; and\n`svccat scorecard` scored the repo with no policy contribution, in silence.\n\nAdds `PolicyConfig::load_checked` -> `Result<Option<Self>, PolicyLoadError>`\n(additive) and makes `load` delegate to it, dropping the error, so the two\ncan never disagree about which candidate file wins. Candidate order and the\n\"first one that loads wins\" rule are unchanged, which is what lets every call\nsite migrate without changing which configuration is in force.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-25T22:34:22-05:00",
+          "tree_id": "d3993dd0d676ede2a14cfea8f77bc447ba12b99f",
+          "url": "https://github.com/rodmen07/svccat/commit/bb68350abbc496e0f84e5611c6c54660240cfdd2"
+        },
+        "date": 1785037052010,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12504,
+            "range": "± 342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23464,
+            "range": "± 141",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 263,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5158,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4825,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12386,
+            "range": "± 32",
             "unit": "ns/iter"
           }
         ]
