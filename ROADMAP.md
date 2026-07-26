@@ -173,6 +173,12 @@ PR moves these entries into the new version's section and deletes this heading.
   rendered the severity-prefixed line. Both paths now share one deterministic,
   deduplicating builder, guarded by `tests/diff_drift_order_tests.rs`. Targets the
   next release after v1.6.0.
+- **Policy loader resource limits** (2026-07-26). `.svccat/policy.yaml` is now read
+  under the posture `Manifest::load` already had: a 1 MiB size cap enforced on the
+  bytes read, before the parser runs, plus post-parse bounds on the declared field
+  count and field-name length, reported as the new `PolicyLoadError::Limit` variant.
+  Closes the hardening-asymmetry bug found while shipping the `fuzz_policy` target
+  (filed alongside PR #20). Targets the next release after v1.6.0.
 
 ## Later / candidates (no version assigned)
 
