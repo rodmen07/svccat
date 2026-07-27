@@ -12,8 +12,11 @@
 //!   command early, and any following text beginning with `::` would be
 //!   executed as a NEW workflow command by the runner (annotation spoofing,
 //!   `::add-mask`, `::stop-commands`, ...).
-//! - Annotations are file-level: drift has no line number to offer, so the
-//!   annotation anchors to the manifest file, not a line in it.
+//! - A drift annotation anchors to the drifting service's `name:` line when
+//!   the manifest line scan (`crate::manifest_lines`) recovered one
+//!   (`DriftItem::line`), and to the manifest file as a whole otherwise.
+//!   Ping findings stay deliberately file-level: a ping failure is about a
+//!   URL answering, not about a line in the file (the sarif precedent).
 
 use crate::drift::{DriftItem, DriftKind, DriftReport, Severity};
 use crate::ping::{PingResult, PingStatus};
@@ -58,11 +61,28 @@ fn annotation_title(kind: &DriftKind) -> &'static str {
 
 /// The one shape every annotation this module emits has, with escaping baked
 /// in so no call site can opt out (the `d3_force_graph.rs` precedent).
-fn annotation_line(level: &str, file: &str, title: &str, message: &str) -> String {
+///
+/// `line` is a property value under the workflow-command escaping rules, but
+/// it is formatted HERE from a `usize`, whose `{}` rendering is digits only
+/// — no `%`, `:`, `,`, or newline can occur — so it needs no escaping call.
+/// Keeping the formatting inside this builder is what preserves that
+/// argument: no call site can substitute an unescaped string of its own.
+fn annotation_line(
+    level: &str,
+    file: &str,
+    line: Option<usize>,
+    title: &str,
+    message: &str,
+) -> String {
+    let line_property = match line {
+        Some(n) => format!(",line={n}"),
+        None => String::new(),
+    };
     format!(
-        "::{} file={},title={}::{}",
+        "::{} file={}{},title={}::{}",
         level,
         escape_property(file),
+        line_property,
         escape_property(title),
         escape_data(message)
     )
@@ -72,6 +92,7 @@ fn drift_annotation_line(item: &DriftItem, manifest: &str) -> String {
     annotation_line(
         annotation_level(item),
         manifest,
+        item.line,
         annotation_title(&item.kind),
         &item.message,
     )
@@ -101,7 +122,9 @@ fn ping_annotation_line(result: &PingResult, manifest: &str) -> Option<String> {
             ),
         ),
     };
-    Some(annotation_line("error", manifest, title, &message))
+    // Ping findings are file-level on purpose: a ping failure is about a URL
+    // answering, not a manifest line (mirrors `sarif::ping_finding`).
+    Some(annotation_line("error", manifest, None, title, &message))
 }
 
 /// Every annotation `check` emits, in order: drift first, then non-healthy
@@ -124,9 +147,11 @@ fn check_annotation_lines(report: &DriftReport, ping_results: &[PingResult]) -> 
 /// workflow annotations.
 ///
 /// Errors become `::error` annotations; warnings become `::warning`
-/// annotations. Each annotation is associated with the manifest file (drift
-/// carries no line number), so it appears against that file in the
-/// pull-request view.
+/// annotations. Each annotation is associated with the manifest file, and a
+/// drift item whose `line` was recovered by `crate::manifest_lines` (the
+/// `check` path attaches it before rendering) additionally carries `line=`,
+/// so the annotation appears inline at the service's `name:` entry in the
+/// pull-request view rather than only against the file.
 pub fn render_check(report: &DriftReport, ping_results: &[PingResult]) {
     for line in check_annotation_lines(report, ping_results) {
         println!("{line}");
@@ -405,5 +430,63 @@ mod tests {
         assert_eq!(lines.len(), 1, "only the new item: {lines:?}");
         assert!(lines[0].contains("svccat [DEPENDS]"));
         assert!(lines[0].contains("new drift"));
+    }
+
+    // -- line anchoring ----------------------------------------------------
+
+    #[test]
+    fn a_drift_item_with_a_line_is_anchored_to_it() {
+        let mut it = item(DriftKind::DeclaredMissingFromRepo, Severity::Error, "m");
+        it.line = Some(7);
+        let rendered = drift_annotation_line(&it, "services.yaml");
+        assert!(
+            rendered.contains("file=services.yaml,line=7,title="),
+            "the line property must sit between file and title: {rendered}"
+        );
+    }
+
+    #[test]
+    fn a_drift_item_without_a_line_stays_file_level() {
+        // The fail-closed half: when the manifest line scan attached nothing
+        // (`DriftItem::line` is `None`), the annotation must not invent a
+        // `line=` property — a wrong anchor is worse than no anchor.
+        let it = item(DriftKind::UndeclaredInRepo, Severity::Warning, "m");
+        let rendered = drift_annotation_line(&it, "services.yaml");
+        assert!(
+            !rendered.contains("line="),
+            "no line property without a manifest line: {rendered}"
+        );
+    }
+
+    #[test]
+    fn ping_findings_never_carry_a_line_property() {
+        // Walks both non-healthy PingStatus variants so a new variant that
+        // grows a line anchor fails compilation at the implementation.
+        for status in all_ping_statuses() {
+            if let Some(rendered) = ping_annotation_line(&ping("billing", status), "services.yaml")
+            {
+                assert!(
+                    !rendered.contains("line="),
+                    "ping findings are file-level: {rendered}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn since_lines_carry_the_line_anchor_too() {
+        // `--since` renders through the same builder, so new drift keeps its
+        // anchor there as well; this pins the threading, not a second rule.
+        let old = report(vec![]);
+        let mut fresh = item(DriftKind::MissingField, Severity::Warning, "new drift");
+        fresh.line = Some(12);
+        let new = report(vec![fresh]);
+        let lines = since_annotation_lines(&old, &new);
+        assert_eq!(lines.len(), 1, "only the new item: {lines:?}");
+        assert!(
+            lines[0].contains(",line=12,"),
+            "since-mode annotations must keep the anchor: {}",
+            lines[0]
+        );
     }
 }

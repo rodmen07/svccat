@@ -173,6 +173,11 @@ PR moves these entries into the new version's section and deletes this heading.
   parse) — which is what the sarif module doc's "inline annotations" promise needed
   to be true. `drift::DriftItem` gains an additive `line: Option<usize>`. Ping and
   undeclared-service findings stay file-level. Targets the next release after v1.6.0.
+- **GitHub annotations anchored to manifest lines** (2026-07-26). The follow-through
+  on the SARIF anchoring below for the format GitHub Actions runs by default: a drift
+  annotation whose item carries a manifest line now emits `line=` and appears inline
+  at the service's `name:` entry; unanchored items and ping findings stay file-level.
+  Targets the next release after v1.6.0.
 - **GitHub annotation renderer: ping results wired in, workflow-command escaping
   added** (2026-07-26). The `github-annotation` format — the default under GitHub
   Actions — dropped `--ping` results entirely (the sibling of the fixed SARIF defect)
