@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785122278119,
+  "lastUpdate": 1785124815779,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3599,6 +3599,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12037,
             "range": "± 367",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "978d049bb93c8f6511b652a96aeb0919a20271c2",
+          "message": "feat(annotations): anchor drift annotations to their manifest line via line= (#37)\n\nThe follow-through on the SARIF region.startLine change for the format\nGitHub Actions runs by default: a drift annotation whose item carries a\nmanifest line (DriftItem::line, attached on the check path by\nmanifest_lines) now emits it as the line= workflow-command property, so\nthe annotation appears inline at the service's name: entry in the PR\nview. Unanchored items render exactly as before (no line= rather than a\nwrong one), and ping findings stay deliberately file-level, mirroring\nthe sarif renderer. The line value is formatted from a usize inside the\none escaping-aware builder, so it cannot smuggle workflow-command syntax\nand no call site can bypass the builder.\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T22:57:09-05:00",
+          "tree_id": "a48d2b192d152413746027a1ecc1d18964569a44",
+          "url": "https://github.com/rodmen07/svccat/commit/978d049bb93c8f6511b652a96aeb0919a20271c2"
+        },
+        "date": 1785124815453,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12410,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23980,
+            "range": "± 236",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 260,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5179,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4734,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12483,
+            "range": "± 220",
             "unit": "ns/iter"
           }
         ]
