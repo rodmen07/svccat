@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785089608951,
+  "lastUpdate": 1785115370008,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3479,6 +3479,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 10039,
             "range": "± 385",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "529d66dece86ecb06206bf6d134fc3bd5bbb782e",
+          "message": "qa(github-annotation): first coverage — wire --ping results in, escape workflow-command output (#35)\n\n* wip: interrupted github-annotation QA increment\n\nAutodev wave 20 was killed mid-increment when the Claude Code process\nexited (2026-07-26 13:28). Preserves the working tree as the worker left\nit. NOT verified, NOT gate-checked, NOT PR-ready: audit before trusting\n(L-007), then finish or discard this branch on its merits.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n* qa(github-annotation): first coverage; wire --ping results in; escape workflow-command output\n\nCompletes the interrupted wave-20 increment (wip commit audited per\nL-007, gap found: render_check's new two-arg signature was never wired\ninto main.rs, so the branch did not compile). Adds the binary-level test\nhalf, the CHANGELOG/ROADMAP entries, and corrects a false comment (\nPingStatus is not #[non_exhaustive]).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T20:19:36-05:00",
+          "tree_id": "04de6b90eae40ed591a5f7276c3312067d30f150",
+          "url": "https://github.com/rodmen07/svccat/commit/529d66dece86ecb06206bf6d134fc3bd5bbb782e"
+        },
+        "date": 1785115369464,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12418,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23674,
+            "range": "± 92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 272,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5080,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4684,
+            "range": "± 51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12407,
+            "range": "± 118",
             "unit": "ns/iter"
           }
         ]
