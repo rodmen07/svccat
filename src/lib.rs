@@ -74,6 +74,8 @@ pub mod init;
 #[doc(hidden)]
 pub mod lint;
 #[doc(hidden)]
+pub mod manifest_lines;
+#[doc(hidden)]
 pub mod output;
 #[doc(hidden)]
 pub mod pathredaction;

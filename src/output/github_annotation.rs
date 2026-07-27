@@ -212,6 +212,7 @@ mod tests {
             service: "billing".into(),
             message: message.into(),
             detail: None,
+            line: None,
         }
     }
 

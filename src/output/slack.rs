@@ -122,6 +122,7 @@ mod tests {
                     service: "api".to_string(),
                     message: "missing".to_string(),
                     detail: None,
+                    line: None,
                 },
                 DriftItem {
                     kind: DriftKind::UndeclaredInRepo,
@@ -129,6 +130,7 @@ mod tests {
                     service: "worker".to_string(),
                     message: "extra".to_string(),
                     detail: None,
+                    line: None,
                 },
             ],
         };

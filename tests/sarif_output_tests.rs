@@ -183,6 +183,39 @@ fn an_absolute_root_yields_a_root_relative_artifact_uri_not_a_bare_path() {
     }
 }
 
+/// The region feature, end to end through the real binary: the fixture's one
+/// service declares its `name:` on line 7 of `services.yaml`, so every drift
+/// finding about that service must anchor there via `region.startLine` —
+/// that anchor is what makes an inline annotation possible at all — while
+/// ping findings stay file-level (no `region`), because a ping failure is
+/// about a URL answering, not a line in the file.
+#[test]
+fn drift_findings_carry_the_manifest_line_of_the_services_name_entry() {
+    let dir = repo_with_a_blocked_url();
+    let doc = sarif_stdout(dir.path(), &["--ping"]);
+
+    let results = doc["runs"][0]["results"].as_array().expect("results array");
+    let drift_finding = results
+        .iter()
+        .find(|r| r["ruleId"] == "declared_missing_from_repo")
+        .expect("declared_missing_from_repo result");
+    assert_eq!(
+        drift_finding["locations"][0]["physicalLocation"]["region"]["startLine"], 7,
+        "the fixture manifest declares `- name: billing` on line 7"
+    );
+
+    let ping_finding = results
+        .iter()
+        .find(|r| r["ruleId"] == "invalid_service_url")
+        .expect("invalid_service_url result");
+    assert!(
+        ping_finding["locations"][0]["physicalLocation"]
+            .get("region")
+            .is_none(),
+        "ping findings must stay file-level"
+    );
+}
+
 /// Without `--ping` the document must contain no ping rule ids at all, which
 /// is what keeps the test above from passing for the wrong reason.
 #[test]
