@@ -62,18 +62,18 @@ pub fn render_since_diff(
     new_report: &DriftReport,
     git_ref: &str,
 ) -> (usize, usize) {
-    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_key).collect();
-    let new_keys: HashSet<String> = new_report.drifts.iter().map(drift_key).collect();
+    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_identity_key).collect();
+    let new_keys: HashSet<String> = new_report.drifts.iter().map(drift_identity_key).collect();
 
     let added: Vec<&DriftItem> = new_report
         .drifts
         .iter()
-        .filter(|d| !old_keys.contains(&drift_key(d)))
+        .filter(|d| !old_keys.contains(&drift_identity_key(d)))
         .collect();
     let resolved: Vec<&DriftItem> = old_report
         .drifts
         .iter()
-        .filter(|d| !new_keys.contains(&drift_key(d)))
+        .filter(|d| !new_keys.contains(&drift_identity_key(d)))
         .collect();
     let unchanged = new_report.drifts.len().saturating_sub(added.len());
 
@@ -212,8 +212,20 @@ fn drift_kind_label(kind: &DriftKind) -> colored::ColoredString {
     }
 }
 
-/// Stable identity key for a drift item (used by --since diffing).
-fn drift_key(item: &DriftItem) -> String {
+/// Stable identity key for a drift item: `kind|service|detail`.
+///
+/// This is the SINGLE definition of drift identity, shared by every surface
+/// that decides whether two drift items are "the same": `--since` diffing in
+/// this module and in the markdown, junit, and github-annotation renderers,
+/// and the `--baseline` filter in the binary (`src/main.rs`). Message and
+/// severity are deliberately excluded so a reworded or re-classified item is
+/// not reported as new drift. Do not hand-roll this format at a call site;
+/// before 2026-07-27 six hand-rolled copies existed and
+/// `tests/terminal_output_tests.rs` now fails the build if one grows back.
+/// (`src/diff.rs::drift_key` is NOT a copy: snapshot diffing keys on
+/// `service:message` over `DriftSummaryItem`, a deliberately different
+/// contract.)
+pub fn drift_identity_key(item: &DriftItem) -> String {
     format!(
         "{:?}|{}|{}",
         item.kind,

@@ -186,27 +186,18 @@ fn run() -> Result<i32> {
                 let snap: BaselineFile = serde_json::from_str(&text)
                     .map_err(|e| anyhow::anyhow!("cannot parse baseline JSON: {e}"))?;
 
+                // Identity is the shared `kind|service|detail` key, the same
+                // one `--since` diffing uses. One definition, both call sites:
+                // see `output::terminal::drift_identity_key`.
                 let baseline_keys: HashSet<String> = snap
                     .drift
                     .iter()
-                    .map(|d| {
-                        format!(
-                            "{:?}|{}|{}",
-                            d.kind,
-                            d.service,
-                            d.detail.as_deref().unwrap_or("")
-                        )
-                    })
+                    .map(output::terminal::drift_identity_key)
                     .collect();
 
-                report.drifts.retain(|d| {
-                    !baseline_keys.contains(&format!(
-                        "{:?}|{}|{}",
-                        d.kind,
-                        d.service,
-                        d.detail.as_deref().unwrap_or("")
-                    ))
-                });
+                report
+                    .drifts
+                    .retain(|d| !baseline_keys.contains(&output::terminal::drift_identity_key(d)));
             }
 
             let ping_results = if do_ping {
@@ -231,31 +222,19 @@ fn run() -> Result<i32> {
                             git_ref,
                         );
                         print!("{}", md);
-                        // Count new items for exit code
+                        // Count new items for exit code, keyed by the shared
+                        // drift identity (see output::terminal::drift_identity_key).
                         use std::collections::HashSet;
                         let old_keys: HashSet<String> = old_report
                             .drifts
                             .iter()
-                            .map(|d| {
-                                format!(
-                                    "{:?}|{}|{}",
-                                    d.kind,
-                                    d.service,
-                                    d.detail.as_deref().unwrap_or("")
-                                )
-                            })
+                            .map(output::terminal::drift_identity_key)
                             .collect();
                         report
                             .drifts
                             .iter()
                             .filter(|d| {
-                                let k = format!(
-                                    "{:?}|{}|{}",
-                                    d.kind,
-                                    d.service,
-                                    d.detail.as_deref().unwrap_or("")
-                                );
-                                !old_keys.contains(&k)
+                                !old_keys.contains(&output::terminal::drift_identity_key(d))
                             })
                             .count()
                     }

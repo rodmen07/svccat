@@ -11,17 +11,21 @@
 //! compiles clean.
 //!
 //! The `--since` identity contract pinned below is load-bearing beyond this
-//! module: `main.rs`'s `--baseline` filter builds the same
-//! `kind|service|detail` key by hand (a textual duplicate of
-//! `terminal::drift_key`), so these tests document the semantics both sites
-//! must keep agreeing on: message and severity changes are NOT new drift;
-//! only a kind, service, or detail change is.
+//! module: the markdown, junit, and github-annotation `--since` renderers
+//! and `main.rs`'s `--baseline` filter all use the SAME
+//! `kind|service|detail` key, and since the drift-identity extraction every
+//! site calls the one shared definition, `terminal::drift_identity_key`.
+//! The guard test at the bottom of this file scans the whole `src/` tree and
+//! fails if any site regrows a hand-rolled copy of the format; the
+//! binary-level `--baseline` tests prove the filter observes the identity
+//! semantics (message and severity changes are NOT new drift; only a kind,
+//! service, or detail change is) through the real compiled binary.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::path::Path;
-use svccat::drift::DriftReport;
-use svccat::output::terminal::render_since_diff;
+use svccat::drift::{DriftItem, DriftReport};
+use svccat::output::terminal::{drift_identity_key, render_since_diff};
 use tempfile::TempDir;
 
 // ── In-process: render_since_diff return values ─────────────────────────────
@@ -104,9 +108,8 @@ fn since_message_and_severity_changes_are_not_new_drift() {
     // Same kind + service + (absent) detail on both sides; only the message
     // text and the severity differ. The identity key deliberately ignores
     // both, so this must count as unchanged — the same contract the
-    // `--baseline` filter in `main.rs` implements with its own copy of the
-    // key. If this test starts failing after an intentional key change,
-    // main.rs's baseline key must change in the same commit.
+    // `--baseline` filter in `main.rs` observes through the shared
+    // `drift_identity_key` definition (guarded below).
     let old = report(serde_json::json!([drift(
         "missing_field",
         "warning",
@@ -319,4 +322,171 @@ fn check_format_compact_undeclared_service_is_a_warning_via_binary() {
         .stdout(predicate::str::contains("stowaway"))
         .stdout(predicate::str::contains("2 ok"))
         .stdout(predicate::str::contains("1 warning(s)"));
+}
+
+// ── Drift identity: the shared key and its two call sites ───────────────────
+
+/// Pins the exact key format. If this changes intentionally, every consumer
+/// changes with it automatically (there is only one definition), but saved
+/// baselines produced before the change stop matching — which is why the
+/// format itself is part of the contract.
+#[test]
+fn drift_identity_key_is_kind_service_detail() {
+    let with_detail: DriftItem = serde_json::from_value(drift_with_detail(
+        "missing_field",
+        "warning",
+        "billing",
+        "missing field",
+        "url",
+    ))
+    .expect("valid DriftItem JSON");
+    assert_eq!(drift_identity_key(&with_detail), "MissingField|billing|url");
+
+    let without_detail: DriftItem = serde_json::from_value(drift(
+        "declared_missing_from_repo",
+        "error",
+        "ghost-service",
+        "'ghost-service' is declared in the manifest but not found in the repo",
+    ))
+    .expect("valid DriftItem JSON");
+    assert_eq!(
+        drift_identity_key(&without_detail),
+        "DeclaredMissingFromRepo|ghost-service|"
+    );
+}
+
+/// L-003 drift guard: the `{:?}|{}|{}` identity format must have exactly ONE
+/// definition in the entire `src/` tree, in `src/output/terminal.rs`
+/// (`drift_identity_key`), and `main.rs`'s `--baseline` filter must call it.
+/// Before 2026-07-27 the format was hand-duplicated at SIX sites (terminal,
+/// markdown, junit, and github-annotation renderers, plus two inline copies
+/// in main.rs); if any file regrows a copy, two drift surfaces can silently
+/// disagree about what counts as the same drift, and this test fails the
+/// build. The scan enumerates `src/` with `read_dir` rather than probing
+/// hardcoded paths, so a copy in a NEW module is caught too (and the
+/// PR #23 `Path::exists()` cross-platform hazard never applies).
+#[test]
+fn drift_identity_format_is_defined_exactly_once_and_main_calls_it() {
+    fn rust_sources(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("read_dir src") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                rust_sources(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut sources = Vec::new();
+    rust_sources(&root.join("src"), &mut sources);
+    assert!(
+        sources.len() > 10,
+        "the src/ scan stopped scanning anything: only {} files found",
+        sources.len()
+    );
+
+    let needle = "{:?}|{}|{}";
+    let mut defining_files: Vec<String> = Vec::new();
+    for path in &sources {
+        let text = std::fs::read_to_string(path).expect("read source file");
+        for _ in 0..text.matches(needle).count() {
+            defining_files.push(path.display().to_string());
+        }
+    }
+    assert_eq!(
+        defining_files.len(),
+        1,
+        "the drift identity format `{needle}` must appear exactly once in \
+         src/ (the drift_identity_key definition); found it in: \
+         {defining_files:?} — call output::terminal::drift_identity_key \
+         instead of hand-rolling the format"
+    );
+    assert!(
+        defining_files[0].ends_with("terminal.rs"),
+        "the single definition must be src/output/terminal.rs's \
+         drift_identity_key, found it in {}",
+        defining_files[0]
+    );
+
+    let main_src = std::fs::read_to_string(root.join("src/main.rs")).expect("read src/main.rs");
+    assert!(
+        main_src.matches("drift_identity_key").count() >= 2,
+        "main.rs's --baseline filter must call drift_identity_key for both \
+         the baseline set and the retain predicate"
+    );
+}
+
+// ── Binary-level: check --baseline (first coverage for the flag) ────────────
+
+/// A baseline entry with the SAME kind|service|detail but a different message
+/// and severity must still suppress the drift: the filter matches identity,
+/// not bytes. This is the `--baseline` twin of
+/// `since_message_and_severity_changes_are_not_new_drift`, run through the
+/// real compiled binary so the main.rs wiring is what is under test.
+#[test]
+fn baseline_with_matching_identity_suppresses_drift_via_binary() {
+    let dir = drifted_repo();
+    let baseline = dir.path().join("baseline.json");
+    std::fs::write(
+        &baseline,
+        serde_json::json!({
+            "drift": [{
+                "kind": "declared_missing_from_repo",
+                "severity": "warning",
+                "service": "ghost-service",
+                "message": "message text recorded weeks ago, since reworded",
+            }]
+        })
+        .to_string(),
+    )
+    .expect("write baseline.json");
+
+    check_cmd(
+        dir.path(),
+        &[
+            "--baseline",
+            baseline.to_str().expect("utf8 path"),
+            "--fail-on-drift",
+        ],
+    )
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("OK  No drift detected"));
+}
+
+/// A baseline whose only entry differs in identity (another service) must NOT
+/// suppress the drift: the discriminator proving the filter is keyed, not a
+/// suppress-everything switch.
+#[test]
+fn baseline_with_different_identity_does_not_suppress_via_binary() {
+    let dir = drifted_repo();
+    let baseline = dir.path().join("baseline.json");
+    std::fs::write(
+        &baseline,
+        serde_json::json!({
+            "drift": [{
+                "kind": "declared_missing_from_repo",
+                "severity": "error",
+                "service": "some-other-service",
+                "message": "'some-other-service' is declared in the manifest but not found in the repo",
+            }]
+        })
+        .to_string(),
+    )
+    .expect("write baseline.json");
+
+    check_cmd(
+        dir.path(),
+        &[
+            "--baseline",
+            baseline.to_str().expect("utf8 path"),
+            "--fail-on-drift",
+        ],
+    )
+    .assert()
+    .code(1)
+    .stdout(predicate::str::contains("DRIFT DETECTED"))
+    .stdout(predicate::str::contains("ghost-service"));
 }

@@ -19,6 +19,7 @@
 //!   URL answering, not about a line in the file (the sarif precedent).
 
 use crate::drift::{DriftItem, DriftKind, DriftReport, Severity};
+use crate::output::terminal::drift_identity_key;
 use crate::ping::{PingResult, PingStatus};
 use std::collections::HashSet;
 
@@ -161,12 +162,12 @@ pub fn render_check(report: &DriftReport, ping_results: &[PingResult]) {
 /// The annotation lines for drift present in `new_report` but not
 /// `old_report`. Pure so the since-filter is unit-testable.
 fn since_annotation_lines(old_report: &DriftReport, new_report: &DriftReport) -> Vec<String> {
-    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_key).collect();
+    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_identity_key).collect();
 
     new_report
         .drifts
         .iter()
-        .filter(|d| !old_keys.contains(&drift_key(d)))
+        .filter(|d| !old_keys.contains(&drift_identity_key(d)))
         .map(|d| drift_annotation_line(d, &new_report.manifest))
         .collect()
 }
@@ -181,15 +182,6 @@ pub fn render_since_annotations(old_report: &DriftReport, new_report: &DriftRepo
         println!("{line}");
     }
     lines.len()
-}
-
-fn drift_key(item: &DriftItem) -> String {
-    format!(
-        "{:?}|{}|{}",
-        item.kind,
-        item.service,
-        item.detail.as_deref().unwrap_or("")
-    )
 }
 
 #[cfg(test)]
