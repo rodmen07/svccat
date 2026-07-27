@@ -166,6 +166,13 @@ any published version. This section exists exactly while that is true, enforced 
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
 
+- **SARIF results anchored to manifest lines** (2026-07-26). Drift findings about
+  declared services now carry `region.startLine` — the line of the service's `name:`
+  entry, recovered by a fail-closed positional text scan in the new
+  `src/manifest_lines.rs` (the YAML parser has no span surface for documents that
+  parse) — which is what the sarif module doc's "inline annotations" promise needed
+  to be true. `drift::DriftItem` gains an additive `line: Option<usize>`. Ping and
+  undeclared-service findings stay file-level. Targets the next release after v1.6.0.
 - **GitHub annotation renderer: ping results wired in, workflow-command escaping
   added** (2026-07-26). The `github-annotation` format — the default under GitHub
   Actions — dropped `--ping` results entirely (the sibling of the fixed SARIF defect)
