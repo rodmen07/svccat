@@ -245,6 +245,30 @@ mod tests {
         assert!(!snapshot_path(root, "v1").exists());
     }
 
+    /// The v1.6.1 edge case: the snapshot json is gone but its SBOM sidecar
+    /// is not (hand-deleted file, partial copy, cleaned checkout). `delete`
+    /// bails before its sidecar cleanup runs, so the sidecar is orphaned —
+    /// and an orphaned sidecar then blocks `save_sbom` for that name. This
+    /// pins the current behavior; the recovery path (re-`save` the name,
+    /// then `delete` removes both) is documented in the backlog as a LOW
+    /// usability bug, not silently changed here.
+    #[test]
+    fn delete_with_missing_snapshot_bails_and_leaves_sidecar_orphaned() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        let sidecar = save_sbom(root, "v1", &manifest).unwrap();
+
+        std::fs::remove_file(snapshot_path(root, "v1")).unwrap();
+
+        let err = delete(root, "v1").unwrap_err();
+        assert!(err.to_string().contains("not found"));
+        assert!(sidecar.exists(), "sidecar should be orphaned, not removed");
+
+        let err = save_sbom(root, "v1", &manifest).unwrap_err();
+        assert!(err.to_string().contains("already exists"));
+    }
+
     #[test]
     fn list_skips_sbom_sidecars() {
         let dir = TempDir::new().unwrap();
