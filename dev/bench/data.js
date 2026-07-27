@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785129616768,
+  "lastUpdate": 1785132246416,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3719,6 +3719,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12221,
             "range": "± 67",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "88ec3af93ba3388ce2416cf64206a7f9efcb5bae",
+          "message": "refactor: one shared drift_identity_key for every drift-identity site (#39)\n\nThe kind|service|detail identity format was hand-duplicated at six sites:\nterminal.rs (drift_key), markdown.rs, junit.rs, github_annotation.rs (a\nprivate drift_key each), and two inline copies in main.rs's --baseline\nfilter plus two more in its markdown --since branch. If any one changed\nalone, --since and --baseline would silently disagree about what counts\nas the same drift.\n\nNow output::terminal::drift_identity_key is the single definition; every\nsite calls it. A guard test scans the whole src/ tree and fails the build\nif a hand-rolled copy grows back, and the --baseline flag gets its first\ntest coverage (binary-level, proving identity semantics: same identity\nwith different message/severity still suppresses; different identity does\nnot). src/diff.rs::drift_key is deliberately untouched: snapshot diffing\nkeys on service:message over DriftSummaryItem, a different contract.",
+          "timestamp": "2026-07-27T01:00:50-05:00",
+          "tree_id": "f41f6bf0c922498b7c9918a70d8e8907f7e27004",
+          "url": "https://github.com/rodmen07/svccat/commit/88ec3af93ba3388ce2416cf64206a7f9efcb5bae"
+        },
+        "date": 1785132245581,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12470,
+            "range": "± 111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23622,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 259,
+            "range": "± 3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5117,
+            "range": "± 72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 4710,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12280,
+            "range": "± 224",
             "unit": "ns/iter"
           }
         ]
