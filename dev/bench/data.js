@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785132246416,
+  "lastUpdate": 1785152726030,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3779,6 +3779,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12280,
             "range": "± 224",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67ab12773054211d3be5cf9490fb25000e29fd8d",
+          "message": "fix: orphaned SBOM sidecars are recoverable via snapshot delete (#40)\n\nThe v1.6.1 LOW bug from the PR #38 QA pass. delete on a missing\nsnapshot now removes an orphaned sidecar and succeeds; save --sbom\nchecks the sidecar precondition before writing the snapshot json so\nit can no longer half-finish; the sidecar-exists error names the\nrecovery command.",
+          "timestamp": "2026-07-27T06:42:19-05:00",
+          "tree_id": "5c913802d0516bc2a32d10a0b09cf297bca309ba",
+          "url": "https://github.com/rodmen07/svccat/commit/67ab12773054211d3be5cf9490fb25000e29fd8d"
+        },
+        "date": 1785152725166,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12568,
+            "range": "± 81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23954,
+            "range": "± 260",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 309,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5466,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5194,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12612,
+            "range": "± 178",
             "unit": "ns/iter"
           }
         ]
