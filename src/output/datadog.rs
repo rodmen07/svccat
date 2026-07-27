@@ -138,6 +138,7 @@ mod tests {
                     service: "api".to_string(),
                     message: "missing".to_string(),
                     detail: None,
+                    line: None,
                 },
                 DriftItem {
                     kind: DriftKind::MissingField,
@@ -145,6 +146,7 @@ mod tests {
                     service: "api".to_string(),
                     message: "no platform".to_string(),
                     detail: Some("platform".to_string()),
+                    line: None,
                 },
                 DriftItem {
                     kind: DriftKind::UndeclaredInRepo,
@@ -152,6 +154,7 @@ mod tests {
                     service: "worker".to_string(),
                     message: "extra".to_string(),
                     detail: None,
+                    line: None,
                 },
             ],
         };

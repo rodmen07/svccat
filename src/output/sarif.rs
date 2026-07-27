@@ -6,14 +6,21 @@ use std::path::Path;
 
 /// Emit a SARIF 2.1.0 document to stdout.
 ///
-/// Drift items become SARIF results.  Each `DriftKind` is a separate rule so
-/// GitHub Code Scanning can surface them as inline PR annotations.
+/// Drift items become SARIF results, each `DriftKind` under its own rule.
+/// A result whose drift item carries a manifest line (recovered by
+/// `crate::manifest_lines` from the service's `name:` entry) gets a
+/// `region.startLine`, which is what lets a SARIF consumer such as GitHub
+/// Code Scanning anchor it as an inline annotation on the manifest.  Items
+/// with no line — a discovered-but-undeclared service, or a manifest the
+/// line scan could not index — stay file-level, anchored to the manifest
+/// artifact as a whole.
 ///
 /// `--ping` failures become results too, under their own rules: an unreachable
 /// or SSRF-blocked service URL is a finding a CI consumer of this format needs
 /// to see, exactly as it is in the `json`, `junit`, `markdown` and terminal
 /// renderers.  A *reachable* service produces no result, because SARIF results
-/// are problems, not a per-URL health log.
+/// are problems, not a per-URL health log.  Ping findings are file-level: a
+/// ping failure is about a URL answering, not about a line in the file.
 pub fn render_check(report: &DriftReport, ping_results: &[PingResult], root: &Path) -> Result<()> {
     let doc = build_sarif(report, ping_results, root);
     println!("{}", serde_json::to_string_pretty(&doc)?);
@@ -149,7 +156,14 @@ fn sarif_result(item: &crate::drift::DriftItem, artifact_uri: &str) -> Value {
         Severity::Warning => "warning",
     };
 
-    sarif_finding(rule_id, level, &item.message, &item.service, artifact_uri)
+    sarif_finding(
+        rule_id,
+        level,
+        &item.message,
+        &item.service,
+        artifact_uri,
+        item.line,
+    )
 }
 
 /// A ping outcome as a SARIF result, or `None` when there is nothing to report.
@@ -183,26 +197,37 @@ fn sarif_ping_result(ping: &PingResult, artifact_uri: &str) -> Option<Value> {
         &message,
         &ping.service,
         artifact_uri,
+        None, // ping findings are about a URL answering, not a manifest line
     ))
 }
 
 /// The one shape every result in this document has, so a new finding kind
 /// cannot invent a different location layout.
+///
+/// A known manifest line becomes `region.startLine`; without one the
+/// `physicalLocation` names only the artifact, which SARIF consumers treat
+/// as a file-level finding.
 fn sarif_finding(
     rule_id: &str,
     level: &str,
     message: &str,
     service: &str,
     artifact_uri: &str,
+    line: Option<usize>,
 ) -> Value {
+    let mut physical_location = json!({
+        "artifactLocation": { "uri": artifact_uri }
+    });
+    if let Some(start_line) = line {
+        physical_location["region"] = json!({ "startLine": start_line });
+    }
+
     json!({
         "ruleId": rule_id,
         "level": level,
         "message": { "text": message },
         "locations": [{
-            "physicalLocation": {
-                "artifactLocation": { "uri": artifact_uri }
-            },
+            "physicalLocation": physical_location,
             "logicalLocations": [{
                 "name": service,
                 "kind": "function"
@@ -328,6 +353,7 @@ mod tests {
             service: "billing".to_string(),
             message: "something drifted".to_string(),
             detail: None,
+            line: None,
         }
     }
 
@@ -802,5 +828,81 @@ mod tests {
                 artifact
             );
         }
+    }
+
+    // ── region: the line that makes an inline annotation possible ───────────
+
+    fn drift_at_line(kind: DriftKind, severity: Severity, line: usize) -> DriftItem {
+        let mut item = drift(kind, severity);
+        item.line = Some(line);
+        item
+    }
+
+    #[test]
+    fn a_drift_item_with_a_line_becomes_a_region_start_line() {
+        let doc = sarif_doc(
+            &report_with(vec![drift_at_line(
+                DriftKind::MissingField,
+                Severity::Warning,
+                7,
+            )]),
+            &[],
+        );
+
+        assert_eq!(
+            doc["runs"][0]["results"][0]["locations"][0]["physicalLocation"]["region"]["startLine"],
+            7
+        );
+    }
+
+    /// The discriminator for the test above: without a line there must be no
+    /// `region` key at all — an absent region is how SARIF says "file-level",
+    /// whereas a fabricated `startLine` (0, 1, anything) would anchor the
+    /// finding to a line nobody wrote.
+    #[test]
+    fn a_drift_item_without_a_line_stays_file_level() {
+        let doc = sarif_doc(
+            &report_with(vec![drift(DriftKind::MissingField, Severity::Warning)]),
+            &[],
+        );
+
+        let physical = &doc["runs"][0]["results"][0]["locations"][0]["physicalLocation"];
+        assert!(
+            physical.get("region").is_none(),
+            "a line-less item must not invent a region: {physical}"
+        );
+    }
+
+    /// Ping findings stay file-level even in a document where drift results
+    /// carry regions: a ping failure is about a URL answering, and pinning it
+    /// to the `name:` line would point a reader at the wrong field.
+    #[test]
+    fn ping_findings_carry_no_region_even_when_drift_items_do() {
+        let doc = sarif_doc(
+            &report_with(vec![drift_at_line(
+                DriftKind::MissingField,
+                Severity::Warning,
+                7,
+            )]),
+            &[ping(
+                "billing",
+                PingStatus::Unreachable {
+                    reason: "timed out".to_string(),
+                },
+            )],
+        );
+
+        let results = doc["runs"][0]["results"].as_array().unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(
+            results[0]["locations"][0]["physicalLocation"]["region"]["startLine"],
+            7
+        );
+        assert!(
+            results[1]["locations"][0]["physicalLocation"]
+                .get("region")
+                .is_none(),
+            "ping finding must stay file-level"
+        );
     }
 }

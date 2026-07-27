@@ -138,6 +138,7 @@ mod tests {
                 service: "api".to_string(),
                 message: "missing".to_string(),
                 detail: None,
+                line: None,
             }],
         };
 

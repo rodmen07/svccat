@@ -43,6 +43,12 @@ pub struct DriftItem {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// 1-based manifest line of the service's `name:` entry, when the line
+    /// scan could recover it (see `crate::manifest_lines`). `None` for an
+    /// undeclared service, an unindexable manifest, or any report produced
+    /// before this field existed; serde defaults keep old snapshots loading.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -107,6 +113,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                     svc.name
                 ),
                 detail: svc.declared_path().map(str::to_owned),
+                line: None,
             });
         }
 
@@ -130,6 +137,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                     service: svc.name.clone(),
                     message: format!("'{}' is missing recommended field: {}", svc.name, field),
                     detail: Some(field.to_string()),
+                    line: None,
                 });
             }
         }
@@ -147,6 +155,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                             svc.name, label, ref_path
                         ),
                         detail: Some(ref_path.clone()),
+                        line: None,
                     });
                 }
             }
@@ -177,6 +186,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                     disc.path
                 ),
                 detail: Some(disc.path.clone()),
+                line: None,
             });
         }
     }
@@ -206,6 +216,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                             svc.name, field
                         ),
                         detail: Some(field.clone()),
+                        line: None,
                     });
                 }
             }
@@ -232,6 +243,7 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
                                 violation.service_name, violation.message
                             ),
                             detail: Some(violation.rule_id),
+                            line: None,
                         });
                     }
                 }
@@ -267,6 +279,7 @@ fn check_dependencies(manifest: &Manifest, report: &mut DriftReport) {
                         svc.name, dep
                     ),
                     detail: Some(dep.clone()),
+                    line: None,
                 });
             }
         }
@@ -331,6 +344,7 @@ fn check_dependencies(manifest: &Manifest, report: &mut DriftReport) {
                                         cycle_str, child
                                     ),
                                     detail: Some(format!("{} → {}", cycle_str, child)),
+                                    line: None,
                                 });
                             }
                         }

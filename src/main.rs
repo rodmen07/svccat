@@ -10,8 +10,8 @@ use svccat::cli::{
 };
 use svccat::{
     audit, ci, config, demo, deps, diff, discovery, drift, fix, hooks, import, init, lint,
-    manifest, output, ping, policy, report, reporting, scorecard, search, serve, since, snapshot,
-    stats, tag, watch, webhook, workspace,
+    manifest, manifest_lines, output, ping, policy, report, reporting, scorecard, search, serve,
+    since, snapshot, stats, tag, watch, webhook, workspace,
 };
 
 fn main() {
@@ -160,6 +160,16 @@ fn run() -> Result<i32> {
 
             let mut report = drift::analyze(&m, &discovered, &root);
             report.manifest = path.display().to_string();
+
+            // Anchor service-scoped findings to the line of their `name:`
+            // entry so renderers with a line slot (SARIF `region`) can emit
+            // inline annotations. The scan fails closed to "no line" (see
+            // `manifest_lines`), so this only ever adds information; it maps
+            // against the FULL manifest because that is what the file holds,
+            // regardless of any --team filter applied to `m` above.
+            if let Ok(manifest_text) = std::fs::read_to_string(&path) {
+                manifest_lines::attach(&mut report, &full_m, &manifest_text);
+            }
 
             // --baseline: filter drift to only items absent from the saved baseline snapshot.
             if let Some(ref baseline_path) = baseline {

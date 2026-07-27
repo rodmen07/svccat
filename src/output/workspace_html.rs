@@ -476,6 +476,7 @@ mod tests {
             service: "\"><script>alert(3)</script>".to_string(),
             message: "<b>bold drift</b> & \"quoted\"".to_string(),
             detail: None,
+            line: None,
         });
 
         let html = render_html(&report);
