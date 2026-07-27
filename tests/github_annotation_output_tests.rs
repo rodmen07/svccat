@@ -147,6 +147,42 @@ fn github_actions_env_defaults_to_annotations_and_carries_ping_findings() {
     );
 }
 
+/// The line anchor, end to end through the real binary: the fixture's one
+/// service declares its `name:` on line 7 of `services.yaml` (the same line
+/// `tests/sarif_output_tests.rs` pins for the SARIF `region.startLine`), so
+/// the drift annotation must carry `line=7` — that anchor is what places the
+/// annotation inline at the service entry in the pull-request view — while
+/// the `--ping` finding stays file-level, because a ping failure is about a
+/// URL answering, not a line in the file. This is the wiring guard: the unit
+/// tests prove the builder honors `DriftItem::line`, and only spawning the
+/// binary proves `main.rs` still attaches lines before rendering.
+#[test]
+fn drift_annotations_anchor_to_the_name_line_and_ping_stays_file_level() {
+    let dir = repo_with_a_blocked_url();
+    let stdout = annotation_stdout(
+        dir.path(),
+        &["--format", "github-annotation", "--ping"],
+        false,
+    );
+
+    let drift_line = stdout
+        .lines()
+        .find(|l| l.contains("svccat [MISSING]"))
+        .expect("drift annotation line");
+    assert!(
+        drift_line.contains(",line=7,"),
+        "drift must anchor to the fixture's `- name: billing` line: {drift_line:?}"
+    );
+    let ping_line = stdout
+        .lines()
+        .find(|l| l.contains("svccat [INVALID-URL]"))
+        .expect("ping annotation line");
+    assert!(
+        !ping_line.contains("line="),
+        "ping findings are file-level: {ping_line:?}"
+    );
+}
+
 /// Escaping at the binary level: a service name carrying `%` must come out
 /// data-escaped (`%25`) so a literal `%0A` in manifest content can never
 /// decode as a newline on the runner. The newline-injection shape itself is
