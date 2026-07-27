@@ -166,6 +166,13 @@ any published version. This section exists exactly while that is true, enforced 
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
 
+- **Orphaned SBOM sidecars are recoverable via `snapshot delete`** (2026-07-27). The
+  v1.6.1 LOW bug from the PR #38 QA pass, fixed: `delete` on a missing snapshot now
+  removes an orphaned `<name>.spdx.json` and succeeds instead of bailing before its
+  cleanup; `save --sbom` checks the sidecar precondition before writing the snapshot
+  json so it can no longer exit nonzero having already mutated the filesystem; the
+  sidecar-exists error names `svccat snapshot delete <name>` as the recovery.
+  Targets the next release after v1.6.0.
 - **SARIF results anchored to manifest lines** (2026-07-26). Drift findings about
   declared services now carry `region.startLine` — the line of the service's `name:`
   entry, recovered by a fail-closed positional text scan in the new

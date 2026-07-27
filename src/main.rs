@@ -708,6 +708,13 @@ fn run() -> Result<i32> {
                 let discovered = discovery::discover_services_with_opts(&root, &m, &ignore, depth);
                 let mut drift_report = drift::analyze(&m, &discovered, &root);
                 drift_report.manifest = path.display().to_string();
+                if sbom {
+                    // Check the sidecar precondition BEFORE `save` writes the
+                    // snapshot json: failing after it used to leave a
+                    // half-finished state (snapshot written, command exited
+                    // nonzero, orphaned sidecar still in place).
+                    snapshot::ensure_no_sbom_sidecar(&root, &name)?;
+                }
                 snapshot::save(&root, &name, &m, &drift_report)?;
                 if sbom {
                     let p = snapshot::save_sbom(&root, &name, &m)?;
