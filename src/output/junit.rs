@@ -1,4 +1,5 @@
 use crate::drift::{DriftItem, DriftReport, Severity};
+use crate::output::terminal::drift_identity_key;
 use crate::ping::{PingResult, PingStatus};
 use anyhow::Result;
 use std::collections::HashSet;
@@ -71,11 +72,11 @@ pub fn build_since_document(
     new_report: &DriftReport,
     git_ref: &str,
 ) -> (String, usize) {
-    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_key).collect();
+    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_identity_key).collect();
     let added: Vec<&DriftItem> = new_report
         .drifts
         .iter()
-        .filter(|d| !old_keys.contains(&drift_key(d)))
+        .filter(|d| !old_keys.contains(&drift_identity_key(d)))
         .collect();
 
     let mut body = String::new();
@@ -178,13 +179,4 @@ fn escape_xml(input: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
-}
-
-fn drift_key(item: &DriftItem) -> String {
-    format!(
-        "{:?}|{}|{}",
-        item.kind,
-        item.service,
-        item.detail.as_deref().unwrap_or("")
-    )
 }

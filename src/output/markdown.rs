@@ -1,4 +1,5 @@
 use crate::drift::{DriftItem, DriftReport, Severity};
+use crate::output::terminal::drift_identity_key;
 use crate::ping::{PingResult, PingStatus};
 use std::fmt::Write;
 
@@ -101,18 +102,18 @@ pub fn render_since_diff_markdown(
 ) -> String {
     use std::collections::HashSet;
 
-    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_key).collect();
-    let new_keys: HashSet<String> = new_report.drifts.iter().map(drift_key).collect();
+    let old_keys: HashSet<String> = old_report.drifts.iter().map(drift_identity_key).collect();
+    let new_keys: HashSet<String> = new_report.drifts.iter().map(drift_identity_key).collect();
 
     let added: Vec<&DriftItem> = new_report
         .drifts
         .iter()
-        .filter(|d| !old_keys.contains(&drift_key(d)))
+        .filter(|d| !old_keys.contains(&drift_identity_key(d)))
         .collect();
     let resolved: Vec<&DriftItem> = old_report
         .drifts
         .iter()
-        .filter(|d| !new_keys.contains(&drift_key(d)))
+        .filter(|d| !new_keys.contains(&drift_identity_key(d)))
         .collect();
     let unchanged = new_report.drifts.len().saturating_sub(added.len());
 
@@ -179,13 +180,4 @@ pub fn render_since_diff_markdown(
     }
 
     out
-}
-
-fn drift_key(item: &DriftItem) -> String {
-    format!(
-        "{:?}|{}|{}",
-        item.kind,
-        item.service,
-        item.detail.as_deref().unwrap_or("")
-    )
 }
