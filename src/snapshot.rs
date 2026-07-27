@@ -28,6 +28,10 @@ fn snapshot_path(root: &Path, name: &str) -> PathBuf {
     snapshots_dir(root).join(format!("{name}.json"))
 }
 
+fn sbom_path(root: &Path, name: &str) -> PathBuf {
+    snapshots_dir(root).join(format!("{name}.spdx.json"))
+}
+
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -80,17 +84,33 @@ pub fn save(root: &Path, name: &str, manifest: &Manifest, report: &DriftReport) 
     Ok(())
 }
 
+/// Error if the SBOM sidecar for `name` already exists.
+///
+/// Public so the CLI can run this precondition BEFORE `save` writes the
+/// snapshot json: `save`-then-`save_sbom` used to fail on an existing
+/// (orphaned) sidecar only AFTER the snapshot was written, leaving a
+/// half-finished state (snapshot saved, command exited nonzero). The error
+/// names `svccat snapshot delete <name>` because that command removes the
+/// sidecar whether or not the snapshot json exists, so it is the one
+/// recovery that always works.
+pub fn ensure_no_sbom_sidecar(root: &Path, name: &str) -> Result<()> {
+    let path = sbom_path(root, name);
+    if path.exists() {
+        bail!(
+            "SBOM sidecar already exists ({}). Run `svccat snapshot delete {}` to remove it first.",
+            path.display(),
+            name
+        );
+    }
+    Ok(())
+}
+
 /// Write an SPDX 2.3 JSON SBOM sidecar for a snapshot at
 /// `<root>/.svccat/snapshots/<name>.spdx.json`. Errors if the sidecar
 /// already exists. Does not print; the caller reports the path.
 pub fn save_sbom(root: &Path, name: &str, manifest: &Manifest) -> Result<PathBuf> {
-    let path = snapshots_dir(root).join(format!("{name}.spdx.json"));
-    if path.exists() {
-        bail!(
-            "SBOM sidecar already exists ({}). Delete the snapshot or remove the file first.",
-            path.display()
-        );
-    }
+    ensure_no_sbom_sidecar(root, name)?;
+    let path = sbom_path(root, name);
     let spdx = crate::output::spdx::render_export(manifest)?;
     std::fs::write(&path, spdx).with_context(|| format!("writing {}", path.display()))?;
     Ok(path)
@@ -128,14 +148,31 @@ pub fn load(root: &Path, name: &str) -> Result<Snapshot> {
     serde_json::from_str(&text).context("parsing snapshot")
 }
 
-/// Delete a snapshot by name.
+/// Delete a snapshot by name, along with its SBOM sidecar if present.
+///
+/// If the snapshot json is missing but an orphaned SBOM sidecar exists
+/// (hand-deleted file, partial copy, cleaned checkout), the sidecar is
+/// removed and the call succeeds: the orphan is exactly what blocks
+/// `save --sbom` for that name, so `delete` doubles as the recovery the
+/// `ensure_no_sbom_sidecar` error message points at. Only when NEITHER
+/// file exists is "snapshot not found" an error.
 pub fn delete(root: &Path, name: &str) -> Result<()> {
     let path = snapshot_path(root, name);
+    let sidecar = sbom_path(root, name);
     if !path.exists() {
+        if sidecar.exists() {
+            std::fs::remove_file(&sidecar)
+                .with_context(|| format!("deleting {}", sidecar.display()))?;
+            eprintln!(
+                "snapshot '{}' not found; removed orphaned SBOM sidecar ({})",
+                name,
+                sidecar.display()
+            );
+            return Ok(());
+        }
         bail!("snapshot '{}' not found", name);
     }
     std::fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
-    let sidecar = snapshots_dir(root).join(format!("{name}.spdx.json"));
     if sidecar.exists() {
         let _ = std::fs::remove_file(&sidecar);
     }
@@ -245,15 +282,18 @@ mod tests {
         assert!(!snapshot_path(root, "v1").exists());
     }
 
-    /// The v1.6.1 edge case: the snapshot json is gone but its SBOM sidecar
-    /// is not (hand-deleted file, partial copy, cleaned checkout). `delete`
-    /// bails before its sidecar cleanup runs, so the sidecar is orphaned —
-    /// and an orphaned sidecar then blocks `save_sbom` for that name. This
-    /// pins the current behavior; the recovery path (re-`save` the name,
-    /// then `delete` removes both) is documented in the backlog as a LOW
-    /// usability bug, not silently changed here.
+    /// The v1.6.1 edge case, FIXED: the snapshot json is gone but its SBOM
+    /// sidecar is not (hand-deleted file, partial copy, cleaned checkout).
+    /// `delete` used to bail before its sidecar cleanup ran, so the sidecar
+    /// stayed orphaned and then blocked `save --sbom` for that name with no
+    /// documented recovery. `delete` now removes the orphan and succeeds.
+    ///
+    /// DELIBERATE behavior change: this supersedes the previous pin
+    /// (`delete_with_missing_snapshot_bails_and_leaves_sidecar_orphaned`,
+    /// PR #38), per the backlog's LOW bug entry filed 2026-07-26 — the pin's
+    /// own doc comment routed the change here rather than blessing the orphan.
     #[test]
-    fn delete_with_missing_snapshot_bails_and_leaves_sidecar_orphaned() {
+    fn delete_with_missing_snapshot_removes_orphaned_sidecar() {
         let dir = TempDir::new().unwrap();
         let root = dir.path();
         let manifest = save_sample(root, "v1");
@@ -261,12 +301,39 @@ mod tests {
 
         std::fs::remove_file(snapshot_path(root, "v1")).unwrap();
 
-        let err = delete(root, "v1").unwrap_err();
-        assert!(err.to_string().contains("not found"));
-        assert!(sidecar.exists(), "sidecar should be orphaned, not removed");
+        delete(root, "v1").unwrap();
+        assert!(!sidecar.exists(), "orphaned sidecar should be removed");
 
-        let err = save_sbom(root, "v1", &manifest).unwrap_err();
-        assert!(err.to_string().contains("already exists"));
+        // The recovery is complete: the name is usable again.
+        save_sbom(root, "v1", &manifest).unwrap();
+    }
+
+    /// The error path survives the fix: when NEITHER the snapshot json nor
+    /// the sidecar exists, `delete` still reports "not found" rather than
+    /// silently succeeding on nothing.
+    #[test]
+    fn delete_with_neither_snapshot_nor_sidecar_still_bails() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(snapshots_dir(root)).unwrap();
+
+        let err = delete(root, "missing").unwrap_err();
+        assert!(err.to_string().contains("not found"));
+    }
+
+    /// The precondition error names the one recovery that always works
+    /// (`svccat snapshot delete <name>`), and stays quiet when no sidecar
+    /// exists for the name.
+    #[test]
+    fn ensure_no_sbom_sidecar_error_names_the_delete_recovery() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let manifest = save_sample(root, "v1");
+        save_sbom(root, "v1", &manifest).unwrap();
+
+        let err = ensure_no_sbom_sidecar(root, "v1").unwrap_err();
+        assert!(err.to_string().contains("svccat snapshot delete v1"));
+        assert!(ensure_no_sbom_sidecar(root, "v2").is_ok());
     }
 
     #[test]
