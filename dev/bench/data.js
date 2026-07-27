@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785115370008,
+  "lastUpdate": 1785122278119,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3539,6 +3539,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12407,
             "range": "± 118",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "03439a3201fc58845501abea7ed26d175e3d2d36",
+          "message": "feat(sarif): anchor drift findings to their manifest line via region.startLine (#36)\n\n* feat(sarif): anchor drift findings to their manifest line via region.startLine\n\nThe sarif module doc has promised 'inline PR annotations' since the format\nshipped, but every result carried only an artifactLocation with no region,\nso a SARIF consumer had nothing to anchor an inline annotation to. The\ndrift data genuinely had no line to offer: serde_yaml_ng 0.10 exposes\nposition info only on Error (no span surface for values that parse), so a\nloaded Manifest knows nothing about where its entries sit in the file.\n\nNew #[doc(hidden)] module src/manifest_lines.rs recovers lines positionally\nby a text scan: the Nth name: key inside the top-level services: block\nbelongs to the Nth ServiceEntry, because serde fills the Vec in document\norder. The scan FAILS CLOSED: attach() compares the match count against\nthe parsed service count and attaches nothing on disagreement, so exotic\nYAML (a block scalar body that looks like a name: key, a quoted key)\ndegrades to today's file-level findings, never to a wrong line.\n\nDriftItem gains line: Option<usize> (non_exhaustive struct; additive per\ndocs/API_STABILITY.md, which explicitly allows new fields in a minor;\nserde default keeps old snapshots and baselines loading, and\nskip_serializing_if keeps None out of every JSON document). analyze()'s\ncovered signature is untouched: main.rs attaches lines as a post-pass in\nthe check command, mapping against the FULL manifest regardless of any\n--team filter. The sarif renderer emits region.startLine when the item\ncarries a line; ping findings stay deliberately file-level (a ping failure\nis about a URL answering, not a line in the file), and the module doc now\nsays exactly what anchors where.\n\nTests 403 -> 418: 11 unit tests on the scanner and the fail-closed attach\ncontract, 3 sarif region unit tests, 1 binary-level test asserting the\nreal binary anchors the fixture's drift finding to line 7 while its ping\nfinding stays region-less.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n* docs: record the SARIF region feature in CHANGELOG [Unreleased] and ROADMAP\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-26T22:14:06-05:00",
+          "tree_id": "6d2b5f1127470679b3cc38970d5d93a9d6c42ae3",
+          "url": "https://github.com/rodmen07/svccat/commit/03439a3201fc58845501abea7ed26d175e3d2d36"
+        },
+        "date": 1785122277250,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12528,
+            "range": "± 274",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23519,
+            "range": "± 149",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 309,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5570,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5139,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12037,
+            "range": "± 367",
             "unit": "ns/iter"
           }
         ]
