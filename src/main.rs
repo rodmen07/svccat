@@ -307,7 +307,7 @@ fn run() -> Result<i32> {
                         }
                         OutputFormat::Junit => output::junit::render_check(&report, &ping_results)?,
                         OutputFormat::GithubAnnotation => {
-                            output::github_annotation::render_check(&report);
+                            output::github_annotation::render_check(&report, &ping_results);
                         }
                         OutputFormat::Csv => output::csv::render_check(&report),
                         OutputFormat::Slack => output::slack::render_check(&report)?,

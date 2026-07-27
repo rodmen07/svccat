@@ -171,10 +171,13 @@ fn drift_key(item: &DriftItem) -> String {
 mod tests {
     use super::*;
 
-    // `DriftKind`, `Severity` and `PingStatus` are all `#[non_exhaustive]`,
-    // so the wildcard-free matches below only compile in-crate — which is the
+    // `DriftKind` and `Severity` are `#[non_exhaustive]` (`src/drift.rs`), so
+    // the wildcard-free matches below only compile in-crate — which is the
     // point: a new variant must extend these lists or the build fails, and an
     // integration test would be forced into a silently-weakening `_ =>` arm.
+    // `PingStatus` is NOT `#[non_exhaustive]` (verified in `src/ping.rs`, not
+    // assumed), but `ping_annotation_line`'s own match is wildcard-free, so a
+    // new variant fails compilation at the implementation rather than here.
 
     /// Every `DriftKind`, listed once, under the compile-time guard.
     fn all_drift_kinds() -> Vec<DriftKind> {

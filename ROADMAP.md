@@ -166,6 +166,13 @@ any published version. This section exists exactly while that is true, enforced 
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
 
+- **GitHub annotation renderer: ping results wired in, workflow-command escaping
+  added** (2026-07-26). The `github-annotation` format — the default under GitHub
+  Actions — dropped `--ping` results entirely (the sibling of the fixed SARIF defect)
+  and wrote unescaped manifest content into workflow commands, so a newline in a
+  service name could start a new `::` command on the runner. First coverage for
+  `src/output/github_annotation.rs` (unit + binary), found by the QA
+  oldest-untested-surface rotation. Targets the next release after v1.6.0.
 - **SARIF absolute-path URIs** (2026-07-26). `check --format sarif` under an absolute
   `--root` wrote the bare filesystem path into every `artifactLocation.uri`, which on
   Windows parses as a URI with a one-letter scheme. Absolute manifest paths are now
