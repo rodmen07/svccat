@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785124815779,
+  "lastUpdate": 1785129616768,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3659,6 +3659,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12483,
             "range": "± 220",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "192fa76f3eabaeb9839e73fc939e30025a6c60f5",
+          "message": "qa(coverage): first tests for the terminal renderer, plus the v1.6.1 orphaned-sidecar edge case (#38)\n\nsrc/output/terminal.rs was the oldest untested surface in the repo: its\ncontent dates to v0.1.0 (48ce7a1), was last touched for v0.7.0 (d183889),\nand had no mod tests and no integration test referencing it directly.\n\n- tests/terminal_output_tests.rs (11 tests): 5 in-process tests pinning\n  render_since_diff's return values and the kind|service|detail identity\n  contract (message and severity changes are NOT new drift; details keep\n  same-kind items distinct) — the same contract main.rs's --baseline\n  filter duplicates by hand; 6 binary-level tests (assert_cmd, per the\n  sarif_output_tests.rs precedent) for check's default terminal format,\n  --format compact, and the --fail-on-drift exit code.\n- src/snapshot.rs (+1 test): the one v1.6.1 SBOM edge case not already\n  covered — delete with a missing snapshot bails and leaves the SBOM\n  sidecar orphaned, which then blocks save_sbom for that name.\n\nThe other three v1.6.1 SBOM edge cases were already covered and are\nreconciled in the backlog: empty catalog (empty_manifest_keeps_arrays_\npresent), SPDXID collisions (spdxid_sanitization_and_collisions),\ndangling depends_on (depends_on_skips_unresolved_names).\n\nTests 423 -> 435, 0 failed. fmt + clippy -D warnings clean.\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-07-27T00:17:11-05:00",
+          "tree_id": "baa333b60747e1cb6de72b4772786a937050af61",
+          "url": "https://github.com/rodmen07/svccat/commit/192fa76f3eabaeb9839e73fc939e30025a6c60f5"
+        },
+        "date": 1785129616478,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12509,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24065,
+            "range": "± 777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 314,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5485,
+            "range": "± 44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5163,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12221,
+            "range": "± 67",
             "unit": "ns/iter"
           }
         ]
