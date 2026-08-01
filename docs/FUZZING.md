@@ -228,6 +228,44 @@ Two details of that command matter:
 Read the actual workflow file for the current exact steps; it is the source of
 truth, not this paragraph.
 
+### The working corpus carries over between runs
+
+`fuzz/corpus/<target>` is gitignored scratch space, so for as long as it lived
+only inside one job the runner deleted everything each campaign discovered. The
+cost was invisible because every run was green: the scheduled runs of
+2026-07-25 and 2026-07-31 report the *identical* `INITED cov:` figures
+(`fuzz_manifest` 3496, `fuzz_policy` 1246, `fuzz_url` 654, `fuzz_glob` 128), so
+a week of daily 121-second campaigns had produced no cumulative progress at
+all.
+
+The workflow now brackets the campaign with a per-target cache:
+
+- `actions/cache/restore` before the run, keyed
+  `fuzz-corpus-<target>-<run id>` with a `fuzz-corpus-<target>-` prefix
+  fallback, so a job picks up the newest previous entry for its own target.
+- `actions/cache/save` after it, under that same run-unique key. The key has to
+  be unique per run: a save onto a key that already exists is a no-op, so a
+  fixed key would freeze the corpus at whatever the first run happened to find.
+- The run step prints `carried-in corpus: N file(s)` before starting, which is
+  the libFuzzer-independent readout of whether the restore landed. `0` means a
+  cache miss.
+
+Two properties worth keeping in mind:
+
+- **The committed seeds are never cached.** Only the working corpus is. A cold,
+  evicted or poisoned cache therefore degrades a run back to exactly the
+  seeds-only behaviour described above and never below it, and it can never
+  substitute for the regression corpus `tests/fuzz_corpus_replay.rs` pins.
+- **Cache scope follows the branch.** An entry saved by a `workflow_dispatch`
+  run on a branch is restorable by later runs on that same branch and by
+  nothing else, so verifying carry-over pre-merge means dispatching the same
+  branch twice (see below). Entries saved on `main` are visible to every
+  branch.
+
+`fuzzing_workflow_carries_the_working_corpus_between_runs` in
+`tests/fuzz_corpus_replay.rs` is the PR-time guard on all of this, since the
+workflow itself never runs on `pull_request`.
+
 ### Verifying a fuzzing change without a local toolchain
 
 Because the workflow declares `workflow_dispatch`, the whole matrix can be run
@@ -255,6 +293,7 @@ loaded, so a seeding or wiring change has a measurable before and after.
 - [x] File-based policy config parsing + evaluation (`.svccat/policy.yaml` / `src/policy.rs`, target 4)
 - [x] Committed seed corpora for every target (`fuzz/corpus_seeds/`), replayed on every PR by `tests/fuzz_corpus_replay.rs` because the workflow does not run on `pull_request`
 - [x] Those seeds wired into the CI campaign itself as libFuzzer's read-only seed corpus (see the ordered corpus arguments above), so the daily run starts from them instead of an empty corpus
+- [x] The working corpus carried between CI runs by a per-target cache, so successive campaigns compound instead of restarting from the seeds every day
 - [x] This document pinned to the workflow, the target list and the real `fuzz/` layout by guard tests, so it cannot drift from them silently
 
 ### Recommended coverage
@@ -263,7 +302,7 @@ loaded, so a seeding or wiring change has a measurable before and after.
 - [ ] Path validation (unit tests currently cover this)
 - [ ] Dependency graph cycle detection (`src/deps_graph.rs` — a different cycle-detection surface than the policy-rule `base` chain above)
 - [ ] Structured (`arbitrary`-derived) `Rule`/`Vec<Rule>` generation for the **inline** rule compiler, rather than reaching `RuleEngine::compile` only indirectly through YAML manifest text. (Not the same thing as the `fuzz_policy` target above, which covers the **file-based** `.svccat/policy.yaml` config.)
-- [ ] Carrying the working corpus between CI runs (each job currently starts from the committed seeds and discards whatever it discovers, because `fuzz/corpus/` is per-job scratch space)
+- [ ] Bounding the carried corpus. libFuzzer only banks coverage-increasing inputs, so growth is sublinear, but nothing prunes it: `cargo fuzz cmin` on a schedule is the obvious lever if a restore ever starts costing real time.
 
 ## Best Practices
 

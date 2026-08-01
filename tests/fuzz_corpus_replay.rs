@@ -499,6 +499,157 @@ fn fuzzing_workflow_runs_from_the_committed_seed_corpus() {
     );
 }
 
+/// The steps of the `Continuous Fuzzing` job as `(name, body)` pairs in file
+/// order, with comment lines dropped so a body is the step's own YAML and never
+/// the prose sitting between it and the next step.
+///
+/// Split on the `- name:` lines rather than pulling a YAML parser into the test
+/// suite for one file: the workflow is hand-written, its steps are uniformly
+/// indented at six spaces, and nothing in it puts `- name:` inside a value.
+fn fuzzing_workflow_steps() -> Vec<(String, String)> {
+    let text = fuzzing_workflow().replace("\r\n", "\n");
+    let mut steps: Vec<(String, String)> = Vec::new();
+    for line in text.lines() {
+        if let Some(name) = line.strip_prefix("      - name:") {
+            steps.push((name.trim().to_string(), String::new()));
+            continue;
+        }
+        if line.trim_start().starts_with('#') {
+            continue;
+        }
+        if let Some((_, body)) = steps.last_mut() {
+            body.push_str(line);
+            body.push('\n');
+        }
+    }
+    steps
+}
+
+/// The scalar value of `field:` inside a step body, e.g. `uses` or `key`.
+fn step_field(body: &str, field: &str) -> Option<String> {
+    let needle = format!("{field}:");
+    body.lines()
+        .find_map(|line| Some(line.trim().strip_prefix(&needle)?.trim().to_string()))
+}
+
+/// The entries of a step's `restore-keys: |` block scalar.
+fn step_restore_keys(body: &str) -> Vec<String> {
+    let mut lines = body
+        .lines()
+        .skip_while(|l| !l.trim().starts_with("restore-keys:"));
+    let header = match lines.next() {
+        Some(h) => h,
+        None => return Vec::new(),
+    };
+    let indent = header.len() - header.trim_start().len();
+    lines
+        .take_while(|l| !l.trim().is_empty() && (l.len() - l.trim_start().len()) > indent)
+        .map(|l| l.trim().to_string())
+        .collect()
+}
+
+/// Index of the step whose body `uses:` the given action, or whose name matches.
+fn step_index(steps: &[(String, String)], predicate: impl Fn(&str, &str) -> bool) -> Option<usize> {
+    steps.iter().position(|(name, body)| predicate(name, body))
+}
+
+#[test]
+fn fuzzing_workflow_carries_the_working_corpus_between_runs() {
+    // The working corpus (`fuzz/corpus/<target>`) is gitignored scratch space
+    // that libFuzzer writes every newly discovered coverage-increasing input
+    // into. For as long as it was per-job scratch, the daily campaign threw all
+    // of it away and re-explored the same ground from the same starting point:
+    // the scheduled runs a week apart (2026-07-25 and 2026-07-31) report the
+    // IDENTICAL `INITED cov:` figures for all four targets. That is an inert
+    // surface of the same shape as the seeds nobody passed and the target
+    // nobody matrixed -- green, expensive, and cumulatively worth nothing --
+    // and since `fuzzing.yml` never runs on `pull_request`, this test is the
+    // only thing at PR time that would notice it being undone.
+    let steps = fuzzing_workflow_steps();
+    let path = "fuzz/corpus/${{ matrix.target }}";
+
+    let restore_at = step_index(&steps, |_, body| {
+        step_field(body, "uses").is_some_and(|u| u.starts_with("actions/cache/restore@"))
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "the Continuous Fuzzing job must restore the working corpus with \
+             `actions/cache/restore`, or every run starts from the committed seeds \
+             alone and 120 seconds of campaign per target is discarded daily. \
+             Steps found: {:?}",
+            steps.iter().map(|(n, _)| n).collect::<Vec<_>>()
+        )
+    });
+    let save_at = step_index(&steps, |_, body| {
+        step_field(body, "uses").is_some_and(|u| u.starts_with("actions/cache/save@"))
+    })
+    .expect("the job must SAVE the working corpus too; restoring alone carries nothing forward");
+    let run_at = step_index(&steps, |_, body| body.contains("cargo fuzz run"))
+        .expect("fuzzing.yml must invoke `cargo fuzz run`");
+
+    let restore = &steps[restore_at].1;
+    let save = &steps[save_at].1;
+
+    for (what, body) in [("restore", restore), ("save", save)] {
+        assert_eq!(
+            step_field(body, "path").as_deref(),
+            Some(path),
+            "the {what} step must cache exactly `{path}`, the gitignored WORKING corpus"
+        );
+        assert!(
+            !body.contains("corpus_seeds"),
+            "the {what} step must not touch `fuzz/corpus_seeds`: the committed corpus is the \
+             reproducible floor this suite pins, and a cache entry restored over it would let \
+             an evicted or poisoned cache silently replace the regression seeds"
+        );
+    }
+
+    let restore_key = step_field(restore, "key").expect("the restore step must declare a `key`");
+    let save_key = step_field(save, "key").expect("the save step must declare a `key`");
+    assert_eq!(
+        restore_key, save_key,
+        "restore and save must use the SAME cache key, or what a run banks is never what the \
+         next run looks for and the carry-over is a silent no-op"
+    );
+    assert!(
+        restore_key.contains("${{ github.run_id }}"),
+        "the cache key must be unique per run (`${{{{ github.run_id }}}}`): saving onto an \
+         existing key is a no-op, so a fixed key would freeze the corpus at whatever the first \
+         run happened to find. Key found: {restore_key}"
+    );
+    assert!(
+        restore_key.contains("${{ matrix.target }}"),
+        "the cache key must name the target, or four jobs would fight over one entry and each \
+         would restore another target's corpus. Key found: {restore_key}"
+    );
+
+    let restore_keys = step_restore_keys(restore);
+    let prefix = restore_keys.first().unwrap_or_else(|| {
+        panic!(
+            "the restore step must declare `restore-keys`: the exact key carries this run's id \
+             and therefore never exists yet, so without a prefix fallback EVERY run is a cache \
+             miss and the carry-over never happens"
+        )
+    });
+    assert!(
+        restore_key.starts_with(prefix) && prefix.len() < restore_key.len(),
+        "the `restore-keys` prefix `{prefix}` must be a strict prefix of the key `{restore_key}`, \
+         or it can never match a previous run's entry"
+    );
+
+    assert!(
+        restore_at < run_at && run_at < save_at,
+        "order must be restore -> fuzz -> save (found restore at {restore_at}, run at {run_at}, \
+         save at {save_at}); restoring after the campaign, or saving before it, banks nothing"
+    );
+    assert_eq!(
+        step_field(save, "if").as_deref(),
+        Some("always()"),
+        "the save step must run with `if: always()`, so a run that ends on a crash still banks \
+         the inputs that led up to it instead of discarding the campaign that found the bug"
+    );
+}
+
 #[test]
 fn docs_quote_the_workflows_actual_fuzz_command() {
     // The drift guard for the prose half. `docs/FUZZING.md` quotes the command

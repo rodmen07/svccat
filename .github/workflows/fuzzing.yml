@@ -48,7 +48,33 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
 
-      # 3. Actually build and run the named fuzz target against THIS
+      # 3. Carry the WORKING corpus over from the previous run of this target.
+      #
+      # `fuzz/corpus/<target>` is gitignored scratch space: libFuzzer writes
+      # every newly discovered coverage-increasing input there, and before this
+      # cache the runner threw all of it away when the job ended. Every daily
+      # campaign therefore re-explored the same ground from the same starting
+      # point — the scheduled runs on 2026-07-25 and 2026-07-31 report the
+      # IDENTICAL `INITED cov:` figures (fuzz_manifest 3496, fuzz_policy 1246,
+      # fuzz_url 654, fuzz_glob 128), i.e. a week of 121-second campaigns
+      # produced exactly zero cumulative progress.
+      #
+      # The key is unique per run so every job SAVES a fresh entry (a save onto
+      # an existing key is a no-op, which would freeze the corpus at its first
+      # snapshot); `restore-keys` then matches the newest previous entry for the
+      # same target. The committed seeds under `fuzz/corpus_seeds/<target>` are
+      # NOT cached and are never written to — they stay the reproducible floor
+      # that `tests/fuzz_corpus_replay.rs` pins, so a poisoned or evicted cache
+      # degrades a run back to exactly today's behaviour and never below it.
+      - name: Restore the working fuzz corpus (${{ matrix.target }})
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      # 4. Actually build and run the named fuzz target against THIS
       # checkout's code (fuzz/Cargo.toml depends on svccat via `path = ".."`,
       # so this always fuzzes the code in the PR/commit being tested, never
       # a published crates.io release).
@@ -74,17 +100,33 @@ jobs:
       # fuzzing campaign — it is enough to catch cheap, shallow crashes
       # (e.g. an unguarded recursive `base` chain in the policy rule
       # compiler) on every push to main and once a day, without turning this
-      # job into a multi-hour runner. Extending the budget or persisting the
-      # working corpus between runs is a follow-up, not this change.
+      # job into a multi-hour runner. Extending the budget is a follow-up; the
+      # working corpus now carries over (step 3), so successive runs compound
+      # instead of restarting.
+      #
+      # The `carried-in corpus` line is the direct, libFuzzer-independent
+      # readout of whether the restore actually landed: 0 files means a cache
+      # miss and a run that starts from the committed seeds alone.
       - name: Run cargo fuzz (${{ matrix.target }})
         run: |
           mkdir -p fuzz/corpus/${{ matrix.target }}
+          echo "carried-in corpus: $(find fuzz/corpus/${{ matrix.target }} -type f | wc -l) file(s)"
           cargo fuzz run ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} \
             fuzz/corpus_seeds/${{ matrix.target }} \
             -- -max_total_time=120
 
-      # 4. Preserve the crashing input so it can be downloaded and
+      # 5. Persist whatever this campaign discovered, so the next run starts
+      # where this one stopped. `always()` so a crashing run still banks the
+      # inputs that led to it.
+      - name: Save the working fuzz corpus (${{ matrix.target }})
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+
+      # 6. Preserve the crashing input so it can be downloaded and
       # reproduced locally with `cargo fuzz run <target> <artifact>`.
       - name: Upload crash artifacts
         if: failure()
