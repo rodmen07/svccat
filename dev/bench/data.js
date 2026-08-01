@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785614031638,
+  "lastUpdate": 1785628478428,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3959,6 +3959,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12334,
             "range": "± 106",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5fdb515bec70191bb4882bc3bd0cc9c2ba8f8a9f",
+          "message": "sec(ci): explicit least-privilege GITHUB_TOKEN permissions on every workflow (#43)\n\ncoverage.yml, fuzzing.yml and publish.yml declared no permissions: block at\nall, and ci.yml's test-and-verify and build-and-test jobs had none either, so\ntheir GITHUB_TOKEN carried whatever default_workflow_permissions happens to be\nset to - a settings-page toggle, not a reviewed commit. publish.yml is the one\nthat matters most: it holds the crates.io publish path.\n\nAll four now pin a workflow-level 'permissions: contents: read' (checkout is\nthe only GITHUB_TOKEN consumer in each; codecov uses CODECOV_TOKEN, the corpus\ncache and crash-artifact upload use the runner's ACTIONS_RUNTIME_TOKEN, and\ncargo publish uses CRATES_IO_TOKEN). ci.yml's audit/lint job-level blocks stay\nand override identically.\n\ntests/workflow_permissions_tests.rs guards both properties from the PR gate:\nevery job's grant is explicit in the file, and no non-allowlisted workflow\ngrants beyond contents: read.\n\nCo-authored-by: Claude Fable 5 <noreply@anthropic.com>",
+          "timestamp": "2026-08-01T18:51:25-05:00",
+          "tree_id": "3e9733ab9be3ef55421221d7de30d825ab252ebe",
+          "url": "https://github.com/rodmen07/svccat/commit/5fdb515bec70191bb4882bc3bd0cc9c2ba8f8a9f"
+        },
+        "date": 1785628477881,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12530,
+            "range": "± 134",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23871,
+            "range": "± 174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 304,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5509,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5205,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12400,
+            "range": "± 35",
             "unit": "ns/iter"
           }
         ]
