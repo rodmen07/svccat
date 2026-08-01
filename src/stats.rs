@@ -1,5 +1,15 @@
-use crate::manifest::{Manifest, ServiceEntry};
+use crate::manifest::Manifest;
 use colored::Colorize;
+
+/// Metadata fields the coverage table reports on, in display order.
+///
+/// Every name here must be one `ServiceEntry::field_value` recognises, or the
+/// row would read 0% for every service no matter what the manifest declares;
+/// that agreement is pinned by `manifest`'s
+/// `field_names_every_surface_checks_are_known`.
+pub(crate) const FIELDS: &[&str] = &[
+    "language", "platform", "team", "docs", "url", "role", "oncall",
+];
 
 /// Print a field-coverage summary table with ASCII bar charts.
 ///
@@ -19,22 +29,15 @@ pub fn run(manifest: &Manifest) {
     println!("Field Coverage:");
     println!();
 
-    type CheckFn = fn(&ServiceEntry) -> bool;
-    let fields: &[(&str, CheckFn)] = &[
-        ("language", |s| filled(s.language.as_deref())),
-        ("platform", |s| filled(s.platform.as_deref())),
-        ("team", |s| filled(s.team.as_deref())),
-        ("docs", |s| filled(s.docs.as_deref())),
-        ("url", |s| filled(s.url.as_deref())),
-        ("role", |s| filled(s.role.as_deref())),
-        ("oncall", |s| filled(s.oncall.as_deref())),
-    ];
-
     const BAR_WIDTH: usize = 20;
     let mut sum_pct: usize = 0;
 
-    for (name, check) in fields {
-        let count = manifest.services.iter().filter(|s| check(s)).count();
+    for name in FIELDS {
+        let count = manifest
+            .services
+            .iter()
+            .filter(|s| s.has_field(name))
+            .count();
         let pct = count * 100 / total;
         let filled_len = count * BAR_WIDTH / total;
         let bar = format!(
@@ -60,7 +63,7 @@ pub fn run(manifest: &Manifest) {
         sum_pct += pct;
     }
 
-    let overall = sum_pct / fields.len();
+    let overall = sum_pct / FIELDS.len();
     println!();
     let health_label = format!("Overall health: {overall}%");
     let coloured_health = if overall == 100 {
@@ -71,10 +74,4 @@ pub fn run(manifest: &Manifest) {
         health_label.red().bold()
     };
     println!("  {coloured_health}");
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-fn filled(v: Option<&str>) -> bool {
-    v.map(|s| !s.is_empty()).unwrap_or(false)
 }

@@ -36,28 +36,18 @@ pub struct Scorecard {
 // ── Scored fields ─────────────────────────────────────────────────────────────
 
 // These are the optional fields we track for completeness scoring.
-const SCORED_FIELDS: &[&str] = &[
+// Every name here must be one `ServiceEntry::field_value` recognises, or the
+// field would silently score as never-populated for every service; that
+// agreement is pinned by `manifest`'s `field_names_every_surface_checks_are_known`.
+pub(crate) const SCORED_FIELDS: &[&str] = &[
     "language", "platform", "url", "role", "team", "oncall", "docs", "ci", "path",
 ];
 
 fn completeness_score(svc: &ServiceEntry) -> u8 {
-    let filled = SCORED_FIELDS.iter().filter(|&&f| field_set(svc, f)).count();
+    // `has_field` and not `is_some()`: a field declared as an empty string is
+    // not metadata, and crediting it inflated every score it touched.
+    let filled = SCORED_FIELDS.iter().filter(|&&f| svc.has_field(f)).count();
     ((filled * 100) / SCORED_FIELDS.len()) as u8
-}
-
-fn field_set(svc: &ServiceEntry, field: &str) -> bool {
-    match field {
-        "language" => svc.language.is_some(),
-        "platform" => svc.platform.is_some(),
-        "url" => svc.url.is_some(),
-        "role" => svc.role.is_some(),
-        "team" => svc.team.is_some(),
-        "oncall" => svc.oncall.is_some(),
-        "docs" => svc.docs.is_some(),
-        "ci" => svc.ci.is_some(),
-        "path" => svc.path.is_some(),
-        _ => false,
-    }
 }
 
 // ── Main scoring logic ────────────────────────────────────────────────────────

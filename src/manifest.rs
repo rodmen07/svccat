@@ -248,6 +248,45 @@ impl ServiceEntry {
         self.path.as_deref().or(self.submodule.as_deref())
     }
 
+    /// Look up a string metadata field by its manifest key name.
+    ///
+    /// This is the ONE place that maps a field *name* (as written in a policy
+    /// file, a `require_fields` list, or a coverage table) onto the field's
+    /// declared value. Every surface that asks "does this service declare
+    /// `team`?" routes through here, so a field can never mean one thing to
+    /// `svccat policy` and another to `svccat scorecard`.
+    ///
+    /// Returns `None` for a name this struct has no field for; callers decide
+    /// whether an unknown name is an error or is simply ignored.
+    pub fn field_value(&self, field: &str) -> Option<&str> {
+        match field {
+            "name" => Some(self.name.as_str()),
+            "language" => self.language.as_deref(),
+            "platform" => self.platform.as_deref(),
+            "url" => self.url.as_deref(),
+            "role" => self.role.as_deref(),
+            "team" => self.team.as_deref(),
+            "oncall" => self.oncall.as_deref(),
+            "submodule" => self.submodule.as_deref(),
+            "path" => self.path.as_deref(),
+            "docs" => self.docs.as_deref(),
+            "ci" => self.ci.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// True when `field` is declared AND carries a non-empty value.
+    ///
+    /// **An empty string is not a value.** `team: ""` is treated exactly like
+    /// an absent `team:`, because a field present-but-blank tells a reader of
+    /// the catalog nothing, and crediting it lets a service pass an ownership
+    /// requirement while naming no owner. This matches what `svccat lint` has
+    /// always reported and what [`ServiceEntry::validate`] already enforces for
+    /// the path-like fields, which it rejects outright when empty.
+    pub fn has_field(&self, field: &str) -> bool {
+        self.field_value(field).is_some_and(|v| !v.is_empty())
+    }
+
     /// Validate the service entry for path traversal and other security issues.
     ///
     /// # Security
@@ -328,4 +367,122 @@ pub fn find_default(root: &Path) -> PathBuf {
         }
     }
     root.join("services.yaml")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ServiceEntry;
+
+    /// Build an entry with every string field declared and non-empty.
+    fn fully_populated() -> ServiceEntry {
+        let mut svc = ServiceEntry {
+            name: "alpha".to_string(),
+            ..Default::default()
+        };
+        svc.language = Some("rust".to_string());
+        svc.platform = Some("fly".to_string());
+        svc.url = Some("https://alpha.example.com".to_string());
+        svc.role = Some("api".to_string());
+        svc.team = Some("platform".to_string());
+        svc.oncall = Some("@alpha".to_string());
+        svc.submodule = Some("vendor/alpha".to_string());
+        svc.path = Some("services/alpha".to_string());
+        svc.docs = Some("docs/alpha.md".to_string());
+        svc.ci = Some(".github/workflows/alpha.yml".to_string());
+        svc
+    }
+
+    /// Drift guard: reads the field-name list of EVERY surface that asks
+    /// "is this field declared?" and checks each name against the one
+    /// `field_value` map they all now route through.
+    ///
+    /// Without this, adding a field name to any of those lists without
+    /// teaching `field_value` about it fails silently and in the worst
+    /// direction: `field_value` returns `None`, `has_field` returns `false`,
+    /// and the field reads as never-populated for every service in the
+    /// catalog. Nothing errors, no test fails, and a coverage row or a
+    /// completeness score simply drops.
+    #[test]
+    fn field_names_every_surface_checks_are_known() {
+        let svc = fully_populated();
+
+        let sources: &[(&str, Vec<&str>)] = &[
+            (
+                "scorecard::SCORED_FIELDS",
+                crate::scorecard::SCORED_FIELDS.to_vec(),
+            ),
+            ("stats::FIELDS", crate::stats::FIELDS.to_vec()),
+            (
+                "policy::POLICY_FIELDS",
+                crate::policy::POLICY_FIELDS.to_vec(),
+            ),
+            (
+                "drift::REQUIRABLE_FIELDS",
+                crate::drift::REQUIRABLE_FIELDS.to_vec(),
+            ),
+            (
+                "drift::RECOMMENDED_FIELDS",
+                crate::drift::RECOMMENDED_FIELDS
+                    .iter()
+                    .map(|(f, _)| *f)
+                    .collect(),
+            ),
+        ];
+
+        for (source, fields) in sources {
+            assert!(
+                !fields.is_empty(),
+                "{source} is empty, so this guard would pass vacuously"
+            );
+            for field in fields {
+                assert!(
+                    svc.field_value(field).is_some(),
+                    "{source} names '{field}', which ServiceEntry::field_value does not \
+                     recognise; it would read as never-declared for every service"
+                );
+                assert!(
+                    svc.has_field(field),
+                    "{source} names '{field}', which is declared and non-empty on a fully \
+                     populated entry yet has_field reports it unset"
+                );
+            }
+        }
+    }
+
+    /// The predicate itself: declared-and-non-empty, not merely declared.
+    #[test]
+    fn an_empty_string_is_not_a_declared_field() {
+        let mut svc = fully_populated();
+        assert!(svc.has_field("team"));
+
+        svc.team = Some(String::new());
+        assert_eq!(svc.field_value("team"), Some(""));
+        assert!(
+            !svc.has_field("team"),
+            "an empty `team: \"\"` must read exactly like an absent `team:`"
+        );
+
+        svc.team = None;
+        assert_eq!(svc.field_value("team"), None);
+        assert!(!svc.has_field("team"));
+    }
+
+    #[test]
+    fn an_unknown_field_name_is_never_declared() {
+        let svc = fully_populated();
+        assert_eq!(svc.field_value("tier"), None);
+        assert!(!svc.has_field("tier"));
+    }
+
+    /// `name` is a required `String`, not an `Option`, and must still answer
+    /// the same question: policy files may require it.
+    #[test]
+    fn name_participates_in_the_same_map() {
+        let mut svc = fully_populated();
+        assert_eq!(svc.field_value("name"), Some("alpha"));
+        assert!(svc.has_field("name"));
+
+        svc.name = String::new();
+        assert!(!svc.has_field("name"));
+    }
 }
