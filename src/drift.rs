@@ -80,8 +80,22 @@ impl DriftReport {
 
 /// Metadata fields that every service should declare.
 /// Tuple: (field_name, is_error_if_missing)
-const RECOMMENDED_FIELDS: &[(&str, bool)] =
+///
+/// Every name here must be one `ServiceEntry::field_value` recognises; that
+/// agreement is pinned by `manifest`'s
+/// `field_names_every_surface_checks_are_known`.
+pub(crate) const RECOMMENDED_FIELDS: &[(&str, bool)] =
     &[("role", true), ("language", false), ("platform", false)];
+
+/// Field names a manifest's own `policy.require_fields` list may name.
+///
+/// A name outside this set is ignored rather than reported, which is the
+/// long-standing behaviour of this check and is deliberately left unchanged
+/// here; `svccat lint`'s policy-schema validation is where unknown names are
+/// meant to surface.
+pub(crate) const REQUIRABLE_FIELDS: &[&str] = &[
+    "url", "language", "platform", "role", "team", "oncall", "docs", "ci",
+];
 
 /// Run all drift checks and return a populated `DriftReport`.
 pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Path) -> DriftReport {
@@ -119,13 +133,10 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
 
         // ── Recommended fields ─────────────────────────────────────────────
         for (field, is_error) in RECOMMENDED_FIELDS {
-            let missing = match *field {
-                "role" => svc.role.is_none(),
-                "language" => svc.language.is_none(),
-                "platform" => svc.platform.is_none(),
-                "team" => svc.team.is_none(),
-                _ => false,
-            };
+            // One list, not two: the constant above decides which fields are
+            // checked and `has_field` decides what counts as declared, so
+            // `role: ""` is reported exactly like a missing `role:`.
+            let missing = !svc.has_field(field);
             if missing {
                 report.drifts.push(DriftItem {
                     kind: DriftKind::MissingField,
@@ -195,17 +206,10 @@ pub fn analyze(manifest: &Manifest, discovered: &[DiscoveredService], root: &Pat
     if !manifest.policy.require_fields.is_empty() {
         for svc in &manifest.services {
             for field in &manifest.policy.require_fields {
-                let missing = match field.as_str() {
-                    "url" => svc.url.is_none(),
-                    "language" => svc.language.is_none(),
-                    "platform" => svc.platform.is_none(),
-                    "role" => svc.role.is_none(),
-                    "team" => svc.team.is_none(),
-                    "oncall" => svc.oncall.is_none(),
-                    "docs" => svc.docs.is_none(),
-                    "ci" => svc.ci.is_none(),
-                    _ => false,
-                };
+                // Same field set as before; the presence test now comes from
+                // the one shared predicate, so an empty `team: ""` no longer
+                // satisfies `require_fields: [team]`.
+                let missing = REQUIRABLE_FIELDS.contains(&field.as_str()) && !svc.has_field(field);
                 if missing {
                     report.drifts.push(DriftItem {
                         kind: DriftKind::PolicyViolation,

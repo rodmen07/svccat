@@ -368,19 +368,19 @@ pub fn check(manifest: &Manifest, config: &PolicyConfig) -> PolicyReport {
     }
 }
 
+/// Field names a policy file may name in `required:` / `recommended:`.
+///
+/// A name outside this set is deliberately reported as never satisfied, so a
+/// typo in a policy file surfaces as a violation on every service rather than
+/// as a rule that quietly matches nothing.
+pub(crate) const POLICY_FIELDS: &[&str] = &[
+    "name", "language", "platform", "role", "url", "team", "oncall", "docs", "ci",
+];
+
 fn has_field(svc: &ServiceEntry, field: &str) -> bool {
-    match field {
-        "name" => !svc.name.is_empty(),
-        "language" => svc.language.is_some(),
-        "platform" => svc.platform.is_some(),
-        "role" => svc.role.is_some(),
-        "url" => svc.url.is_some(),
-        "team" => svc.team.is_some(),
-        "oncall" => svc.oncall.is_some(),
-        "docs" => svc.docs.is_some(),
-        "ci" => svc.ci.is_some(),
-        _ => false,
-    }
+    // Same field set as before; the presence test now comes from the one
+    // shared predicate, so `team: ""` no longer satisfies `required: [team]`.
+    POLICY_FIELDS.contains(&field) && svc.has_field(field)
 }
 
 // ── Renderers ──────────────────────────────────────────────────────────────────
