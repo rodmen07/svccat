@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785610601676,
+  "lastUpdate": 1785614031638,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3899,6 +3899,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12148,
             "range": "± 79",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5519d0d8e245b26073466648dfc5d2c15ef3cc59",
+          "message": "fix(gates): an empty string no longer satisfies a required field (#42)\n\nAdding the first tests for src/stats.rs surfaced that svccat had six\nseparate answers to 'does this service declare <field>?'. stats and lint\nread declared-and-non-empty; scorecard, policy and both of drift's field\nchecks read Option::is_some, so team: \"\" satisfied a policy requiring\nteam, and scorecard credited blank fields toward completeness.\n\nAll six now route through manifest::ServiceEntry::has_field.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-01T14:50:34-05:00",
+          "tree_id": "f8c7c33bd6da8523fbcaf409824d46d6aa35a545",
+          "url": "https://github.com/rodmen07/svccat/commit/5519d0d8e245b26073466648dfc5d2c15ef3cc59"
+        },
+        "date": 1785614030757,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12849,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23756,
+            "range": "± 230",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 312,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5465,
+            "range": "± 88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5118,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12334,
+            "range": "± 106",
             "unit": "ns/iter"
           }
         ]
