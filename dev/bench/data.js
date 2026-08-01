@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785152726030,
+  "lastUpdate": 1785610601676,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -3839,6 +3839,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12612,
             "range": "± 178",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "24a7a28472a2128c6ee0a48ee8f0a8e35fcfd890",
+          "message": "ci(fuzz): carry the working corpus between Continuous Fuzzing runs (#41)\n\nEvery daily campaign discarded everything it discovered: `fuzz/corpus/<target>`\nis gitignored per-job scratch space, so libFuzzer's newly found\ncoverage-increasing inputs died with the runner. The cost was invisible because\nevery run was green -- the scheduled runs of 2026-07-25 and 2026-07-31 report\nthe IDENTICAL `INITED cov:` figures for all four targets (fuzz_manifest 3496,\nfuzz_policy 1246, fuzz_url 654, fuzz_glob 128), i.e. a week of 121-second\ncampaigns produced zero cumulative progress.\n\nThe workflow now brackets the campaign with a per-target `actions/cache`\nrestore/save pair keyed `fuzz-corpus-<target>-<run id>` with a\n`fuzz-corpus-<target>-` prefix fallback. The key must be run-unique because a\nsave onto an existing key is a no-op, which would freeze the corpus at whatever\nthe first run happened to find. The committed seeds are NOT cached, so a cold or\nevicted cache degrades a run back to exactly the previous behaviour and never\nbelow it.\n\n`fuzzing_workflow_carries_the_working_corpus_between_runs` is the PR-time guard,\nsince `fuzzing.yml` never runs on `pull_request`.",
+          "timestamp": "2026-08-01T13:53:27-05:00",
+          "tree_id": "0f731308d25591cf5542570db566346e059cddaf",
+          "url": "https://github.com/rodmen07/svccat/commit/24a7a28472a2128c6ee0a48ee8f0a8e35fcfd890"
+        },
+        "date": 1785610601379,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12500,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23341,
+            "range": "± 130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 305,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5456,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5067,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12148,
+            "range": "± 79",
             "unit": "ns/iter"
           }
         ]
