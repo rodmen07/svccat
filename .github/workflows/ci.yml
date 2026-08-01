@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [ main ]
 
+# Workflow-level least-privilege GITHUB_TOKEN default: `test-and-verify` and
+# `build-and-test` carried no `permissions:` of their own, so they inherited
+# the repo-level default, which is a settings-page toggle rather than a
+# reviewed commit. The `audit` and `lint` jobs keep their identical job-level
+# blocks (a job-level block replaces this one entirely for that job).
+# tests/workflow_permissions_tests.rs guards this block's presence.
+permissions:
+  contents: read
+
 jobs:
   test-and-verify:
     name: Verify Registry Deployment

@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# Least-privilege GITHUB_TOKEN: checkout is the only step that uses it. The
+# codecov upload authenticates with CODECOV_TOKEN, not the GITHUB_TOKEN, so
+# nothing here needs write access. tests/workflow_permissions_tests.rs guards
+# this block's presence.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1

@@ -5,6 +5,15 @@ on:
     tags:
       - 'v*' # Triggers instantly when a semver release tag is pushed
 
+# Least-privilege GITHUB_TOKEN: this workflow holds the crates.io publish path,
+# so it is exactly the one that must never inherit a repo-level default that a
+# settings-page toggle could widen to read-write. `cargo publish` authenticates
+# with CRATES_IO_TOKEN, and the post-publish matrix only installs from the
+# registry, so checkout's contents read is the entire need.
+# tests/workflow_permissions_tests.rs guards this block's presence.
+permissions:
+  contents: read
+
 jobs:
   crates-publish:
     name: Publish to Crates.io
