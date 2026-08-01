@@ -8,6 +8,15 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch: {}
 
+# Least-privilege GITHUB_TOKEN: checkout is the only step that uses it. The
+# corpus cache (actions/cache) and the crash-artifact upload
+# (actions/upload-artifact) authenticate with the runner's ACTIONS_RUNTIME_TOKEN,
+# which this block does not govern, so restricting the GITHUB_TOKEN to read
+# cannot break either of them. tests/workflow_permissions_tests.rs guards this
+# block's presence.
+permissions:
+  contents: read
+
 jobs:
   fuzz:
     name: Fuzz (${{ matrix.target }})
