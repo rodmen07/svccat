@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785628478428,
+  "lastUpdate": 1786391871648,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4019,6 +4019,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12400,
             "range": "± 35",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4fdf74bdd9c3691efcc673fdb2457cbec84ef324",
+          "message": "fix(check): --output is no longer silently ignored for sarif and junit (#44)\n\n`svccat check --format sarif --output f` and `--format junit --output f`\nexited 0, wrote no file, and printed the report to stdout instead. Both\nformats were absent from `render_check_output_to_string`, so both fell\nthrough to the print-directly match arm and `--output` did nothing. These\nare exactly the two formats a CI step uploads FROM DISK -- SARIF to code\nscanning, JUnit XML to a test reporter -- so the silent drop lands on the\nartifacts most likely to be requested as files.\n\nsarif gains the `render_check_to_string` half of the pair every other\nstructured renderer already has; junit already had `build_check_document`.\n`render_check_output_to_string` grows a `root` parameter because the SARIF\ndocument needs it for URIs. GithubAnnotation deliberately stays in the\nNone bucket: a `::error::` workflow command only means anything on the\nlive stdout Actions is watching, so writing one to a file would produce an\ninert file rather than fix a bug.\n\nSecond half: junit.rs had no tests at all despite hand-building XML with\nstring concatenation. Adds a module that asserts well-formedness with a\nreal parser (quick-xml, dev-dependency only -- the shipped binary emits\nXML and never parses it) and round-trips escaped content back out through\nthat parser instead of re-implementing escape_xml in reverse.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-10T14:54:36-05:00",
+          "tree_id": "a3db9b1ef38bfebf30ace79bb59ea22d7a25a847",
+          "url": "https://github.com/rodmen07/svccat/commit/4fdf74bdd9c3691efcc673fdb2457cbec84ef324"
+        },
+        "date": 1786391870807,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12751,
+            "range": "± 232",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24385,
+            "range": "± 409",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 300,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5499,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5177,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12455,
+            "range": "± 47",
             "unit": "ns/iter"
           }
         ]
