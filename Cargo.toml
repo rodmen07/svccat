@@ -46,6 +46,13 @@ rayon       = "1"
 # regardless of OS or target triple, which is what makes it work unmodified
 # across the CI matrix (ubuntu/windows/macos).
 assert_cmd = "2"
+# Test-only: `--format junit` hand-builds its XML with string concatenation
+# (src/output/junit.rs), so its well-formedness is asserted by feeding the
+# real output through a real parser and round-tripping escaped content back
+# out, the same "verified as a property against a real consumer" shape the
+# `url::Url::parse` check gave the SARIF URI fix. Not a runtime dependency:
+# the shipped binary never parses XML, only emits it.
+quick-xml = "0.41"
 clap_complete = "4"
 criterion = "0.5"
 predicates = "3"

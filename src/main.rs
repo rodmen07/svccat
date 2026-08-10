@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
 use std::io;
+use std::path::Path;
 use std::process;
 use svccat::cli::{
     AuditFormat, CiFormat, Cli, Commands, DepsFormat, DiffFormat, ExportFormat, GraphFormat,
@@ -34,11 +35,18 @@ fn main() {
     }
 }
 
+/// Render the `check` report to a string for formats that produce one, or
+/// `None` for formats (`Terminal`, `Compact`, `GithubAnnotation`) that print
+/// as a side effect instead. `GithubAnnotation` stays in the `None` bucket
+/// on purpose: a `::error::` workflow command only does anything on the
+/// live stdout GitHub Actions is watching, so writing one to a file via
+/// `--output` would silently produce an inert file, not a bug fix.
 fn render_check_output_to_string(
     format: &OutputFormat,
     manifest: &manifest::Manifest,
     report: &drift::DriftReport,
     ping_results: &[ping::PingResult],
+    root: &Path,
 ) -> Result<Option<String>> {
     let maybe_string = match format {
         OutputFormat::Json => Some(output::json::render_check_to_string(report, ping_results)?),
@@ -50,6 +58,12 @@ fn render_check_output_to_string(
         OutputFormat::Slack => Some(output::slack::render_check_to_string(report)?),
         OutputFormat::Teams => Some(output::teams::render_check_to_string(report)?),
         OutputFormat::Datadog => Some(output::datadog::render_check_to_string(report)?),
+        OutputFormat::Sarif => Some(output::sarif::render_check_to_string(
+            report,
+            ping_results,
+            root,
+        )?),
+        OutputFormat::Junit => Some(output::junit::build_check_document(report, ping_results)),
         // Same self-contained HTML report `svccat report --format html`
         // already produces for a single repo: `check` computes the same
         // (Manifest, DriftReport) pair, so there is no reason for a second
@@ -274,7 +288,7 @@ fn run() -> Result<i32> {
 
                 // For string-renderable formats, capture once so we can write to --output.
                 let maybe_string =
-                    render_check_output_to_string(&format, &m, &report, &ping_results)?;
+                    render_check_output_to_string(&format, &m, &report, &ping_results, &root)?;
 
                 if let Some(content) = maybe_string {
                     if let Some(ref out_path) = output_path {
@@ -1080,25 +1094,28 @@ mod tests {
     fn string_output_helper_supports_csv_slack_teams_and_datadog() {
         let manifest = manifest::Manifest::default();
         let report = sample_report();
+        let root = Path::new(".");
 
-        let csv = render_check_output_to_string(&OutputFormat::Csv, &manifest, &report, &[])
+        let csv = render_check_output_to_string(&OutputFormat::Csv, &manifest, &report, &[], root)
             .unwrap()
             .unwrap();
         assert!(csv.contains("service,severity,kind,message,detail"));
         assert!(csv.contains("api,error,declared_missing_from_repo,missing service directory,"));
 
-        let slack = render_check_output_to_string(&OutputFormat::Slack, &manifest, &report, &[])
-            .unwrap()
-            .unwrap();
+        let slack =
+            render_check_output_to_string(&OutputFormat::Slack, &manifest, &report, &[], root)
+                .unwrap()
+                .unwrap();
         assert!(slack.contains("blocks"));
 
-        let teams = render_check_output_to_string(&OutputFormat::Teams, &manifest, &report, &[])
-            .unwrap()
-            .unwrap();
+        let teams =
+            render_check_output_to_string(&OutputFormat::Teams, &manifest, &report, &[], root)
+                .unwrap()
+                .unwrap();
         assert!(teams.contains("attachments"));
 
         let datadog =
-            render_check_output_to_string(&OutputFormat::Datadog, &manifest, &report, &[])
+            render_check_output_to_string(&OutputFormat::Datadog, &manifest, &report, &[], root)
                 .unwrap()
                 .unwrap();
         assert!(datadog.contains("events"));
@@ -1111,21 +1128,64 @@ mod tests {
         // than a second renderer.
         let manifest = manifest::Manifest::default();
         let report = sample_report();
+        let root = Path::new(".");
 
-        let html = render_check_output_to_string(&OutputFormat::Html, &manifest, &report, &[])
-            .unwrap()
-            .unwrap();
+        let html =
+            render_check_output_to_string(&OutputFormat::Html, &manifest, &report, &[], root)
+                .unwrap()
+                .unwrap();
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("Service Catalog Report"));
     }
 
     #[test]
-    fn string_output_helper_skips_terminal_format() {
+    fn string_output_helper_supports_sarif_and_junit_so_output_is_not_silently_dropped() {
+        // Regression test for a real defect: `check --format sarif --output
+        // f` and `check --format junit --output f` used to fall through to
+        // the print-directly match arm (neither format was in this helper),
+        // so `--output` was silently ignored and the report always went to
+        // stdout with no file ever written. Both formats are report
+        // artifacts a CI step uploads from disk (SARIF to code scanning,
+        // JUnit XML to a test reporter), the same bucket as json/csv/html
+        // above, so both belong in this helper exactly like those do.
         let manifest = manifest::Manifest::default();
         let report = sample_report();
-        let out = render_check_output_to_string(&OutputFormat::Terminal, &manifest, &report, &[])
-            .unwrap();
-        assert!(out.is_none());
+        let root = Path::new(".");
+
+        let sarif =
+            render_check_output_to_string(&OutputFormat::Sarif, &manifest, &report, &[], root)
+                .unwrap()
+                .unwrap();
+        assert!(sarif.contains("\"version\": \"2.1.0\""));
+        assert!(sarif.contains("declared_missing_from_repo"));
+
+        let junit =
+            render_check_output_to_string(&OutputFormat::Junit, &manifest, &report, &[], root)
+                .unwrap()
+                .unwrap();
+        assert!(junit.starts_with("<?xml"));
+        assert!(junit.contains("DeclaredMissingFromRepo:api"));
+    }
+
+    #[test]
+    fn string_output_helper_skips_terminal_compact_and_github_annotation() {
+        // Terminal/Compact print colored output as a side effect, and
+        // GithubAnnotation's `::error::` workflow commands only mean
+        // anything on the live Actions stdout — none of the three has a
+        // sensible file form, so all three deliberately stay `None`.
+        let manifest = manifest::Manifest::default();
+        let report = sample_report();
+        let root = Path::new(".");
+
+        for format in [
+            OutputFormat::Terminal,
+            OutputFormat::Compact,
+            OutputFormat::GithubAnnotation,
+        ] {
+            let out =
+                render_check_output_to_string(&format, &manifest, &report, &[], root).unwrap();
+            assert!(out.is_none(), "{format:?} unexpectedly produced a string");
+        }
     }
 
     fn sample_workspace_report() -> workspace::WorkspaceDriftReport {
