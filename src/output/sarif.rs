@@ -22,9 +22,21 @@ use std::path::Path;
 /// are problems, not a per-URL health log.  Ping findings are file-level: a
 /// ping failure is about a URL answering, not about a line in the file.
 pub fn render_check(report: &DriftReport, ping_results: &[PingResult], root: &Path) -> Result<()> {
-    let doc = build_sarif(report, ping_results, root);
-    println!("{}", serde_json::to_string_pretty(&doc)?);
+    println!("{}", render_check_to_string(report, ping_results, root)?);
     Ok(())
+}
+
+/// Same document as [`render_check`], returned instead of printed so
+/// `check --format sarif --output <file>` can write it to disk. Mirrors the
+/// `render_check` / `render_check_to_string` pair every other structured
+/// renderer in this module already has (`json`, `csv`, `slack`, ...).
+pub fn render_check_to_string(
+    report: &DriftReport,
+    ping_results: &[PingResult],
+    root: &Path,
+) -> Result<String> {
+    let doc = build_sarif(report, ping_results, root);
+    Ok(serde_json::to_string_pretty(&doc)?)
 }
 
 // ── Internal ──────────────────────────────────────────────────────────────────
