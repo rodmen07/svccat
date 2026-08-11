@@ -30,13 +30,55 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: Run benchmarks
-        run: cargo bench --bench benchmark -- --output-format bencher | tee output.txt
+        # target/criterion is wiped FIRST, and that is the fix rather than the
+        # hygiene it looks like. Criterion's default baseline directory is
+        # `base`; when that directory exists but its sample.json does not -- the
+        # state a partially restored target/ cache leaves behind -- criterion
+        # emits `Criterion.rs ERROR: error: Failed to access file
+        # ".../base/sample.json"` through println!, i.e. onto STDOUT, straight
+        # into the middle of `test <name> ... ` and before `bench: <n> ns/iter`.
+        # That splits the one line github-action-benchmark's cargo extractor
+        # matches, so the run parses ZERO benchmarks. Reproduced locally on
+        # criterion 0.5.1 in all three states: no criterion dir at all -> one
+        # clean `test load_manifest_small ... bench: 17703 ns/iter (+/- 316)`;
+        # complete baseline -> the same clean shape; base/ present with
+        # sample.json deleted -> the split line, byte-identical to the CI
+        # failure on 9ee581b. The bench process EXITS 0 in all three, which is
+        # why nothing upstream noticed. A virgin directory is the state proven
+        # clean, and nothing is lost by forcing it: the tracking history this
+        # workflow publishes lives on the gh-pages branch, not under target/.
+        run: |
+          rm -rf target/criterion
+          cargo bench --bench benchmark -- --output-format bencher | tee output.txt
 
       - name: Check binary size
         run: |
           cargo build --release
           SIZE=$(stat -f%z target/release/svccat 2>/dev/null || stat -c%s target/release/svccat)
           echo "Binary size: $((SIZE / 1024 / 1024)) MB"
+
+      # THE STEP BELOW IS WHY main COULD GO RED WITH EVERY PR GREEN. Storing was
+      # gated on `refs/heads/main`, so the only step that PARSES output.txt was
+      # structurally unreachable from a pull request: PR #46's own benchmark run
+      # was green and could not have been anything else, and the identical tree
+      # failed the moment it became main. This step is that same action, with
+      # the same `tool: cargo` extractor, run on everything that is not main and
+      # publishing nothing -- so a run whose output.txt cannot be parsed now
+      # fails on the pull request that introduces it. It is deliberately the
+      # ACTION and not a hand-written grep: a second parser would be a second
+      # definition of "parseable" and would drift from the one that gates main.
+      - name: Verify benchmark output parses (no publish)
+        if: github.ref != 'refs/heads/main'
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: false
+          save-data-file: false
+          skip-fetch-gh-pages: true
+          comment-on-alert: false
+          fail-on-alert: false
 
       - name: Store benchmark results
         if: github.ref == 'refs/heads/main'
