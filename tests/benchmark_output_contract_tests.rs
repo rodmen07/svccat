@@ -28,13 +28,15 @@
 //! would be a second definition of "parseable" and would drift away from the
 //! one that actually gates `main`.
 //!
-//! FIVE mutations were run against the committed workflow and each reddened
+//! SIX mutations were run against the committed workflow and each reddened
 //! EXACTLY ONE test, 4 passed / 1 failed every time, with the file restored
 //! byte-identically after each: deleting the `rm -rf target/criterion` line;
 //! gating the PR-side check back onto `main`; flipping its `auto-push` to true;
-//! pointing it at a different output file; and swapping its action for a
+//! pointing it at a different output file; swapping its action for a
 //! hand-written `grep`, which is the realistic way the same-parser property
-//! would be lost.
+//! would be lost; and putting `skip-fetch-gh-pages: true` back in place of
+//! `external-data-json-path`, which is the specific misconfiguration this step
+//! shipped with on its first run and caught on itself.
 //!
 //! Deleting the PR-side step outright is deliberately NOT disjoint -- it reddens
 //! three, because three of these tests are each entitled to assume it exists.
@@ -130,6 +132,15 @@ fn the_pull_request_check_publishes_nothing() {
             "save-data-file: false",
             "a pull request would write a data file whose only purpose is to be \
              published, leaving state behind on a check that must be read-only",
+        ),
+        (
+            "external-data-json-path:",
+            "the step would go back to using the gh-pages BRANCH for its history, \
+             and a PR checkout has no local gh-pages -- the action would run \
+             `git switch gh-pages` and die with `fatal: invalid reference: \
+             gh-pages` before ever parsing anything, which is what its first \
+             run on PR #47 did. `skip-fetch-gh-pages: true` does NOT prevent \
+             this: it skips the fetch and still performs the switch",
         ),
     ] {
         assert!(

@@ -73,10 +73,17 @@ jobs:
         with:
           tool: 'cargo'
           output-file-path: output.txt
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # external-data-json-path is what keeps this step off the gh-pages
+          # branch entirely, and it replaced `skip-fetch-gh-pages: true`, which
+          # did NOT: that input skips only the FETCH, after which the action
+          # still runs `git switch gh-pages` and dies with `fatal: invalid
+          # reference: gh-pages`, because a PR checkout has no local gh-pages.
+          # Observed on this PR's first run (job 93871437572) -- i.e. this step
+          # caught its own misconfiguration before merge, which is exactly the
+          # thing the old workflow could not do for anything.
+          external-data-json-path: benchmark-parse-check.json
           auto-push: false
           save-data-file: false
-          skip-fetch-gh-pages: true
           comment-on-alert: false
           fail-on-alert: false
 
