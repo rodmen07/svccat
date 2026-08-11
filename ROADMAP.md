@@ -1,6 +1,6 @@
 # svccat roadmap
 
-Last updated: 2026-07-26. This file is the single source of planning truth for svccat.
+Last updated: 2026-08-11. This file is the single source of planning truth for svccat.
 Older planning docs under `docs/` carry status banners pointing here and are kept as
 historical records only.
 
@@ -13,7 +13,7 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 [docs/API_STABILITY.md](docs/API_STABILITY.md); this roadmap does not restate it. MSRV is
 *declared* as Rust 1.85, is enforced by nothing, and does not currently hold — see v1.7.0.
 
-## Current state (2026-07-26)
+## Current state (2026-08-11)
 
 - Crate version on main: **v1.6.0** (`Cargo.toml` `[package] version`). Pinned to this
   document by `roadmap_current_state_matches_the_crate_version`, so a release-prep PR
@@ -39,6 +39,13 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   (snapshot-diff ordering), which is listed under `## [Unreleased]` and ships in the
   next release, so published 1.6.0 contains exactly what its own changelog section
   describes. See `## Unreleased on main` for what that leaves pending.
+- Since the cut, `main` has taken PRs #31 through #47. Their user-facing subset is
+  listed under `## Unreleased on main` and in `CHANGELOG.md`'s `[Unreleased]`; the
+  rest is CI, test and refactor work that no release note describes —
+  least-privilege `GITHUB_TOKEN` blocks on every workflow (PR #43), every action
+  moved onto the Node 24 runtime line (PR #45), the fuzz corpus carried between
+  runs (PR #41), the benchmark parse gate made reachable from a pull request
+  (PR #47), and one drift-identity refactor (PR #39).
 - Shipped in earlier releases during 2026-06 and 2026-07 (the crate is NOT in frozen
   maintenance mode):
   - v1.1.0 (2026-06-07): language and platform inference in `init` and `fix`.
@@ -82,12 +89,14 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   to CHANGELOG.md, Cargo.toml, and Cargo.lock now proceed under the normal
   branch-plus-PR flow.
 - README.md uses CRLF line endings; prefer not to edit README.md at all.
-- This document is machine-checked. `tests/roadmap_truth.rs` guards four claims: the
+- This document is machine-checked. `tests/roadmap_truth.rs` guards five claims: the
   crate version, that no released version is still listed as an upcoming milestone,
-  that no released version sits in a `BLOCKED` row, and that `## Unreleased on main`
-  exists exactly when `CHANGELOG.md` has `[Unreleased]` entries. Keep the headings it
-  anchors on intact when editing: `## Current state`'s `- Crate version on main:`
-  line, `## Milestones`, and `## Blocked and user-only summary`. The fourth,
+  that no released version sits in a `BLOCKED` row, that `## Unreleased on main`
+  exists exactly when `CHANGELOG.md` has `[Unreleased]` entries, and that this
+  document and the changelog cite the same set of pull requests there. Keep the
+  headings it anchors on intact when editing: `## Current state`'s
+  `- Crate version on main:` line, `## Milestones`, and
+  `## Blocked and user-only summary`. The fourth,
   `## Unreleased on main`, is the one heading that is *supposed* to come and go: it
   exists exactly while `CHANGELOG.md` has `[Unreleased]` entries, and the guard fails
   if it lingers after a release is prepared or is missing while work sits unpublished.
@@ -165,8 +174,12 @@ Merged to `main`, written down in `CHANGELOG.md` under `## [Unreleased]`, and no
 any published version. This section exists exactly while that is true, enforced by
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
+Every entry cites the pull request that landed it, immediately after its bold
+title, and `the_two_documents_cite_the_same_unreleased_pull_requests` fails when
+this list and the changelog's stop naming the same set. The granularity may differ
+— PR #35 is one bullet here and two entries there — but the set may not.
 
-- **`svccat search depends_on:<name>` works, and a mistyped field says so** (2026-08-11).
+- **`svccat search depends_on:<name>` works, and a mistyped field says so** (PR #46, 2026-08-11).
   First coverage for `src/search.rs`, one of the crate's remaining zero-coverage
   modules, which immediately found that `depends_on` — named as searchable in
   `svccat search --help` since the command shipped — had no match arm at all, so the
@@ -178,46 +191,67 @@ PR moves these entries into the new version's section and deletes this heading.
   `search::canonical_field` are the one vocabulary both the parser and the matcher
   read, and `tests/search_field_contract_tests.rs` parses the help text and exercises
   every field it names with a real query. Targets the next release after v1.6.0.
-- **Orphaned SBOM sidecars are recoverable via `snapshot delete`** (2026-07-27). The
+- **`check --format sarif|junit --output <file>` writes the file it was given**
+  (PR #44, 2026-08-10). Both formats exited 0, wrote nothing, and printed the
+  report to stdout instead: neither was listed in the routing that renders a check
+  report to a string, so both fell through to the print-directly arm and
+  `--output` did nothing at all. These are the two formats a CI step uploads *from
+  disk* — SARIF to code scanning, JUnit XML to a test reporter — so the silent
+  drop landed on the artifacts most likely to be wanted as files.
+  `github-annotation` still prints and ignores `--output` deliberately: a
+  `::error::` workflow command means something only on the live stdout Actions is
+  watching. `output::sarif::render_check_to_string` is new and additive, and
+  `src/output/junit.rs` gained its first tests. Targets the next release after
+  v1.6.0.
+- **An empty string no longer satisfies a required metadata field** (PR #42,
+  2026-08-01). Six surfaces disagreed about what *declared* means: `stats` and
+  `lint` read `team: ""` as undeclared while `scorecard`, `policy` and both of
+  `drift`'s field checks tested only `Option::is_some` and credited it, so a blank
+  value walked straight through `svccat policy`, the `policy` step of `svccat ci`
+  and a manifest's own `require_fields`, and inflated `scorecard` completeness.
+  All six now route through one predicate, `manifest::ServiceEntry::has_field`
+  (declared *and* non-empty), which makes those gates stricter by design. Found by
+  the first coverage of `src/stats.rs`. Targets the next release after v1.6.0.
+- **Orphaned SBOM sidecars are recoverable via `snapshot delete`** (PR #40, 2026-07-27). The
   v1.6.1 LOW bug from the PR #38 QA pass, fixed: `delete` on a missing snapshot now
   removes an orphaned `<name>.spdx.json` and succeeds instead of bailing before its
   cleanup; `save --sbom` checks the sidecar precondition before writing the snapshot
   json so it can no longer exit nonzero having already mutated the filesystem; the
   sidecar-exists error names `svccat snapshot delete <name>` as the recovery.
   Targets the next release after v1.6.0.
-- **SARIF results anchored to manifest lines** (2026-07-26). Drift findings about
+- **SARIF results anchored to manifest lines** (PR #36, 2026-07-26). Drift findings about
   declared services now carry `region.startLine` — the line of the service's `name:`
   entry, recovered by a fail-closed positional text scan in the new
   `src/manifest_lines.rs` (the YAML parser has no span surface for documents that
   parse) — which is what the sarif module doc's "inline annotations" promise needed
   to be true. `drift::DriftItem` gains an additive `line: Option<usize>`. Ping and
   undeclared-service findings stay file-level. Targets the next release after v1.6.0.
-- **GitHub annotations anchored to manifest lines** (2026-07-26). The follow-through
-  on the SARIF anchoring below for the format GitHub Actions runs by default: a drift
+- **GitHub annotations anchored to manifest lines** (PR #37, 2026-07-26). The follow-through
+  on the SARIF anchoring above for the format GitHub Actions runs by default: a drift
   annotation whose item carries a manifest line now emits `line=` and appears inline
   at the service's `name:` entry; unanchored items and ping findings stay file-level.
   Targets the next release after v1.6.0.
 - **GitHub annotation renderer: ping results wired in, workflow-command escaping
-  added** (2026-07-26). The `github-annotation` format — the default under GitHub
+  added** (PR #35, 2026-07-26). The `github-annotation` format — the default under GitHub
   Actions — dropped `--ping` results entirely (the sibling of the fixed SARIF defect)
   and wrote unescaped manifest content into workflow commands, so a newline in a
   service name could start a new `::` command on the runner. First coverage for
   `src/output/github_annotation.rs` (unit + binary), found by the QA
   oldest-untested-surface rotation. Targets the next release after v1.6.0.
-- **SARIF absolute-path URIs** (2026-07-26). `check --format sarif` under an absolute
+- **SARIF absolute-path URIs** (PR #34, 2026-07-26). `check --format sarif` under an absolute
   `--root` wrote the bare filesystem path into every `artifactLocation.uri`, which on
   Windows parses as a URI with a one-letter scheme. Absolute manifest paths are now
   relativised against the run root when possible and emitted as percent-encoded
   `file://` URIs otherwise; relative paths are unchanged. Targets the next release
   after v1.6.0.
-- **`svccat snapshot diff` drift-list ordering and format** (2026-07-26). The
+- **`svccat snapshot diff` drift-list ordering and format** (PR #31, 2026-07-26). The
   `snapshot diff` path built `DiffReport::new_drift` / `resolved_drift` by
   differencing two `HashSet`s, so the lists shuffled between runs over identical
   input, and it rendered them as the bare `service:message` key while `svccat diff`
   rendered the severity-prefixed line. Both paths now share one deterministic,
   deduplicating builder, guarded by `tests/diff_drift_order_tests.rs`. Targets the
   next release after v1.6.0.
-- **Policy loader resource limits** (2026-07-26). `.svccat/policy.yaml` is now read
+- **Policy loader resource limits** (PR #33, 2026-07-26). `.svccat/policy.yaml` is now read
   under the posture `Manifest::load` already had: a 1 MiB size cap enforced on the
   bytes read, before the parser runs, plus post-parse bounds on the declared field
   count and field-name length, reported as the new `PolicyLoadError::Limit` variant.

@@ -19,7 +19,10 @@
 //!    table, and
 //! 4. `## Unreleased on main` exists exactly when the CHANGELOG has `[Unreleased]`
 //!    entries — shipped-but-unpublished work must be visible in the roadmap, and must
-//!    disappear from it when the release is cut.
+//!    disappear from it when the release is cut, and
+//! 5. the two of them cite the same SET of pull requests there — guard 4 only asks
+//!    whether that section exists, and ten entries against eight satisfy it exactly as
+//!    well as ten against ten.
 //!
 //! The extractors are the only thing standing between these assertions and vacuous
 //! truth, so `extractors_find_what_they_are_looking_for` exercises every one of them
@@ -176,6 +179,57 @@ fn blocked_row_versions(roadmap: &str) -> Vec<Version> {
     out
 }
 
+/// Every top-level `- ` bullet of a `## `-level section, folded together with its
+/// wrapped continuation lines.
+///
+/// Folding is required rather than cosmetic: these documents are hand-wrapped at 80
+/// columns, and ROADMAP.md's longest-titled entry closes its bold title on a SECOND
+/// line, so its citation lives there. A line-by-line scan would attribute that entry to
+/// nothing and quietly drop it from the comparison. A blank line closes an entry, so a
+/// section's own intro prose can never be folded into one.
+fn bullet_entries(doc: &str, heading: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut open = false;
+    for line in section(doc, heading) {
+        if line.starts_with("- ") {
+            out.push(line.trim_end().to_string());
+            open = true;
+        } else if open && !line.trim().is_empty() && line.starts_with(char::is_whitespace) {
+            let entry = out.last_mut().expect("an open entry has a last element");
+            entry.push(' ');
+            entry.push_str(line.trim());
+        } else {
+            open = false;
+        }
+    }
+    out
+}
+
+/// The pull request an ENTRY cites as its own: the number in the citation slot, which is
+/// the `(PR #<n>` immediately following the bold title's closing `**`.
+///
+/// Deliberately not every `PR #` in the entry. These entries routinely name OTHER pull
+/// requests in their body prose — ROADMAP.md's live text says "the v1.6.1 LOW bug from
+/// the PR #38 QA pass" and "filed alongside PR #20" — so a section-wide scan would
+/// compare two sets of mixed provenance and redden a document that is correct. Both of
+/// those sentences are still in the file on purpose: they are this extractor's committed
+/// control.
+///
+/// Reports `None` unless the slot appears EXACTLY once, so a second citation is a hard
+/// failure rather than a silent first-wins.
+fn cited_pull_request(entry: &str) -> Option<u32> {
+    const SLOT: &str = "** (PR #";
+    if entry.matches(SLOT).count() != 1 {
+        return None;
+    }
+    let at = entry.find(SLOT)? + SLOT.len();
+    let digits: String = entry[at..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().ok()
+}
+
 #[test]
 fn roadmap_current_state_matches_the_crate_version() {
     let declared = crate_version(&read("Cargo.toml")).expect("Cargo.toml [package] version parses");
@@ -252,6 +306,112 @@ fn roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some() {
          disappear from it when the release is cut.",
         if has_entries { "has" } else { "has no" },
         if has_section { "has" } else { "lacks" },
+    );
+}
+
+/// Guard 5: the roadmap and the changelog cite the same unreleased pull requests.
+///
+/// Guard 4 above asks only whether the section EXISTS, which two documents holding ten
+/// entries and eight satisfy perfectly — and that was the live state on 2026-08-11.
+/// CHANGELOG.md carried the empty-required-field fix (PR #42) and ROADMAP.md did not, so
+/// the roadmap under-reported what was sitting unpublished on `main` while every guard in
+/// this file stayed green.
+///
+/// The anchor is the SET of cited pull requests rather than a count, because the two
+/// documents legitimately differ in granularity: PR #35 is one roadmap bullet and two
+/// changelog entries, one `Fixed` and one `Security`. A count would force an artificial
+/// split; a set does not care.
+///
+/// What this cannot see, stated rather than implied: a change written into NEITHER
+/// document. That is how PR #44's `--output` fix stayed unrecorded in both. Catching that
+/// needs the merge history, which a shallow CI checkout does not have, so it belongs in a
+/// CI-side changelog gate and not here.
+#[test]
+fn the_two_documents_cite_the_same_unreleased_pull_requests() {
+    let changelog = read("CHANGELOG.md");
+    let roadmap = read("ROADMAP.md");
+
+    if !changelog_has_unreleased_entries(&changelog) {
+        // A release-prep PR empties `[Unreleased]` and deletes `## Unreleased on main`
+        // together; guard 4 owns that transition and there is nothing left to compare.
+        return;
+    }
+
+    let changelog_entries = bullet_entries(&changelog, "## [Unreleased]");
+    let roadmap_entries = bullet_entries(&roadmap, "## Unreleased on main");
+    assert!(
+        !changelog_entries.is_empty(),
+        "CHANGELOG.md has `[Unreleased]` content but no `- ` entries parsed out of it; \
+         the entry format changed and this guard stopped guarding anything"
+    );
+    assert!(
+        !roadmap_entries.is_empty(),
+        "ROADMAP.md's `## Unreleased on main` yielded no `- ` entries; the entry format \
+         changed and this guard stopped guarding anything"
+    );
+
+    let mut uncited: Vec<String> = Vec::new();
+    for (file, entries) in [
+        ("CHANGELOG.md", &changelog_entries),
+        ("ROADMAP.md", &roadmap_entries),
+    ] {
+        for entry in entries {
+            if cited_pull_request(entry).is_none() {
+                uncited.push(format!(
+                    "{file}: {}",
+                    entry.chars().take(70).collect::<String>()
+                ));
+            }
+        }
+    }
+    assert!(
+        uncited.is_empty(),
+        "every unreleased entry must carry exactly one `** (PR #<n>` citation right after \
+         its bold title — an uncited entry is invisible to the set comparison below, which \
+         would silently weaken this guard by one entry each time: {}",
+        uncited.join(" || ")
+    );
+
+    let mut in_changelog: Vec<u32> = changelog_entries
+        .iter()
+        .filter_map(|entry| cited_pull_request(entry))
+        .collect();
+    let mut in_roadmap: Vec<u32> = roadmap_entries
+        .iter()
+        .filter_map(|entry| cited_pull_request(entry))
+        .collect();
+    in_changelog.sort_unstable();
+    in_changelog.dedup();
+    in_roadmap.sort_unstable();
+    in_roadmap.dedup();
+
+    let changelog_only: Vec<String> = in_changelog
+        .iter()
+        .copied()
+        .filter(|pr| !in_roadmap.contains(pr))
+        .map(|pr| format!("#{pr}"))
+        .collect();
+    let roadmap_only: Vec<String> = in_roadmap
+        .iter()
+        .copied()
+        .filter(|pr| !in_changelog.contains(pr))
+        .map(|pr| format!("#{pr}"))
+        .collect();
+    assert!(
+        changelog_only.is_empty() && roadmap_only.is_empty(),
+        "CHANGELOG.md's `[Unreleased]` and ROADMAP.md's `## Unreleased on main` must \
+         describe the same shipped-but-unpublished work. Cited in the changelog only: {}. \
+         Cited in the roadmap only: {}.",
+        if changelog_only.is_empty() {
+            "-".to_string()
+        } else {
+            changelog_only.join(", ")
+        },
+        if roadmap_only.is_empty() {
+            "-".to_string()
+        } else {
+            roadmap_only.join(", ")
+        },
     );
 }
 
@@ -376,5 +536,54 @@ fn extractors_find_what_they_are_looking_for() {
         vec![(1, 7, 0), (1, 6, 0)],
         "a HELD row must gate exactly like a BLOCKED one, however much prose its status \
          cell carries, while Delegated and Avoid rows stay ignored"
+    );
+
+    // Bullet folding, exercised on the two shapes the real documents contain: a title
+    // that wraps onto a second line (its citation lives there), and section prose that
+    // names a pull request while belonging to no entry at all.
+    assert_eq!(
+        bullet_entries(
+            "## Unreleased on main\n\
+             \n\
+             Intro prose naming PR #99, which is not an entry.\n\
+             \n\
+             - **A title that wraps\n  onto a second line** (PR #12, 2026-08-11). Body.\n\
+             - **A short one** (PR #13, 2026-08-11).\n\
+             \n\
+             ## Later\n\
+             - **Outside the section** (PR #14).\n",
+            "## Unreleased on main"
+        ),
+        vec![
+            "- **A title that wraps onto a second line** (PR #12, 2026-08-11). Body.".to_string(),
+            "- **A short one** (PR #13, 2026-08-11).".to_string(),
+        ],
+        "bullet_entries must fold wrapped lines, ignore section prose, and stop at the \
+         next `## ` heading"
+    );
+
+    // The citation slot, not every `PR #` in the entry. The body below is real ROADMAP.md
+    // text: an entry that cites its own PR and names another must report only its own, or
+    // the two sets being compared carry mixed provenance.
+    assert_eq!(
+        cited_pull_request(
+            "- **Orphaned SBOM sidecars are recoverable** (PR #40, 2026-07-27). The v1.6.1 \
+             LOW bug from the PR #38 QA pass, fixed."
+        ),
+        Some(40),
+        "the citation slot is the `** (PR #` right after the bold title; a pull request \
+         named in the body is not a citation"
+    );
+    assert_eq!(
+        cited_pull_request(
+            "- **Policy loader resource limits** (2026-07-26). Filed alongside PR #20."
+        ),
+        None,
+        "an entry with no citation slot reports none, never the first `PR #` it finds"
+    );
+    assert_eq!(
+        cited_pull_request("- **Two slots** (PR #1) and again** (PR #2)."),
+        None,
+        "two citation slots is a malformed entry, not a first-wins"
     );
 }
