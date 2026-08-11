@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786413654063,
+  "lastUpdate": 1786475103446,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4139,6 +4139,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12275,
             "range": "± 82",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3cdca7c672b91aa2304cbb970c6beba527acc15a",
+          "message": "fix(ci): the benchmark gate can fail before merge, and criterion stops splitting its own output (#47)\n\n* fix(ci): the benchmark gate can fail before merge, and criterion stops splitting its own output\n\nmain went red on 9ee581b with the pull request that produced that exact tree\ngreen. Both halves of that sentence were defects.\n\nWHY MAIN FAILED. Criterion's default baseline directory is `base`. When that\ndirectory exists but its sample.json does not -- the state a partially restored\ntarget/ cache leaves behind -- criterion reports it through println!\n(criterion-0.5.1/src/macros_private.rs:36), i.e. onto STDOUT, which is exactly\nwhat `| tee output.txt` captures. It lands mid-line, between `test <name> ... `\nand `bench: <n> ns/iter`, splitting the single line github-action-benchmark's\ncargo extractor matches, so the run parsed ZERO benchmarks and the action failed\nwith \"No benchmark result was found\".\n\nReproduced locally on criterion 0.5.1 with all three states, driving the bench\nbinary under CRITERION_HOME:\n  virgin directory   -> test load_manifest_small ... bench: 17703 ns/iter (+/- 316)\n  complete baseline  -> test load_manifest_small ... bench: 20667 ns/iter (+/- 1205)\n  base/ with sample.json deleted ->\n      test load_manifest_small ... Criterion.rs ERROR: error: Failed to access\n      file \"...\\base\\sample.json\": The system cannot find the file specified.\n      bench:       20574 ns/iter (+/- 963)\nThe bench process EXITS 0 in all three. That is why nothing upstream noticed:\ncargo bench succeeded, the pipeline succeeded, only the downstream parse failed.\nThe virgin state is the one proven clean, so `rm -rf target/criterion` now runs\nfirst. Nothing is lost -- the tracking history lives on gh-pages, not target/.\n\nWHY NO PR COULD HAVE CAUGHT IT. `Store benchmark results` is the only step that\nPARSES output.txt and it was gated on `refs/heads/main`. A pull request ran the\nbenchmarks, wrote output.txt, and never looked at it, so PR #46's benchmark job\nwas green and could not have been anything else. That is now fixed by running\nthe SAME action on everything that is not main with auto-push: false and\nsave-data-file: false. Deliberately the action and not a hand-written grep: a\nsecond parser would be a second definition of \"parseable\" and would drift from\nthe one that gates main. Evidence for the on/off difference is real rather than\nargued -- this same extractor was observed FAILING on polluted output (main run\n31505006120) and passing on clean output (this PR's own run).\n\ntests/benchmark_output_contract_tests.rs guards both halves. FIVE mutations were\napplied to the committed workflow and each reddened EXACTLY ONE test, 4 passed /\n1 failed every time, with the file restored byte-identically after each: delete\nthe criterion wipe; gate the PR-side check back onto main; flip its auto-push to\ntrue; point it at a different output file; swap its action for a grep. Deleting\nthe PR-side step outright reddens three, which is stated in the file rather than\nengineered away.\n\nTwo process notes, both recorded because they nearly shipped bad evidence. The\nfirst control harness restored with `git checkout --` while the implementation\nwas still UNCOMMITTED, so it reverted the fix and every control after the first\nran against the original workflow -- the implementation is committed before the\nfirst perturbation now. And `sed -i` under Git Bash rewrote this CRLF file to LF,\nwhich made every perturbation diff read as \"all 68 lines changed\" and hid what\nwas actually mutated; mutations are byte replacements now.\n\nVerified: cargo fmt --all -- --check clean, cargo clippy --all-targets\n--all-features -D warnings clean, cargo test --all-features 503 passed / 0\nfailed (498 on origin/main + 5 new; the arithmetic closes).\n\n* fix(ci): the PR-side parse check must not touch gh-pages at all\n\nskip-fetch-gh-pages skips only the FETCH; the action still runs\n`git switch gh-pages`, and a PR checkout has no local gh-pages, so the step\ndied with `fatal: invalid reference: gh-pages` before parsing anything\n(job 93871437572 on this PR). external-data-json-path takes it off the branch\nentirely. Caught by the step itself, on the pull request, which is the property\nthis whole change exists to create.",
+          "timestamp": "2026-08-11T14:03:03-05:00",
+          "tree_id": "6228768de63f65ff579d00c0d8983f6d08f427c5",
+          "url": "https://github.com/rodmen07/svccat/commit/3cdca7c672b91aa2304cbb970c6beba527acc15a"
+        },
+        "date": 1786475102622,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12681,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24482,
+            "range": "± 79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 307,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5734,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5346,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12590,
+            "range": "± 67",
             "unit": "ns/iter"
           }
         ]
