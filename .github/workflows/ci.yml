@@ -30,7 +30,7 @@ jobs:
     steps:
       # 1. Bring down the repo code to let the runner know what to execute
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. Dynamically provision the specific matrix toolchain channel
       - name: Install Rust Toolchain
@@ -73,13 +73,13 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust Toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry and build output
-        uses: Swatinem/rust-cache@v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2
 
       # Full build, not just `cargo check`: this repo's real defects to date
       # (PR #6/#7 XSS, PR #8 silent stdout regression) were caught by tests,
@@ -100,7 +100,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust Toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -150,7 +150,7 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Rust Toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
@@ -158,7 +158,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Cargo registry and build output
-        uses: Swatinem/rust-cache@v2.7.3
+        uses: Swatinem/rust-cache@v2.9.2
 
       - name: Check formatting
         run: cargo fmt --all -- --check
