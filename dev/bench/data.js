@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786391871648,
+  "lastUpdate": 1786413654063,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4079,6 +4079,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12455,
             "range": "± 47",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "749dbbabe60780b4f1bec114d66ef6f5d6dfd92a",
+          "message": "sec(ci): move every workflow action onto the Node 24 runtime line (#45)\n\nGitHub deprecated the Node 20 Actions runtime. All 24 jobs on main carried\nthe annotation \"Node.js 20 is deprecated. The following actions target\nNode.js 20 but are being forced to run on Node.js 24\" -- the runner was\npapering over the gap rather than the gap being harmless, and because\neverything stayed green nothing in CI could ever fail on it.\n\n20 pin sites across all six workflows move to releases that declare\n`runs.using: node24`, each keeping the pinning STYLE it already had\n(floating majors stay floating, exact pins stay exact):\n\n  actions/checkout        v4      -> v7       (6 sites, floating)\n  actions/checkout        v4.1.7  -> v7.0.1   (3 sites, exact)\n  Swatinem/rust-cache     v2.7.3  -> v2.9.2   (5 sites, exact)\n  actions/github-script   v7.0.1  -> v9.0.0   (2 sites, exact)\n  actions/cache/restore   v4      -> v6\n  actions/cache/save      v4      -> v6\n  actions/upload-artifact v4      -> v7\n  codecov/codecov-action  v4      -> v7\n\nEvery target was verified by reading `runs.using` from that tag's own\naction.yml, not from release prose, and two of the floors are not where a\nguess would put them: actions/upload-artifact@v5 and\nSwatinem/rust-cache@v2.8.0 both still declare node20, so bumping either to\n\"the next version\" would have looked like a fix and changed nothing.\n\ntests/action_currency_tests.rs is the regression fence. It parses the\nworkflows with a real YAML parser rather than a regex -- fuzzing.yml\ndiscusses actions/cache/restore and actions/cache/save in prose comments,\nwhich a text scan cannot tell apart from a step -- and glob-discovers the\nfile list with a zero-match hard failure.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-10T20:57:43-05:00",
+          "tree_id": "03104ba42dc2d0e8a334762f4d84cbb9af27efdc",
+          "url": "https://github.com/rodmen07/svccat/commit/749dbbabe60780b4f1bec114d66ef6f5d6dfd92a"
+        },
+        "date": 1786413653085,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12743,
+            "range": "± 402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24120,
+            "range": "± 528",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 311,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5430,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5131,
+            "range": "± 159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12275,
+            "range": "± 82",
             "unit": "ns/iter"
           }
         ]
