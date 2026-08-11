@@ -860,7 +860,17 @@ fn run() -> Result<i32> {
             let path = manifest_path.unwrap_or_else(|| manifest::find_default(&root));
             let m = manifest::Manifest::load(&path)?;
             let total = m.services.len();
-            let q = search::Query::parse(&query_raw);
+            let (q, unrecognized_field) = search::Query::parse_reporting(&query_raw);
+            if let Some(field) = unrecognized_field {
+                // Without this the query silently degrades to a substring
+                // search and a mistyped field looks exactly like a genuine
+                // zero-result search.
+                eprintln!(
+                    "note: `{field}` is not a searchable field, so the whole query was \
+                     searched as plain text. Searchable fields: {}.",
+                    search::SEARCHABLE_FIELDS.join(", ")
+                );
+            }
             let matches = search::run(&m, &q);
             if let Some(out_path) = output_path {
                 let content = search::render_json(&matches, &query_raw, total)?;

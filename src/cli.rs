@@ -429,6 +429,13 @@ pub enum Commands {
     ///
     /// Searchable fields: name, language, platform, url, role, team, oncall,
     /// docs, ci, path, tags, depends_on.
+    ///
+    /// Field aliases: lang, tag, deps.
+    ///
+    /// A `field:value` query whose field is none of the above is treated as a
+    /// plain substring search over the whole query — so `svccat search
+    /// https://api.example.com` searches for that URL — and a note naming the
+    /// unrecognised field is written to stderr.
     Search {
         /// Search query, e.g. `team:platform` or `auth`
         query: String,

@@ -1,6 +1,58 @@
 use crate::manifest::{Manifest, ServiceEntry};
 use colored::Colorize;
 
+// ── The searchable-field vocabulary ───────────────────────────────────────────
+
+/// Every field name a `field:value` query accepts, in the order the `Search`
+/// doc comment in `src/cli.rs` lists them — that doc comment is what
+/// `svccat search --help` prints, so the two must agree.
+///
+/// `tests/search_field_contract_tests.rs` parses the help text and exercises
+/// each name it finds with a real query, so a field documented here but
+/// unreachable in [`service_field`] or [`service_list_field`] fails the build.
+pub const SEARCHABLE_FIELDS: &[&str] = &[
+    "name",
+    "language",
+    "platform",
+    "url",
+    "role",
+    "team",
+    "oncall",
+    "docs",
+    "ci",
+    "path",
+    "tags",
+    "depends_on",
+];
+
+/// Extra spellings accepted for a documented field, mapped to that field.
+///
+/// `lang` and `deps` exist because [`render`] prints `lang:rust` and
+/// `deps:auth,db` on every result line, so a user copying a label straight
+/// back into a query would otherwise be naming a field that does not exist.
+const FIELD_ALIASES: &[(&str, &str)] = &[
+    ("lang", "language"),
+    ("tag", "tags"),
+    ("deps", "depends_on"),
+];
+
+/// Resolve a user-typed field name to its documented spelling, or `None` when
+/// it names no searchable field.
+///
+/// This is the single definition of the vocabulary: both the query parser and
+/// the matcher route through it, so a hand-built [`Query`] and a parsed one
+/// resolve aliases identically.
+pub fn canonical_field(field: &str) -> Option<&'static str> {
+    let lower = field.trim().to_lowercase();
+    if let Some(f) = SEARCHABLE_FIELDS.iter().find(|f| **f == lower) {
+        return Some(f);
+    }
+    FIELD_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == lower)
+        .map(|(_, canonical)| *canonical)
+}
+
 // ── Query parsing ─────────────────────────────────────────────────────────────
 
 /// A parsed search query.
@@ -16,23 +68,54 @@ pub enum Query {
 
 impl Query {
     pub fn parse(raw: &str) -> Self {
+        Self::parse_reporting(raw).0
+    }
+
+    /// Same as [`Query::parse`], plus the unrecognised field name when the
+    /// query LOOKED like `field:value` but `field` names nothing searchable.
+    ///
+    /// Such a query becomes a plain substring search over the whole raw
+    /// string, because the help text promises substring matching over all
+    /// fields and a value may legitimately contain a colon —
+    /// `svccat search https://api.example.com` must search for that URL, not
+    /// for `//api.example.com` inside a field called `https`. The caller is
+    /// expected to report the returned name: a mistyped field would otherwise
+    /// be indistinguishable from a genuine zero-result search.
+    pub fn parse_reporting(raw: &str) -> (Self, Option<String>) {
         if let Some((field, value)) = raw.split_once(':') {
-            let field = field.trim().to_lowercase();
+            let field = field.trim();
             let value = value.trim().to_lowercase();
             if !field.is_empty() && !value.is_empty() {
-                return Query::FieldValue { field, value };
+                if let Some(canonical) = canonical_field(field) {
+                    return (
+                        Query::FieldValue {
+                            field: canonical.to_string(),
+                            value,
+                        },
+                        None,
+                    );
+                }
+                return (
+                    Query::AnyField(raw.trim().to_lowercase()),
+                    Some(field.to_string()),
+                );
             }
         }
-        Query::AnyField(raw.trim().to_lowercase())
+        (Query::AnyField(raw.trim().to_lowercase()), None)
     }
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
+/// The single-valued searchable fields.
+///
+/// Returns `None` both for an unknown field and for a multi-valued one; the
+/// latter is served by [`service_list_field`], and [`matches_query`] asks it
+/// first.
 fn service_field<'a>(svc: &'a ServiceEntry, field: &str) -> Option<&'a str> {
-    match field {
+    match canonical_field(field)? {
         "name" => Some(svc.name.as_str()),
-        "language" | "lang" => svc.language.as_deref(),
+        "language" => svc.language.as_deref(),
         "platform" => svc.platform.as_deref(),
         "url" => svc.url.as_deref(),
         "role" => svc.role.as_deref(),
@@ -41,7 +124,16 @@ fn service_field<'a>(svc: &'a ServiceEntry, field: &str) -> Option<&'a str> {
         "docs" => svc.docs.as_deref(),
         "ci" => svc.ci.as_deref(),
         "path" => svc.path.as_deref(),
-        "tags" => None, // tags are Vec<String>, handled separately
+        // `tags` and `depends_on` are Vec<String>; see `service_list_field`.
+        _ => None,
+    }
+}
+
+/// The multi-valued searchable fields, which have no single `&str` to return.
+fn service_list_field<'a>(svc: &'a ServiceEntry, field: &str) -> Option<&'a [String]> {
+    match canonical_field(field)? {
+        "tags" => Some(&svc.tags),
+        "depends_on" => Some(&svc.depends_on),
         _ => None,
     }
 }
@@ -53,10 +145,10 @@ fn service_tags(svc: &ServiceEntry) -> &[String] {
 fn matches_query(svc: &ServiceEntry, query: &Query) -> bool {
     match query {
         Query::FieldValue { field, value } => {
-            if field == "tags" || field == "tag" {
-                return service_tags(svc)
+            if let Some(values) = service_list_field(svc, field) {
+                return values
                     .iter()
-                    .any(|t| t.to_lowercase().contains(value.as_str()));
+                    .any(|v| v.to_lowercase().contains(value.as_str()));
             }
             if let Some(v) = service_field(svc, field) {
                 return v.to_lowercase().contains(value.as_str());

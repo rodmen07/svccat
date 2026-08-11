@@ -166,6 +166,18 @@ any published version. This section exists exactly while that is true, enforced 
 `roadmap_declares_unreleased_work_exactly_when_the_changelog_has_some`; a release-prep
 PR moves these entries into the new version's section and deletes this heading.
 
+- **`svccat search depends_on:<name>` works, and a mistyped field says so** (2026-08-11).
+  First coverage for `src/search.rs`, one of the crate's remaining zero-coverage
+  modules, which immediately found that `depends_on` — named as searchable in
+  `svccat search --help` since the command shipped — had no match arm at all, so the
+  `field:value` form returned zero results for it forever. Two silent no-ops closed:
+  that dead field, and a query whose value contains a colon (`svccat search
+  https://api.example.com` parsed `https` as the field name and matched nothing);
+  the latter now falls back to the documented plain substring search and writes a
+  note naming the unrecognised field to stderr. `search::SEARCHABLE_FIELDS` and
+  `search::canonical_field` are the one vocabulary both the parser and the matcher
+  read, and `tests/search_field_contract_tests.rs` parses the help text and exercises
+  every field it names with a real query. Targets the next release after v1.6.0.
 - **Orphaned SBOM sidecars are recoverable via `snapshot delete`** (2026-07-27). The
   v1.6.1 LOW bug from the PR #38 QA pass, fixed: `delete` on a missing snapshot now
   removes an orphaned `<name>.spdx.json` and succeeds instead of bailing before its
