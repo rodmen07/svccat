@@ -193,9 +193,9 @@ pub fn render_terminal(
         println!("  Estimated monthly: ${:.2}", cost.total_monthly);
         if !cost.by_platform.is_empty() {
             println!("  By platform:");
-            let mut platforms: Vec<_> = cost.by_platform.iter().collect();
-            platforms.sort_by_key(|(_, &cost)| (cost as i32).wrapping_neg()); // Sort descending by cost
-            for (platform, &platform_cost) in platforms {
+            // Dearest first, ties broken by name: `by_platform` is a HashMap, so
+            // any order this renderer does not impose itself is a per-run accident.
+            for (platform, platform_cost) in cost.platforms_by_cost() {
                 println!("    {}: ${:.2}", platform, platform_cost);
             }
         }
