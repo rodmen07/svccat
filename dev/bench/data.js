@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786475103446,
+  "lastUpdate": 1786512209578,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4199,6 +4199,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12590,
             "range": "± 67",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4634766c1def06408fb1f3c2f44480f612acd4a2",
+          "message": "docs(roadmap): record the unreleased work two PRs never wrote down, and guard the pair (#48)\n\nThe truth audit found ROADMAP.md's `## Unreleased on main` and CHANGELOG.md's\n`[Unreleased]` describing different sets of shipped-but-unpublished work, and\none merged change described by neither.\n\n- PR #44 (`--output` silently ignored for `--format sarif|junit`) touched\n  neither file. It is a user-facing fix on a documented flag and would have\n  shipped in the next release with no release note at all.\n- PR #42 (an empty string no longer satisfies a required field) was in the\n  changelog and not in the roadmap.\n- Two `the SARIF anchoring below` pointers named an entry that sits above.\n- The header and `## Current state` still read 2026-07-26, seventeen merges ago.\n\nGuard 4 could not see any of this: it asks only whether the roadmap section\nEXISTS, which ten entries against eight satisfy exactly as well as ten against\nten. Guard 5 compares the SET of pull requests the two sections cite -- a set\nrather than a count, because the documents legitimately differ in granularity\n(PR #35 is one roadmap bullet and two changelog entries).\n\nThe anchor is the citation slot, the `** (PR #` right after the bold title,\nnot every `PR #` in the entry: the roadmap's live text says \"the v1.6.1 LOW\nbug from the PR #38 QA pass\" and \"filed alongside PR #20\", so a section-wide\nscan would compare two sets of mixed provenance and redden a correct document.\nThose two sentences stay in the file as the extractor's committed control.\n\nEvery unreleased entry in both files now carries its citation, restoring the\nconvention the released changelog sections already follow.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-12T00:21:23-05:00",
+          "tree_id": "9e189215510935f62aadd9b7475c1493c80c2892",
+          "url": "https://github.com/rodmen07/svccat/commit/4634766c1def06408fb1f3c2f44480f612acd4a2"
+        },
+        "date": 1786512209058,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12631,
+            "range": "± 129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24106,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 269,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5520,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5135,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12219,
+            "range": "± 81",
             "unit": "ns/iter"
           }
         ]
