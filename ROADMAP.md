@@ -179,6 +179,27 @@ title, and `the_two_documents_cite_the_same_unreleased_pull_requests` fails when
 this list and the changelog's stop naming the same set. The granularity may differ
 — PR #35 is one bullet here and two entries there — but the set may not.
 
+- **`svccat workspace check` emits byte-identical bytes for an unchanged
+  workspace** (PR #51, 2026-08-12). THREE producers fed `HashMap` iteration
+  order into the cross-repo dependency report, and ten runs over one unchanged
+  three-repo workspace gave ten distinct documents in each of `--format json`,
+  `--format html` and `--format markdown`. Two of the three were found by
+  re-deriving the cause at source rather than implementing the filed fix shape:
+  besides `validate_all_dependencies` walking the node map, the cycle search
+  took its DFS start nodes from that map, and because the node a search enters a
+  cycle FROM is where that cycle's path is cut, this rotated each cycle's own
+  member list and its description — all three rotations of one three-service
+  cycle appeared across ten runs — while the HTML report's D3 payload collected
+  the same map's values. Ordering is imposed where the report is built, NOT by
+  changing `DependencyGraph::nodes` to a `BTreeMap`: that field is public and
+  1.x is API-frozen, so the container stays and `ServiceKey` gains an additive
+  `Ord`. `tests/workspace_dependency_order_tests.rs` samples ten separate
+  processes per format (the defect lived on per-process hash seeding, so
+  separate processes are the axis that matters) and sweeps all twelve
+  `--format` values; the in-process guards live beside the producers. Its
+  anti-vacuity test is load-bearing: the byte-identity assertions all pass on a
+  workspace that finds nothing, so something has to assert the fixture still
+  produces findings. Targets the next release after v1.6.0.
 - **`svccat export --format backstage-yaml` exports byte-identical bytes for an
   unchanged manifest** (PR #50, 2026-08-12). `metadata.annotations` was a
   `HashMap`, which `serde_yaml` writes in per-process iteration order: one
