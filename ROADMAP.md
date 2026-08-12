@@ -179,6 +179,18 @@ title, and `the_two_documents_cite_the_same_unreleased_pull_requests` fails when
 this list and the changelog's stop naming the same set. The granularity may differ
 — PR #35 is one bullet here and two entries there — but the set may not.
 
+- **`svccat audit --cost-estimate` orders `By platform:` the same way every run**
+  (PR #49, 2026-08-12). The renderer sorted a `HashMap` by
+  `(cost as i32).wrapping_neg()` with a stable sort, so equal-cost platforms kept
+  the map's per-process iteration order: ten runs over one unchanged catalog
+  printed six distinct orderings, and the `i32` truncation made $10.90 and $10.20
+  tie as well. The order is now total — real cost descending by `total_cmp`,
+  platform name breaking ties — and it lives in one place,
+  `CostBreakdown::platforms_by_cost`, rather than in the renderer that happened to
+  need it. `--format json` was never affected (it builds a `BTreeMap`).
+  `tests/audit_cost_order_tests.rs` samples ten separate processes per assertion,
+  because one run agreed with the fixed order about one time in six by luck.
+  Targets the next release after v1.6.0.
 - **`svccat search depends_on:<name>` works, and a mistyped field says so** (PR #46, 2026-08-11).
   First coverage for `src/search.rs`, one of the crate's remaining zero-coverage
   modules, which immediately found that `depends_on` — named as searchable in
