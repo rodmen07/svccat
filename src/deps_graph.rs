@@ -3,7 +3,16 @@ use anyhow::Result;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, serde::Serialize)]
+/// Identifies one service inside one repository of a workspace.
+///
+/// `Ord` is derived deliberately and is load-bearing rather than a convenience:
+/// the graph stores its nodes in a `HashMap<ServiceKey, GraphNode>`, so every
+/// report that walks those nodes has to impose its own order or inherit
+/// `RandomState`'s, which is re-seeded per process. Ordering by `(repo,
+/// service)` — the field order below, which is what `derive(Ord)` uses — is the
+/// same order `Display` renders, so `r1:a1` sorts before `r2:b1` in the output a
+/// user reads.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, serde::Serialize)]
 pub struct ServiceKey {
     pub repo: String,
     pub service: String,
@@ -128,7 +137,15 @@ impl DependencyGraph {
         let mut rec_stack = HashSet::new();
         let mut cycles = Vec::new();
 
-        for node_key in nodes.keys() {
+        // Walk the start nodes in a fixed order. Which node a DFS enters a cycle
+        // FROM decides where that cycle's `path` is cut, so hash order would not
+        // merely shuffle the `cycles` vector: it would rotate each cycle's own
+        // member list, and `description` with it. On a three-service cycle the
+        // pre-fix binary printed all three rotations of one cycle across ten runs.
+        let mut start_keys: Vec<&ServiceKey> = nodes.keys().collect();
+        start_keys.sort();
+
+        for node_key in start_keys {
             if !visited.contains(node_key) {
                 Self::dfs_detect_cycles(
                     node_key,
@@ -246,11 +263,21 @@ impl DependencyGraph {
         }
     }
 
-    /// Check if all dependencies are resolvable
+    /// Check if all dependencies are resolvable.
+    ///
+    /// The result is ordered by depending service, then by the order that
+    /// service's manifest declares its `depends_on` entries. It is NOT in node
+    /// insertion or hash order: this vector is serialised verbatim into the
+    /// JSON, HTML and Markdown workspace reports, which are artifacts a CI step
+    /// diffs or uploads, so its order is part of the output contract.
     pub fn validate_all_dependencies(&self) -> Vec<UnresolvableDependency> {
         let mut unresolvable = Vec::new();
 
-        for (service_key, node) in &self.nodes {
+        let mut service_keys: Vec<&ServiceKey> = self.nodes.keys().collect();
+        service_keys.sort();
+
+        for service_key in service_keys {
+            let node = &self.nodes[service_key];
             for dep_edge in &node.dependencies {
                 if !self.nodes.contains_key(&dep_edge.target) {
                     unresolvable.push(UnresolvableDependency {
@@ -463,5 +490,76 @@ mod tests {
         assert_eq!(summary.total_services, 3);
         assert_eq!(summary.total_dependencies, 2);
         assert_eq!(summary.circular_dependencies, 0);
+    }
+
+    /// How many graphs each ordering test builds.
+    ///
+    /// `RandomState::new()` takes a fresh seed for every `HashMap` in a process,
+    /// so N builds here sample N iteration orders without needing N processes.
+    /// The binary-level companion in `tests/workspace_dependency_order_tests.rs`
+    /// samples separate processes as well, because that is the axis a user sees.
+    const ORDER_SAMPLES: usize = 20;
+
+    #[test]
+    fn unresolvable_dependencies_are_ordered_by_depending_service_then_declaration() {
+        // `zulu` is declared BEFORE `alpha`, so a result that came back
+        // alphabetical would mean the declaration order was lost, and a result
+        // that put `auth` first would mean the service order was hash order.
+        let manifest = create_test_manifest(
+            vec!["api", "auth"],
+            vec![("api", "zulu"), ("api", "alpha"), ("auth", "mike")],
+        );
+
+        let expected = vec![
+            ("api".to_string(), "zulu".to_string()),
+            ("api".to_string(), "alpha".to_string()),
+            ("auth".to_string(), "mike".to_string()),
+        ];
+
+        for sample in 0..ORDER_SAMPLES {
+            let graph = DependencyGraph::build(vec![("backend".to_string(), &manifest)]).unwrap();
+            let actual: Vec<(String, String)> = graph
+                .validate_all_dependencies()
+                .into_iter()
+                .map(|u| (u.service.service, u.dependency.service))
+                .collect();
+
+            assert_eq!(
+                actual, expected,
+                "sample {sample} disagreed: `validate_all_dependencies` is back \
+                 on `self.nodes` hash order"
+            );
+        }
+    }
+
+    #[test]
+    fn a_detected_cycle_is_always_cut_at_its_lowest_member() {
+        let manifest = create_test_manifest(
+            vec!["alpha", "bravo", "charlie"],
+            vec![
+                ("alpha", "bravo"),
+                ("bravo", "charlie"),
+                ("charlie", "alpha"),
+            ],
+        );
+
+        // Every rotation of this cycle is an equally true description of it, so
+        // only a fixed DFS start order makes the reported one repeatable.
+        let expected = "Circular dependency: backend:alpha → backend:bravo → backend:charlie";
+
+        for sample in 0..ORDER_SAMPLES {
+            let graph = DependencyGraph::build(vec![("backend".to_string(), &manifest)]).unwrap();
+
+            assert_eq!(
+                graph.circular_dependencies.len(),
+                1,
+                "sample {sample}: the fixture must contain exactly one cycle, \
+                 otherwise this test orders nothing"
+            );
+            assert_eq!(
+                graph.circular_dependencies[0].description, expected,
+                "sample {sample} reported a different rotation of the same cycle"
+            );
+        }
     }
 }
