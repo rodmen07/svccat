@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786512209578,
+  "lastUpdate": 1786516492965,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4259,6 +4259,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12219,
             "range": "± 81",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "29b0665a00250d95fc83f7324cf2aab3740588e0",
+          "message": "fix(audit): order `By platform:` by cost then name, not by hash chance (#49)\n\n* fix(audit): order `By platform:` by cost then name, not by hash chance\n\n`svccat audit --cost-estimate` printed its cost breakdown in a different\norder on almost every run. `CostBreakdown::by_platform` is a `HashMap`,\nwhose iteration order is randomised per process, and the renderer ordered\nit with a STABLE sort on `(cost as i32).wrapping_neg()` -- so every pair of\nplatforms whose costs compared equal kept whatever order the map handed\nover. Ten consecutive runs over one unchanged three-service catalog, every\nplatform estimating $10.00, produced six distinct orderings.\n\nThe `i32` truncation widened the tie class past exact equality as well:\n$10.90 and $10.20 both became 10 and therefore tied. Nothing in `analyze`\nproduces fractional estimates today, but `by_platform` is a public field a\ncaller may populate itself.\n\nThe ordering now lives in one place, `CostBreakdown::platforms_by_cost`,\nrather than in the renderer that happened to need it, and its key is a\ntotal order: the real `f64` compared with `total_cmp`, then the platform\nname. `audit::render_json` keeps its own `BTreeMap` -- it was already\ndeterministic, and a JSON object is addressed by key rather than read top\nto bottom, so reordering that document would change a machine-readable\noutput for no gain.\n\nSame class as two defects already fixed here: `svccat diff`'s New/Resolved\ndrift lists (PR #31) and watch-mode ordering (PR #27).\n\nThe regression tests are binary-level and repeat-run, because the defect is\na property of separate PROCESSES and because a single run agreed with the\nfixed order about one time in six by luck.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n* test(cost): let the determinism assertion pin determinism only\n\nThe 64-iteration test compared each run against a hard-coded descending\norder, so it asserted determinism AND direction at once: reversing the sort\nbroke both clauses and the two failures were indistinguishable. It now\ncollects the orders into a set and asserts the set has one member. Which\norder that is stays owned by platforms_by_cost_puts_the_dearest_platform_first\nand platforms_of_equal_cost_are_ordered_by_name.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-12T01:32:44-05:00",
+          "tree_id": "8f6f8d30bc53979428af13988345ddb7ad8be9be",
+          "url": "https://github.com/rodmen07/svccat/commit/29b0665a00250d95fc83f7324cf2aab3740588e0"
+        },
+        "date": 1786516491874,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12847,
+            "range": "± 100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24565,
+            "range": "± 97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 295,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5385,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5058,
+            "range": "± 169",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12642,
+            "range": "± 220",
             "unit": "ns/iter"
           }
         ]
