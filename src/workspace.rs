@@ -381,12 +381,25 @@ fn analyze_cross_repo_dependencies(
         .collect();
 
     match deps_graph::DependencyGraph::build(manifest_refs) {
-        Ok(graph) => CrossRepoAnalysis {
-            summary: Some(graph.summary()),
-            circular: graph.circular_dependencies.clone(),
-            unresolvable: graph.validate_all_dependencies(),
-            nodes: graph.nodes.values().cloned().collect(),
-        },
+        Ok(graph) => {
+            // `DependencyGraph::nodes` is a `pub` field of type `HashMap`, so
+            // its iteration order is `RandomState`'s and changes every process.
+            // These nodes are serialised into the HTML report's D3 graph payload
+            // (both its `nodes` array and the `links` array derived from it), so
+            // the order is sorted HERE rather than by changing the graph's
+            // container: `nodes` is public API and 1.x is frozen
+            // (docs/API_STABILITY.md), and no caller should have to know that a
+            // published field is order-unstable to render a stable report.
+            let mut nodes: Vec<deps_graph::GraphNode> = graph.nodes.values().cloned().collect();
+            nodes.sort_by(|a, b| a.key.cmp(&b.key));
+
+            CrossRepoAnalysis {
+                summary: Some(graph.summary()),
+                circular: graph.circular_dependencies.clone(),
+                unresolvable: graph.validate_all_dependencies(),
+                nodes,
+            }
+        }
         Err(e) => {
             eprintln!("⚠️  Warning: Failed to analyze dependencies: {}", e);
             CrossRepoAnalysis::default()
