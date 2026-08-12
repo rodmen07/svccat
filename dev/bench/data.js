@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786516492965,
+  "lastUpdate": 1786525838452,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4319,6 +4319,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12642,
             "range": "± 220",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1395300b0441bbdab3c23343c98b913bfab3a523",
+          "message": "fix(export): order backstage annotations, so the exported catalog is byte-stable (#50)\n\n`CatalogMetadata::annotations` was a `HashMap`, and `serde_yaml` writes a map\nin iteration order -- randomised per process -- so `svccat export --format\nbackstage-yaml` produced different bytes on almost every run. Ten runs over one\nservice declaring `oncall`, `path`, `docs` and `ci` gave NINE distinct annotation\norders.\n\nA Backstage `catalog-info.yaml` is a COMMITTED artifact, so this is a\nbyte-determinism defect and not a display-order one: every regeneration produced\na diff on services nothing had changed about, and any byte comparison of exported\ncatalogs (a `git diff --exit-code` after regeneration, a CI drift check) reported\na change that was not one.\n\nAnnotations are now a `BTreeMap` and emit alphabetically. Insertion order was\nrejected deliberately: the insertion sequence was just the order of the `if let`\narms in `render_export` and encodes nothing a reader could rely on, and keeping\nit would have cost an `indexmap` dependency to express an accident.\n\nNo public API changed -- `CatalogMetadata` is private to the module -- and no\nannotation key or value moved.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-12T04:08:35-05:00",
+          "tree_id": "ab0d2e1fb9f85fdedbf9c548978e40bdb8063c71",
+          "url": "https://github.com/rodmen07/svccat/commit/1395300b0441bbdab3c23343c98b913bfab3a523"
+        },
+        "date": 1786525837964,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12646,
+            "range": "± 1678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 24257,
+            "range": "± 237",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 311,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5697,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5318,
+            "range": "± 133",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12265,
+            "range": "± 60",
             "unit": "ns/iter"
           }
         ]
