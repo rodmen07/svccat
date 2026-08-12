@@ -170,6 +170,11 @@ mod tests {
     /// Every `HashMap` gets its own random seed, so building the same breakdown
     /// repeatedly inside one process still samples different iteration orders.
     /// One agreement proves nothing; sixty-four is the point.
+    ///
+    /// This asserts only that the runs agree with EACH OTHER, never which order
+    /// they agree on — the two tests above own that. Otherwise one perturbation
+    /// (any change of sort direction) would break both clauses at once and the
+    /// two failures could not be told apart.
     #[test]
     fn platforms_by_cost_is_the_same_whatever_order_the_map_iterates() {
         let rows = [
@@ -178,15 +183,15 @@ mod tests {
             ("Netlify", 10.0),
             ("Kubernetes", 200.0),
         ];
-        let expected = vec!["Kubernetes", "Netlify", "Railway", "Vercel"];
-        for i in 0..64 {
-            let b = breakdown(&rows);
-            assert_eq!(
-                names(&b.platforms_by_cost()),
-                expected,
-                "iteration {i} disagreed"
-            );
-        }
+        let orders: std::collections::BTreeSet<Vec<String>> = (0..64)
+            .map(|_| names(&breakdown(&rows).platforms_by_cost()))
+            .collect();
+        assert_eq!(
+            orders.len(),
+            1,
+            "64 breakdowns over identical data produced {} distinct orders: {orders:#?}",
+            orders.len()
+        );
     }
 
     /// `estimate_platform_cost` falls through to a prefix scan over the estimate
