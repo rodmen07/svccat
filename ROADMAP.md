@@ -179,6 +179,22 @@ title, and `the_two_documents_cite_the_same_unreleased_pull_requests` fails when
 this list and the changelog's stop naming the same set. The granularity may differ
 — PR #35 is one bullet here and two entries there — but the set may not.
 
+- **`svccat export --format backstage-yaml` exports byte-identical bytes for an
+  unchanged manifest** (PR #50, 2026-08-12). `metadata.annotations` was a
+  `HashMap`, which `serde_yaml` writes in per-process iteration order: one
+  service declaring `oncall`, `path`, `docs` and `ci` came out in nine distinct
+  annotation orders across ten consecutive runs of the binary. A Backstage
+  `catalog-info.yaml` is a COMMITTED artifact, so this made every regeneration
+  produce a diff on services nothing changed about, and made any byte comparison
+  of exported catalogs report a change that was not one — the byte-determinism
+  class, not the display-order class the `audit --cost-estimate` fix below
+  belongs to. Annotations are now a `BTreeMap` and emit alphabetically;
+  insertion order was rejected because the insertion sequence was just the order
+  of the renderer's `if let` arms. `tests/backstage_export_determinism_tests.rs`
+  samples ten separate processes per assertion and covers the `--output <file>`
+  path, which is the one that writes the artifact this contract is about; the
+  in-process guards live beside the renderer. No public API changed.
+  Targets the next release after v1.6.0.
 - **`svccat audit --cost-estimate` orders `By platform:` the same way every run**
   (PR #49, 2026-08-12). The renderer sorted a `HashMap` by
   `(cost as i32).wrapping_neg()` with a stable sort, so equal-cost platforms kept
