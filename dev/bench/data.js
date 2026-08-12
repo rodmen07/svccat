@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786525838452,
+  "lastUpdate": 1786533101184,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4379,6 +4379,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12265,
             "range": "± 60",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6d41bd12ef0f7af2410a31715571a76d161dfe73",
+          "message": "fix(workspace): order the cross-repo dependency report, so it is byte-stable (#51)\n\n* fix(workspace): order the cross-repo dependency report, so it is byte-stable\n\n`svccat workspace check` fed `HashMap` iteration order into its report from\nTHREE separate producers, and all three were reproduced on the pre-fix binary\nover one unchanged three-repo workspace, ten processes each:\n\n1. `DependencyGraph::validate_all_dependencies` walked `self.nodes`, so\n   `unresolvable_dependencies` came back in 10 DISTINCT orderings in 10 runs.\n2. `detect_cycles_in_graph` picked its DFS start nodes from `nodes.keys()`.\n   Which node the search enters a cycle FROM decides where that cycle's path is\n   cut, so this did not merely shuffle the cycle list: it rotated each cycle's\n   own member list and its `description`. All THREE rotations of one\n   three-service cycle appeared across ten runs.\n3. `cross_repo_analysis` collected `graph.nodes.values()` into the HTML report's\n   D3 payload, so its `nodes` array and the `links` array derived from it\n   wandered too.\n\nWhole-document sha256 over ten processes was 10 distinct of 10 for `--format\njson`, `--format html` AND `--format markdown`. The JSON and Markdown reports\nare artifacts a CI step diffs or uploads, so this is a byte-determinism defect\nand not a display-order one: a byte comparison reported a change that was not\none, on a report that names REAL findings a user is meant to act on.\n\n`ServiceKey` now derives `Ord` (additive; ordering by `(repo, service)` is the\norder `Display` already renders), the two graph producers walk their nodes in\nkey order, and the HTML payload is sorted at the collect site in\n`cross_repo_analysis`.\n\nSorting at that collect site is deliberate rather than swapping the container:\n`DependencyGraph::nodes` is a `pub` field and 1.x is API-frozen per\n`docs/API_STABILITY.md`, so a `BTreeMap` there would be a breaking change, and\nno caller should have to know a published field is order-unstable in order to\nrender a stable report.\n\nAll three formats are now byte-identical across ten processes, and every one of\nthe twelve `--format` values is byte-identical across three.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n* docs: record the workspace-report determinism fix in the changelog and roadmap\n\nWritten after PR #51 existed rather than predicting its number, so neither\ndocument states a fact that was not yet true when the commit was made.\n\n`the_two_documents_cite_the_same_unreleased_pull_requests` and the other six\n`tests/roadmap_truth.rs` guards pass on this pair.\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-08-12T06:09:50-05:00",
+          "tree_id": "6184470b35e1f219e9a570745ff0191020101900",
+          "url": "https://github.com/rodmen07/svccat/commit/6d41bd12ef0f7af2410a31715571a76d161dfe73"
+        },
+        "date": 1786533100200,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 8014,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 16320,
+            "range": "± 509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 178,
+            "range": "± 2",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 3309,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 3093,
+            "range": "± 65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 8288,
+            "range": "± 673",
             "unit": "ns/iter"
           }
         ]
