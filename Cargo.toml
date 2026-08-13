@@ -2,7 +2,17 @@
 name = "svccat"
 version = "1.6.0"
 edition = "2021"
-# MSRV: driven by the heaviest dependency floor (clap 4 requires 1.85).
+# MSRV: DECLARED as 1.85, and the committed lockfile does not build on it. The
+# old note here said the floor was "driven by the heaviest dependency (clap 4
+# requires 1.85)"; that is falsified by the lockfile. `url` pulls idna_adapter
+# 1.2.2 and the icu_* 2.2.0 crates, and every one of those declares
+# `rust-version = "1.86"` (read from each crate's own Cargo.toml in the registry
+# cache, not from prose), so 1.86 was already the real floor with no
+# dev-dependency involved. criterion 0.8 declares 1.86 as well, so the bump in
+# [dev-dependencies] rides a floor that already existed rather than raising one.
+# Nothing enforces any of this: no workflow pins a toolchain and there is no
+# rust-toolchain.toml. Correcting the declared number is the MSRV-gate item in
+# ROADMAP.md's v1.7.0 section, which lands the job and the number together.
 rust-version = "1.85"
 description = "Detect drift between your declared service catalog and what actually lives in the repo."
 license = "MIT"
@@ -54,7 +64,12 @@ assert_cmd = "2"
 # the shipped binary never parses XML, only emits it.
 quick-xml = "0.41"
 clap_complete = "4"
-criterion = "0.5"
+# Bench harness. `cargo bench -- --output-format bencher` is parsed by
+# benchmark-action/github-action-benchmark in .github/workflows/benchmark.yml,
+# so the version here is a CI contract and not only a dev convenience; the
+# empirical claims that workflow's comments make about criterion's behaviour are
+# tied to this version by tests/criterion_citation_tests.rs.
+criterion = "0.8"
 predicates = "3"
 tempfile = "3"
 # tests/fuzz_corpus_replay.rs replays the committed fuzz seed corpus through the

@@ -12,12 +12,19 @@
 //! WHY IT FAILED. Criterion's default baseline directory is `base`. When that
 //! directory exists but `sample.json` inside it does not -- the state a
 //! partially restored `target/` cache leaves behind -- criterion reports it
-//! through `println!` (`criterion-0.5.1/src/macros_private.rs:36`), i.e. onto
+//! through `println!` (`criterion-0.8.2/src/macros_private.rs:36`), i.e. onto
 //! STDOUT, which is exactly what `| tee output.txt` captures. It lands mid-line,
 //! between `test <name> ... ` and `bench: <n> ns/iter`, splitting the single
 //! line the extractor matches, so the run parses ZERO benchmarks. The bench
 //! process exits 0 throughout, so `cargo bench` succeeds and the pipeline
 //! succeeds; only the downstream parse fails.
+//!
+//! That citation was originally taken on the criterion this repo used when the
+//! failure happened, and it survived the dev-dependency bump: the macro is still
+//! a `println!` at the same line of the same file, and all three states were
+//! re-run on the current version rather than assumed. Which criterion the claim
+//! describes is pinned by `tests/criterion_citation_tests.rs`, so the next bump
+//! cannot leave this paragraph quietly describing a program nobody builds.
 //!
 //! THE FIX HAS TWO HALVES AND THIS FILE GUARDS BOTH. The cause is removed by
 //! wiping `target/criterion` before the run, which forces the virgin state that
@@ -186,18 +193,26 @@ fn main_still_publishes_and_reads_the_same_file_the_pr_check_reads() {
 
 /// Characterisation of criterion's output, not a gate -- the gate is the action
 /// itself, in CI. This pins the two byte shapes that were captured locally on
-/// criterion 0.5.1 while reproducing the failure, so the mechanism stays legible
+/// criterion 0.8.2 while reproducing the failure, so the mechanism stays legible
 /// without anyone having to re-derive it from a red CI run.
+///
+/// Both captures were RE-TAKEN on the current dependency rather than carried
+/// over, and the clean one moved: the earlier version printed the timing with no
+/// digit grouping (`17703`), this one groups it (`26,035`). The action's cargo
+/// extractor accepts either -- its capture group is `[0-9,.]+` and it strips the
+/// separators -- so the change is invisible to the parse, which is exactly why a
+/// stale fixture would have kept looking right. `tests/criterion_citation_tests.rs`
+/// is what forces this paragraph to be re-derived on the next bump.
 #[test]
 fn the_polluted_line_shape_is_the_one_that_stops_parsing() {
     // Captured verbatim from a virgin CRITERION_HOME.
-    let clean = "test load_manifest_small ... bench:       17703 ns/iter (+/- 316)";
+    let clean = "test load_manifest_small ... bench:      26,035 ns/iter (+/- 5,012)";
     // Captured verbatim after deleting base/sample.json and keeping base/.
     let polluted = concat!(
         "test load_manifest_small ... Criterion.rs ERROR: error: Failed to ",
         "access file \"...\\\\load_manifest_small\\\\base\\\\sample.json\": ",
         "The system cannot find the file specified. (os error 2)\n",
-        "bench:       20574 ns/iter (+/- 963)"
+        "bench:      19,242 ns/iter (+/- 4,322)"
     );
 
     let is_bencher_line = |line: &str| {
