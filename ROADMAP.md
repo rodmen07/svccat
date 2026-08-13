@@ -39,13 +39,15 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   (snapshot-diff ordering), which is listed under `## [Unreleased]` and ships in the
   next release, so published 1.6.0 contains exactly what its own changelog section
   describes. See `## Unreleased on main` for what that leaves pending.
-- Since the cut, `main` has taken PRs #31 through #47. Their user-facing subset is
+- Since the cut, `main` has taken PRs #31 through #52. Their user-facing subset is
   listed under `## Unreleased on main` and in `CHANGELOG.md`'s `[Unreleased]`; the
   rest is CI, test and refactor work that no release note describes —
   least-privilege `GITHUB_TOKEN` blocks on every workflow (PR #43), every action
   moved onto the Node 24 runtime line (PR #45), the fuzz corpus carried between
   runs (PR #41), the benchmark parse gate made reachable from a pull request
-  (PR #47), and one drift-identity refactor (PR #39).
+  (PR #47), this document reconciled against the changelog and the pair guarded
+  (PR #48), the `criterion` dev-dependency brought current (PR #52), and one
+  drift-identity refactor (PR #39).
 - Shipped in earlier releases during 2026-06 and 2026-07 (the crate is NOT in frozen
   maintenance mode):
   - v1.1.0 (2026-06-07): language and platform inference in `init` and `fix`.
@@ -120,7 +122,7 @@ Pure test PRs; no API risk under the 1.x freeze.
 
 Done when: coverage on the targeted modules measurably improves and all tests pass.
 
-### v1.7.0: dependency currency, part 1 (notify and criterion) — PR 1 shipped
+### v1.7.0: dependency currency, part 1 (notify and criterion) — both bumps shipped, MSRV leg open
 
 Direct dependencies have aging majors. Bumps keep RUSTSEC exposure down. Split across
 two milestones so each stays at one or two small PRs.
@@ -133,13 +135,32 @@ two milestones so each stays at one or two small PRs.
   and `src/ci.rs` use is unchanged across both majors — so the PR's substance is the
   coverage proving the swapped backend still works, run by the CI matrix on inotify,
   `ReadDirectoryChangesW` and FSEvents. Supply chain shrank 213 → 212 crates.
-- **PR 2 remaining: bump criterion `0.5` → `0.8.2`** (crates.io `max_stable_version`,
-  verified 2026-07-26). Dev-only, so it cannot affect the frozen API; expect benchmark
-  harness churn in `benches/` rather than in `src/`.
+- **PR 2 SHIPPED 2026-08-13 (PR #52): criterion `0.5` → `0.8.2`** (crates.io
+  `max_stable_version`, re-read on the day of the bump rather than inherited from the
+  2026-07-26 reading). Dev-only, so the frozen API is untouched. The harness churn
+  landed where this bullet predicted, in `benches/`: `criterion::black_box` is
+  deprecated from `0.6` onward and the repo's `-D warnings` clippy gate turns that into
+  an error, so both bench files now import `std::hint::black_box`. Two things the bump
+  moved that a version number alone does not show, both re-derived by running the
+  benchmark rather than by reading release notes: the bencher line now groups digits
+  (`26,035` where `0.5` printed `17703`), which the tracking action's extractor accepts
+  because its capture group is `[0-9,.]+`; and the split-line failure PR #47 fixed still
+  reproduces byte-for-byte on the new version, with the `println!` still at the same
+  line of the same file, so the `rm -rf target/criterion` step is still load-bearing.
+  New guard `tests/criterion_citation_tests.rs` ties every criterion version this repo
+  cites in prose to `Cargo.lock`, so the next bump cannot leave those claims describing
+  a build nobody runs — it caught one stale citation the hand edit had already missed.
 - **MSRV: `Cargo.toml` declares `rust-version = "1.85"` and that is fiction.**
   `idna_adapter` 1.2.2 and the `icu_*` 2.2.0 crates it pulls in via `url` declare
   `rust-version = "1.86"`, and they were on `origin/main` before the notify bump, so
-  `cargo +1.85 build` cannot succeed against the committed lockfile. Nothing enforces
+  `cargo +1.85 build` cannot succeed against the committed lockfile. Re-read at source
+  on 2026-08-13 from each crate's own `Cargo.toml` in the registry cache rather than
+  inherited from this bullet, because the criterion bump had to know whether it was
+  raising the floor or riding one: it is riding one. criterion 0.8 declares
+  `rust-version = "1.86"` too (0.7 was the last line at 1.80), so the dev floor and the
+  runtime floor now agree at 1.86 and the gate below has one number to prove, not two.
+  The `Cargo.toml` comment above `rust-version` used to name clap 4 as the heaviest
+  floor; that was false and is corrected in the same PR. Nothing enforces
   the floor: all six files in `.github/workflows/` use only
   `dtolnay/rust-toolchain@stable`, `@nightly`, or the `[stable, beta, nightly]` matrix,
   and there is no `rust-toolchain.toml`. slokit's `MSRV 1.82` job, with its documented

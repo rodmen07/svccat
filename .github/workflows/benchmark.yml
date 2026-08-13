@@ -39,8 +39,8 @@ jobs:
         # into the middle of `test <name> ... ` and before `bench: <n> ns/iter`.
         # That splits the one line github-action-benchmark's cargo extractor
         # matches, so the run parses ZERO benchmarks. Reproduced locally on
-        # criterion 0.5.1 in all three states: no criterion dir at all -> one
-        # clean `test load_manifest_small ... bench: 17703 ns/iter (+/- 316)`;
+        # criterion 0.8.2 in all three states: no criterion dir at all -> one
+        # clean `test load_manifest_small ... bench: 26035 ns/iter (+/- 5012)`;
         # complete baseline -> the same clean shape; base/ present with
         # sample.json deleted -> the split line, byte-identical to the CI
         # failure on 9ee581b. The bench process EXITS 0 in all three, which is
