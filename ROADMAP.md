@@ -1,6 +1,6 @@
 # svccat roadmap
 
-Last updated: 2026-08-11. This file is the single source of planning truth for svccat.
+Last updated: 2026-08-16. This file is the single source of planning truth for svccat.
 Older planning docs under `docs/` carry status banners pointing here and are kept as
 historical records only.
 
@@ -13,7 +13,7 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 [docs/API_STABILITY.md](docs/API_STABILITY.md); this roadmap does not restate it. MSRV is
 *declared* as Rust 1.85, is enforced by nothing, and does not currently hold — see v1.7.0.
 
-## Current state (2026-08-11)
+## Current state (2026-08-16)
 
 - Crate version on main: **v1.6.0** (`Cargo.toml` `[package] version`). Pinned to this
   document by `roadmap_current_state_matches_the_crate_version`, so a release-prep PR
@@ -39,9 +39,13 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   (snapshot-diff ordering), which is listed under `## [Unreleased]` and ships in the
   next release, so published 1.6.0 contains exactly what its own changelog section
   describes. See `## Unreleased on main` for what that leaves pending.
-- Since the cut, `main` has taken PRs #31 through #52. Their user-facing subset is
-  listed under `## Unreleased on main` and in `CHANGELOG.md`'s `[Unreleased]`; the
-  rest is CI, test and refactor work that no release note describes —
+- Since the cut, `main` has taken PRs #31 through #52. Their user-facing subset —
+  two features, ten fixes and two security hardenings across thirteen PRs — is
+  listed under `## Unreleased on main` and in `CHANGELOG.md`'s `[Unreleased]`, and
+  **none of it has reached a user: the newest published version is still 1.6.0**
+  (crates.io API re-read 2026-08-16), three weeks after the cut, against the
+  weekly-minor working agreement below. The v1.7.0 milestone is the release that
+  ships it. The rest is CI, test and refactor work that no release note describes —
   least-privilege `GITHUB_TOKEN` blocks on every workflow (PR #43), every action
   moved onto the Node 24 runtime line (PR #45), the fuzz corpus carried between
   runs (PR #41), the benchmark parse gate made reachable from a pull request
@@ -105,51 +109,65 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 
 ## Milestones
 
-### v1.6.1: coverage improvements
+### v1.7.0: the next minor — ship the thirteen PRs accumulated on main
 
-Pure test PRs; no API risk under the 1.x freeze.
+Everything under `## Unreleased on main` (two features, ten fixes, two security
+hardenings, PRs #31 through #51) has sat unreleased since the v1.6.0 cut on
+2026-07-26, while the Working agreements promise roughly one minor per week. The
+cause was structural, not a slow queue: every one of those changelog entries says
+it "targets the next release after v1.6.0", but no milestone ever NAMED that
+release, and the standing release delegation acts only when the roadmap or
+backlog names a cut. This milestone is that name (defined 2026-08-16, product
+run).
 
-- Pull the latest coverage report, identify the 2-3 lowest-covered `src/` modules,
-  and add unit or regression tests for the worst one. (Note 2026-07-26: the QA stream
-  has been working the *untested* surfaces ahead of the lowest-covered ones — `src/watch.rs`
-  got its first tests in PR #21/#24 and `src/output/sarif.rs` in PR #28, each finding a
-  live defect. Re-derive the target list from a fresh coverage run rather than from
-  this bullet.)
-- Add edge-case tests for the SBOM surface: empty catalog, services without
-  `depends_on`, SPDXID sanitization collisions, sidecar delete when the snapshot is
-  missing.
-- Release per the flow in Working agreements (or fold into the next minor).
+**Version number: 1.7.0, a MINOR, as a flagged overridable default.** The
+`### Added` entries (SARIF and GitHub-annotation line anchoring) are additive,
+and every library change in the set is additive on `#[non_exhaustive]` types or
+new API. Two changes carry the flag rather than silence:
 
-Done when: coverage on the targeted modules measurably improves and all tests pass.
+- PR #42 makes the metadata-field gates STRICTER: a catalog that passed
+  `svccat policy` / `svccat ci` with `team: ""` will now report those services.
+  Classified a fix under the user's own v1.6.0 rationale for the PR #25
+  exit-code change — the old pass was a false report of success that no
+  consumer could have depended on deliberately.
+- PR #50 changes the bytes of a generated, normally-committed artifact (the
+  Backstage `catalog-info.yaml` annotation order). Content is unchanged; only
+  its order stabilised.
 
-### v1.7.0: dependency currency, part 1 (notify and criterion) — both bumps shipped, MSRV leg open
+If the user judges either of those breaking, this release becomes 2.0.0 and the
+task list below is unchanged apart from the version strings.
 
-Direct dependencies have aging majors. Bumps keep RUSTSEC exposure down. Split across
-two milestones so each stays at one or two small PRs.
+Ordered tasks, each its own PR:
 
-- Run `cargo outdated` and `cargo audit`; record the bump list in the PR description.
-- **PR 1 SHIPPED 2026-07-25 (PR #21, `d622555`): notify 6.1.1 → 8.2.0**, still the
-  current stable major (re-verified 2026-07-26: crates.io `max_stable_version` = 8.2.0;
-  9.0.0 remains release-candidate only). No call-site migration was needed — the
-  `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface `src/watch.rs`
-  and `src/ci.rs` use is unchanged across both majors — so the PR's substance is the
-  coverage proving the swapped backend still works, run by the CI matrix on inotify,
-  `ReadDirectoryChangesW` and FSEvents. Supply chain shrank 213 → 212 crates.
-- **PR 2 SHIPPED 2026-08-13 (PR #52): criterion `0.5` → `0.8.2`** (crates.io
-  `max_stable_version`, re-read on the day of the bump rather than inherited from the
-  2026-07-26 reading). Dev-only, so the frozen API is untouched. The harness churn
-  landed where this bullet predicted, in `benches/`: `criterion::black_box` is
-  deprecated from `0.6` onward and the repo's `-D warnings` clippy gate turns that into
-  an error, so both bench files now import `std::hint::black_box`. Two things the bump
-  moved that a version number alone does not show, both re-derived by running the
-  benchmark rather than by reading release notes: the bencher line now groups digits
-  (`26,035` where `0.5` printed `17703`), which the tracking action's extractor accepts
-  because its capture group is `[0-9,.]+`; and the split-line failure PR #47 fixed still
-  reproduces byte-for-byte on the new version, with the `println!` still at the same
-  line of the same file, so the `rm -rf target/criterion` step is still load-bearing.
-  New guard `tests/criterion_citation_tests.rs` ties every criterion version this repo
-  cites in prose to `Cargo.lock`, so the next bump cannot leave those claims describing
-  a build nobody runs — it caught one stale citation the hand edit had already missed.
+1. **MSRV gate first, so the published metadata is true** (the open DevSecOps
+   backlog item, unchanged): an `MSRV 1.86` job in `ci.yml` per slokit's
+   documented recipe, green on its own PR with before/after numbers, added to
+   `main`'s required contexts only *after* it first posts a status, and
+   `Cargo.toml`'s `rust-version` corrected `1.85` → `1.86` in the same PR (see
+   the MSRV bullet below for why 1.86 is the number). Sequenced before the cut
+   deliberately: 1.6.0 already shipped with a fictional declared MSRV, and
+   cutting 1.7.0 first would mint a second one.
+2. **Release prep**, the v1.6.0 shape: roll `[Unreleased]` into
+   `## [1.7.0] - <date>` in `CHANGELOG.md`, bump `Cargo.toml` + `Cargo.lock`,
+   delete `## Unreleased on main` here and move this milestone to History —
+   the `tests/roadmap_truth.rs` guards enforce each half of that bookkeeping.
+3. **The cut**, per the Working agreements flow: tag the prep commit (not
+   `main` — the v1.6.0 precedent, so the published tree matches its own
+   changelog section), push the tag, create the GitHub release, and verify
+   `"newest_version":"1.7.0"` at the crates.io API. This is the first
+   `publish.yml` run since the workflow hardening landed, so it also closes two
+   standing observations the autodev backlog carries: the publish job log must
+   show the explicit `GITHUB_TOKEN` permissions block live (`Contents: read,
+   Metadata: read`, PR #43) and zero Node-20 runtime annotations from
+   `actions/checkout@v7` (PR #45).
+
+Done when: crates.io reports `"newest_version":"1.7.0"`, the publish run is
+green end to end including the three Post-Publish Registry Validation legs, and
+the two publish-observation items are closed with run-log evidence.
+
+Carried context for task 1 (from the dependency-currency work this milestone
+absorbed — the shipped bumps themselves are recorded under History):
+
 - **MSRV: `Cargo.toml` declares `rust-version = "1.85"` and that is fiction.**
   `idna_adapter` 1.2.2 and the `icu_*` 2.2.0 crates it pulls in via `url` declare
   `rust-version = "1.86"`, and they were on `origin/main` before the notify bump, so
@@ -158,9 +176,9 @@ two milestones so each stays at one or two small PRs.
   inherited from this bullet, because the criterion bump had to know whether it was
   raising the floor or riding one: it is riding one. criterion 0.8 declares
   `rust-version = "1.86"` too (0.7 was the last line at 1.80), so the dev floor and the
-  runtime floor now agree at 1.86 and the gate below has one number to prove, not two.
-  The `Cargo.toml` comment above `rust-version` used to name clap 4 as the heaviest
-  floor; that was false and is corrected in the same PR. Nothing enforces
+  runtime floor now agree at 1.86 and the gate in task 1 has one number to prove, not
+  two. The `Cargo.toml` comment above `rust-version` used to name clap 4 as the
+  heaviest floor; that was false and was corrected in PR #52. Nothing enforces
   the floor: all six files in `.github/workflows/` use only
   `dtolnay/rust-toolchain@stable`, `@nightly`, or the `[stable, beta, nightly]` matrix,
   and there is no `rust-toolchain.toml`. slokit's `MSRV 1.82` job, with its documented
@@ -168,14 +186,12 @@ two milestones so each stays at one or two small PRs.
   an `MSRV <version>` job exists in `ci.yml`, is green on its own PR with before/after
   numbers, is added to `main`'s required contexts *after* it first posts a status, and
   `rust-version` matches what that job actually builds.
-- Release per the flow in Working agreements.
-
-Done when: notify and criterion are on current majors, tests pass, and the declared
-MSRV is one a CI job proves.
 
 ### v1.8.0: dependency currency, part 2 (ureq and colored)
 
-Same rules as v1.7.0; one runtime major per PR.
+Same rules as the dependency-currency work recorded under History (one runtime
+major per PR, targets re-read from the crates.io API on the day of the bump);
+follows the v1.7.0 cut.
 
 - PR 1: bump `ureq` `2` → `3.3.0` (crates.io `max_stable_version`, verified 2026-07-26)
   with call-site migration and tests. This one touches `src/safe_http.rs`, whose whole
@@ -353,6 +369,38 @@ bumps) are all lifted. What remains:
 
 ## History and supersession
 
+- **v1.7.0 "dependency currency, part 1 (notify and criterion)" — both bumps
+  SHIPPED, milestone rescoped 2026-08-16.** The version number now names the
+  next minor release (see Milestones); the two bumps ride in it and the
+  milestone's open MSRV leg became that release's task 1. PR 1 (2026-07-25,
+  PR #21, `d622555`): notify 6.1.1 → 8.2.0, no call-site migration needed — the
+  `Config` / `RecommendedWatcher` / `RecursiveMode` / `EventKind` surface
+  `src/watch.rs` and `src/ci.rs` use is unchanged across both majors — so the
+  PR's substance was `src/watch.rs`'s first real tests, run by the CI matrix on
+  inotify, `ReadDirectoryChangesW` and FSEvents; supply chain shrank 213 → 212
+  crates. PR 2 (2026-08-13, PR #52): criterion `0.5` → `0.8.2` (dev-only, frozen
+  API untouched); both bench files moved to `std::hint::black_box` (the criterion
+  form is deprecated from 0.6 and the `-D warnings` clippy gate makes that an
+  error); the bencher line now groups digits, which the tracking action's
+  extractor accepts (`[0-9,.]+`); the PR #47 split-line failure still reproduces
+  on 0.8.2 so the `rm -rf target/criterion` step stays load-bearing; and the new
+  guard `tests/criterion_citation_tests.rs` ties every criterion version cited in
+  prose to `Cargo.lock`, catching one stale citation on its first run.
+- **v1.6.1 "coverage improvements" — version vehicle RETIRED 2026-08-16
+  (overridable default, recorded by the same product run that defined v1.7.0);
+  the coverage work itself continues, unversioned, in the QA stream.** Three
+  slices shipped and each found live defects: PR #38 (2026-07-26,
+  `src/output/terminal.rs` + the one real SBOM edge case, which surfaced the
+  orphaned-sidecar bug PR #40 fixed), PR #42 (2026-08-01, `src/stats.rs`, which
+  surfaced the empty-string field-gate defect its own PR fixed), PR #46
+  (2026-08-11, `src/search.rs`, which surfaced the dead `depends_on` field and
+  the colon-value no-op). The vehicle is retired because the work needs no
+  release of its own: test-only changes ship invisibly with whatever release
+  follows them, a 1.6.1 published after 1.7.0 would be out of version order, and
+  holding 1.7.0 behind a patch that changes no shipped behaviour serves nobody.
+  Remaining targets (`src/output/markdown.rs`, `src/output/workspace.rs`, and
+  the older zero-coverage `src/audit.rs` / `src/import.rs` / `src/demo.rs`,
+  measured 2026-08-11) are tracked in the autodev backlog's QA queue.
 - **v1.6.0 "publish what is already on main" — SHIPPED 2026-07-26.** Release prep landed
   as PR #30 and the cut followed the same day: annotated tag `v1.6.0` at `fe59cd5`,
   `publish.yml` run `30196265195` green, crates.io `"newest_version":"1.6.0"`, GitHub
