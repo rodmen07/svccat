@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786638664889,
+  "lastUpdate": 1786979681552,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4499,6 +4499,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12370,
             "range": "± 43",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6363c98099f16aa6ccef7b2daa9573bb68c33e42",
+          "message": "docs(roadmap): name the next release — v1.7.0 rescoped to ship the thirteen unreleased PRs (#53)\n\nProduct run. The release train stalled structurally after the v1.6.0 cut:\nthirteen PRs of user-facing work (2 features, 10 fixes, 2 security) each\nsay they target 'the next release after v1.6.0', but no milestone ever\nnamed that release, and the standing release delegation acts only when the\nroadmap or backlog names a cut.\n\n- v1.7.0 rescoped from 'dependency currency part 1' (both bumps shipped)\n  to the next-minor release milestone: task 1 MSRV gate + rust-version\n  1.86 (the open DevSecOps item, sequenced before the cut so the published\n  metadata is true), task 2 release prep, task 3 the cut, with a checkable\n  done-when (crates.io newest_version 1.7.0 + the two standing publish.yml\n  observations closed on the run log).\n- MINOR classification recorded as a flagged overridable default, with the\n  two changes that deserve the flag named (PR #42 stricter gates, PR #50\n  generated-artifact byte order).\n- v1.6.1 version vehicle retired (overridable default); the coverage work\n  continues unversioned in the QA stream. Shipped slices and remaining\n  targets recorded under History.\n- Current state re-dated 2026-08-16 with the release gap stated.",
+          "timestamp": "2026-08-17T10:12:38-05:00",
+          "tree_id": "1091a8111f0cac28dcc78b124a35c8faf0a3ed3c",
+          "url": "https://github.com/rodmen07/svccat/commit/6363c98099f16aa6ccef7b2daa9573bb68c33e42"
+        },
+        "date": 1786979681060,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12317,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23345,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 264,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5494,
+            "range": "± 81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5030,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12250,
+            "range": "± 59",
             "unit": "ns/iter"
           }
         ]
