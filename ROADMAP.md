@@ -11,7 +11,8 @@ written); a guarded one cannot rot silently.
 
 The public 1.x API (library and CLI) is frozen under semver. The freeze is defined in
 [docs/API_STABILITY.md](docs/API_STABILITY.md); this roadmap does not restate it. MSRV is
-*declared* as Rust 1.85, is enforced by nothing, and does not currently hold — see v1.7.0.
+Rust 1.86, declared in `Cargo.toml` and enforced by the `MSRV 1.86` job in `ci.yml`
+since PR #54 (2026-08-18) — see v1.7.0 task 1 for the history of the fictional 1.85.
 
 ## Current state (2026-08-16)
 
@@ -39,8 +40,9 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
   (snapshot-diff ordering), which is listed under `## [Unreleased]` and ships in the
   next release, so published 1.6.0 contains exactly what its own changelog section
   describes. See `## Unreleased on main` for what that leaves pending.
-- Since the cut, `main` has taken PRs #31 through #52. Their user-facing subset —
-  two features, ten fixes and two security hardenings across thirteen PRs — is
+- Since the cut, `main` has taken PRs #31 through #54. Their user-facing subset —
+  two features, ten fixes, two security hardenings and one MSRV correction
+  across fourteen PRs — is
   listed under `## Unreleased on main` and in `CHANGELOG.md`'s `[Unreleased]`, and
   **none of it has reached a user: the newest published version is still 1.6.0**
   (crates.io API re-read 2026-08-16), three weeks after the cut, against the
@@ -109,10 +111,11 @@ The public 1.x API (library and CLI) is frozen under semver. The freeze is defin
 
 ## Milestones
 
-### v1.7.0: the next minor — ship the thirteen PRs accumulated on main
+### v1.7.0: the next minor — ship the fourteen PRs accumulated on main
 
 Everything under `## Unreleased on main` (two features, ten fixes, two security
-hardenings, PRs #31 through #51) has sat unreleased since the v1.6.0 cut on
+hardenings — PRs #31 through #51 — plus this milestone's own task-1 MSRV
+correction, PR #54) has sat unreleased since the v1.6.0 cut on
 2026-07-26, while the Working agreements promise roughly one minor per week. The
 cause was structural, not a slow queue: every one of those changelog entries says
 it "targets the next release after v1.6.0", but no milestone ever NAMED that
@@ -146,7 +149,14 @@ Ordered tasks, each its own PR:
    `Cargo.toml`'s `rust-version` corrected `1.85` → `1.86` in the same PR (see
    the MSRV bullet below for why 1.86 is the number). Sequenced before the cut
    deliberately: 1.6.0 already shipped with a fictional declared MSRV, and
-   cutting 1.7.0 first would mint a second one.
+   cutting 1.7.0 first would mint a second one. **SHIPPED as PR #54
+   (2026-08-18): the job, the corrected `rust-version = "1.86"`, and the
+   coupling guard `tests/msrv_gate_tests.rs` landed together. Before/after,
+   measured locally against the committed lockfile: `cargo +1.85 check
+   --all-targets --all-features --locked` exits 101 (criterion@0.8.2,
+   idna_adapter@1.2.2 and the icu_* 2.2.0 crates all "requires rustc 1.86");
+   the same command on 1.86 exits 0. The required-context addition follows the
+   job's first posted status, per this task's own sequencing rule.**
 2. **Release prep**, the v1.6.0 shape: roll `[Unreleased]` into
    `## [1.7.0] - <date>` in `CHANGELOG.md`, bump `Cargo.toml` + `Cargo.lock`,
    delete `## Unreleased on main` here and move this milestone to History —
@@ -178,11 +188,12 @@ absorbed — the shipped bumps themselves are recorded under History):
   `rust-version = "1.86"` too (0.7 was the last line at 1.80), so the dev floor and the
   runtime floor now agree at 1.86 and the gate in task 1 has one number to prove, not
   two. The `Cargo.toml` comment above `rust-version` used to name clap 4 as the
-  heaviest floor; that was false and was corrected in PR #52. Nothing enforces
-  the floor: all six files in `.github/workflows/` use only
+  heaviest floor; that was false and was corrected in PR #52. Until PR #54 nothing
+  enforced the floor: all six files in `.github/workflows/` used only
   `dtolnay/rust-toolchain@stable`, `@nightly`, or the `[stable, beta, nightly]` matrix,
   and there is no `rust-toolchain.toml`. slokit's `MSRV 1.82` job, with its documented
-  rust-version-aware resolve-and-pin recipe, is the pattern to copy. Close condition:
+  rust-version-aware resolve-and-pin recipe, was the pattern copied (the pin recipe
+  lives in the job's own comment block in `ci.yml`). Close condition:
   an `MSRV <version>` job exists in `ci.yml`, is green on its own PR with before/after
   numbers, is added to `main`'s required contexts *after* it first posts a status, and
   `rust-version` matches what that job actually builds.
@@ -215,6 +226,18 @@ Every entry cites the pull request that landed it, immediately after its bold
 title, and `the_two_documents_cite_the_same_unreleased_pull_requests` fails when
 this list and the changelog's stop naming the same set. The granularity may differ
 — PR #35 is one bullet here and two entries there — but the set may not.
+
+- **The declared MSRV is corrected 1.85 → 1.86 and enforced by a new `MSRV
+  1.86` CI job** (PR #54, 2026-08-18). The v1.7.0 milestone's task 1: the old
+  declaration was fiction (the committed lockfile has required rustc 1.86 via
+  `idna_adapter`/`icu_*` since before v1.6.0, so `cargo +1.85 check --locked`
+  exits 101), and nothing enforced any declared value. The job runs
+  `cargo check --all-targets --all-features --locked` on toolchain 1.86, so
+  the dev floor (criterion 0.8, also 1.86) is proven alongside the runtime
+  one, and `tests/msrv_gate_tests.rs` couples the declared number, the job's
+  toolchain and the job's name so none can drift alone. For consumers this is
+  a documentation correction, not a new restriction: 1.85 could never build
+  the crate as published.
 
 - **`svccat workspace check` emits byte-identical bytes for an unchanged
   workspace** (PR #51, 2026-08-12). THREE producers fed `HashMap` iteration

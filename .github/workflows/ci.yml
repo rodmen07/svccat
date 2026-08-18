@@ -168,3 +168,45 @@ jobs:
       # green-run noise nobody reads.
       - name: Clippy (all targets, all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+  msrv:
+    name: MSRV 1.86
+    # Proves the declared `rust-version` in Cargo.toml actually builds this
+    # checkout: every target, every feature, against the committed lockfile.
+    # Until this job existed nothing enforced the floor and the declared value
+    # was fiction: Cargo.toml said 1.85 while the committed lockfile carried
+    # idna_adapter 1.2.2 and the icu_* 2.2.0 crates (via `url`) plus criterion
+    # 0.8.2, every one declaring `rust-version = "1.86"`, so
+    # `cargo +1.85 check --locked` exited 101 on exactly that disagreement.
+    # The job and the declared number shipped together, and
+    # `tests/msrv_gate_tests.rs` couples them both ways: the `toolchain:`
+    # installed here, the version in this job's `name:` (the branch-protection
+    # required-context string, like the lint job's), and Cargo.toml's
+    # `rust-version` must all agree, so none of the three can drift alone.
+    #
+    # When this job goes red after a dependency bump, the new version raised
+    # its own floor. Two legal fixes, never a third: pin the dependency back
+    # (`cargo update <name>@<new-ver> --precise <compatible-ver>`, the recipe
+    # cargo's own error message prints), or raise the floor deliberately —
+    # `rust-version`, this job's `toolchain:` and this job's `name:` in the
+    # same PR, plus the matching required-context rename on `main`'s branch
+    # protection. Never "fix" it by dropping `--locked`: an unlocked resolve
+    # floats the lockfile past the disagreement instead of reporting it.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+
+      - name: Install Rust Toolchain (MSRV)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.86"
+
+      - name: Cache Cargo registry and build output
+        uses: Swatinem/rust-cache@v2.9.2
+
+      # --all-targets reaches the dev-dependency floor too (criterion 0.8
+      # declares 1.86); --locked makes a lockfile the MSRV cannot build a
+      # loud failure instead of a silent re-resolve.
+      - name: Check every target on the minimum supported Rust
+        run: cargo check --all-targets --all-features --locked
