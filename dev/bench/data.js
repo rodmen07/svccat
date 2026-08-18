@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786979681552,
+  "lastUpdate": 1787056355764,
   "repoUrl": "https://github.com/rodmen07/svccat",
   "entries": {
     "Benchmark": [
@@ -4559,6 +4559,66 @@ window.BENCHMARK_DATA = {
             "name": "analyze_dependencies",
             "value": 12250,
             "range": "± 59",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rodmendoza07@gmail.com",
+            "name": "Roderick Mendoza",
+            "username": "rodmen07"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "af4f28064e75e4fd1767c9d528b7df6bb1213d5e",
+          "message": "ci: MSRV 1.86 gate — enforce the declared floor, and correct the fiction (#54)\n\nCargo.toml declared rust-version 1.85 while the committed lockfile carried\nidna_adapter 1.2.2, the icu_* 2.2.0 crates and criterion 0.8.2, every one\ndeclaring rust-version 1.86: cargo +1.85 check --all-targets --all-features\n--locked exits 101 on exactly that disagreement, so no 1.85 toolchain could\never have built this crate as published. New MSRV 1.86 job in ci.yml proves\nthe floor on every PR (cargo check --all-targets --all-features --locked),\nrust-version corrected 1.85 -> 1.86 in the same commit, and\ntests/msrv_gate_tests.rs couples the declared number, the job's toolchain\nand the job's name (the future required-context string) so none of the\nthree can drift alone. CHANGELOG [Unreleased] and ROADMAP updated; the\nroadmap/changelog PR-citation guard forced the pair to agree, which is\nthat guard working as designed.",
+          "timestamp": "2026-08-18T07:30:34-05:00",
+          "tree_id": "bcf4fda7424ed03d29be9fe8a34fcb164a8f6236",
+          "url": "https://github.com/rodmen07/svccat/commit/af4f28064e75e4fd1767c9d528b7df6bb1213d5e"
+        },
+        "date": 1787056355250,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "load_manifest_small",
+            "value": 12786,
+            "range": "± 1346",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "load_manifest_medium",
+            "value": 23346,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "validate_public_url",
+            "value": 265,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_private_ip",
+            "value": 5429,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "reject_ipv6_loopback",
+            "value": 5117,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "analyze_dependencies",
+            "value": 12418,
+            "range": "± 66",
             "unit": "ns/iter"
           }
         ]
